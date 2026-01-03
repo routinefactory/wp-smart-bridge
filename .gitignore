@@ -1,0 +1,30 @@
+# 워드프레스 플러그인 패키지 파일 제외
+*.zip
+
+# 개발 도구
+.vscode/
+.idea/
+*.sublime-*
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 로그 파일
+*.log
+debug.log
+
+# 임시 파일
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Node (개발 도구용)
+node_modules/
+
+# Composer (개발 도구용)
+vendor/
+composer.lock
