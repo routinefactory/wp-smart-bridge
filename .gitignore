@@ -1,0 +1,23 @@
+# Git Ignore for Security Short Link Maker
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project internal files
+prd.md
+python_client_example.py
+git_config.tmp
+*.zip
+
+# Local Git settings (already handled but good for safety)
+.git/
+
+# Node (if any)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# WordPress specific (if any)
+wp-config.php
+wp-content/uploads/
