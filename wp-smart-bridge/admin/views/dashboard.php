@@ -35,10 +35,18 @@ $alltime_top_links = $analytics->get_all_time_top_links(20);
 ?>
 
 <div class="wrap sb-dashboard">
-    <h1>
-        <span class="dashicons dashicons-admin-links"></span>
-        Smart Bridge 대시보드
-    </h1>
+    <div class="sb-header-with-actions">
+        <h1>
+            <span class="dashicons dashicons-admin-links"></span>
+            Smart Bridge 대시보드
+        </h1>
+        <div class="sb-header-actions">
+            <button type="button" id="sb-check-update" class="button">
+                <span class="dashicons dashicons-update"></span>
+                업데이트 확인
+            </button>
+        </div>
+    </div>
 
     <?php if (!$has_api_keys): ?>
         <!-- API 키 미발급 경고 -->

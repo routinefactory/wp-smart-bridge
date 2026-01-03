@@ -37,8 +37,41 @@
             }
         });
 
-        $('#sb-apply-filter').on('click', function () {
-            loadStats();
+
+        $('#sb-check-update').on('click', function () {
+            checkUpdate($(this));
+        });
+    }
+
+    /**
+     * 업데이트 확인 실행
+     */
+    function checkUpdate($btn) {
+        if ($btn.hasClass('updating')) return;
+
+        var originalHtml = $btn.html();
+        $btn.addClass('updating').prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> 확인 중...');
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_check_update',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function (response) {
+                if (response.success) {
+                    alert(response.data.message);
+                } else {
+                    alert('에러: ' + response.data.message);
+                }
+            },
+            error: function () {
+                alert('업데이트 확인 중 통신 오류가 발생했습니다.');
+            },
+            complete: function () {
+                $btn.removeClass('updating').prop('disabled', false).html(originalHtml);
+            }
         });
     }
 
