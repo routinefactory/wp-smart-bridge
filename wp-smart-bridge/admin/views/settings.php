@@ -69,8 +69,8 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                                                                                                            <?php echo esc_html($key['secret_key']); ?>
-                                                                                                                        </code>
+                                                                                                                                    <?php echo esc_html($key['secret_key']); ?>
+                                                                                                                                </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -275,8 +275,7 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                     var required = [
                         '{{DELAY_SECONDS}}',
                         '{{TARGET_URL}}',
-                        '{{COUNTDOWN_SCRIPT}}',
-                        'id="countdown"'
+                        '{{COUNTDOWN_SCRIPT}}'
                     ];
 
                     var missing = [];
@@ -285,6 +284,11 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                             missing.push(placeholder);
                         }
                     });
+
+                    // id="countdown" 또는 id='countdown' 정규식 검사 (서버측과 동일)
+                    if (!/id\s*=\s*["']countdown["']/.test(template)) {
+                        missing.push('id="countdown"');
+                    }
 
                     var valid = missing.length === 0;
 

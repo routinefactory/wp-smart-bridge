@@ -219,7 +219,13 @@ class SB_Post_Type
                     <span class="sb-platform-badge sb-platform-<?php echo esc_attr(strtolower($platform)); ?>">
                         <?php echo esc_html($platform ?: 'Etc'); ?>
                     </span>
-                    <p class="description">타겟 URL의 도메인을 기반으로 자동 분류됩니다.</p>
+                    <p class="description">
+                        타겟 URL의 도메인을 기반으로 자동 분류됩니다.<br>
+                        <span style="color: #6b7280; font-size: 12px;">
+                            💡 타겟 URL 변경 시 플랫폼도 자동으로 업데이트됩니다.
+                            단, 기존 클릭 로그는 변경 전 플랫폼으로 유지됩니다.
+                        </span>
+                    </p>
                 </td>
             </tr>
         </table>

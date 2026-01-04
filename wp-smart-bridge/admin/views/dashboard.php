@@ -120,6 +120,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
                     <option value="" disabled>데이터 없음</option>
                 <?php endif; ?>
             </select>
+            <span class="sb-filter-help" title="클릭 로그 기준으로 필터링됩니다. 링크의 타겟 URL을 변경한 경우, 변경 전 클릭도 포함될 수 있습니다.">ⓘ</span>
         </div>
 
         <button type="button" id="sb-apply-filters" class="button button-primary">
@@ -127,6 +128,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
             필터 적용
         </button>
     </div>
+
 
     <!-- 요약 카드 -->
     <div class="sb-summary-cards">
@@ -733,17 +735,38 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
             color: #3730a3;
         }
 
+        /* 필터 도움말 아이콘 */
+        .sb-filter-help {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            margin-left: 5px;
+            background: #e5e7eb;
+            border-radius: 50%;
+            font-size: 11px;
+            cursor: help;
+            color: #6b7280;
+            vertical-align: middle;
+        }
+
+        .sb-filter-help:hover {
+            background: #667eea;
+            color: #fff;
+        }
+
         /* ========================================
            Phase 2-5: 새로운 분석 섹션 스타일
            ======================================== */
-        
+
         .sb-analytics-section {
             margin-top: 30px;
             background: #fff;
             padding: 25px;
             border-radius: 12px;
             border: 1px solid #e2e4e7;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .sb-section-title {
@@ -811,7 +834,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
 
         .sb-stat-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .sb-stat-card.highlight {
@@ -820,7 +843,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
         }
 
         .sb-stat-card.highlight .sb-stat-label {
-            color: rgba(255,255,255,0.8);
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .sb-stat-icon {
@@ -960,7 +983,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
                 <span><strong>플랫폼:</strong> <span id="sb-link-platform">-</span></span>
                 <span><strong>생성일:</strong> <span id="sb-link-created">-</span></span>
             </div>
-            
+
             <div class="sb-link-stats-grid">
                 <div class="sb-link-stat">
                     <div class="sb-link-stat-value" id="sb-link-total-clicks">-</div>
@@ -1017,7 +1040,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0,0,0,0.5);
+        background: rgba(0, 0, 0, 0.5);
     }
 
     .sb-modal-content {
@@ -1028,7 +1051,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
         width: 90%;
         max-height: 90vh;
         overflow-y: auto;
-        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     }
 
     .sb-modal-large {
