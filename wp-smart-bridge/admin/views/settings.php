@@ -69,8 +69,8 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                                                                                                    <?php echo esc_html($key['secret_key']); ?>
-                                                                                                                </code>
+                                                                                                                            <?php echo esc_html($key['secret_key']); ?>
+                                                                                                                        </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -273,7 +273,6 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
 
                 function validateTemplate(template, showSuccess) {
                     var required = [
-                        '{{LOADING_MESSAGE}}',
                         '{{DELAY_SECONDS}}',
                         '{{TARGET_URL}}',
                         '{{COUNTDOWN_SCRIPT}}',

@@ -631,4 +631,590 @@
         $container.prepend(html);
     }
 
+    // ========================================
+    // Phase 2-5: 새로운 분석 기능
+    // ========================================
+
+    // 차트 인스턴스 저장
+    var analyticsCharts = {
+        referer: null,
+        refererGroups: null,
+        device: null,
+        os: null,
+        browser: null,
+        weekday: null,
+        comparison: null,
+        linkHourly: null
+    };
+
+    /**
+     * 필터 적용 시 모든 분석 데이터 로드
+     */
+    function applyFilters() {
+        loadStats();
+        loadRefererAnalytics();
+        loadDeviceAnalytics();
+        loadPatternAnalytics();
+    }
+
+    /**
+     * 유입 경로 분석 API 호출
+     */
+    function loadRefererAnalytics() {
+        var params = getFilterParams();
+
+        $.ajax({
+            url: sbAdmin.restUrl + 'analytics/referers',
+            method: 'GET',
+            data: params,
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+            },
+            success: function (response) {
+                if (response.success) {
+                    renderRefererChart(response.data.top_referers);
+                    renderRefererGroupsChart(response.data.referer_groups);
+                }
+            }
+        });
+    }
+
+    /**
+     * 디바이스 분석 API 호출
+     */
+    function loadDeviceAnalytics() {
+        var params = getFilterParams();
+
+        $.ajax({
+            url: sbAdmin.restUrl + 'analytics/devices',
+            method: 'GET',
+            data: params,
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+            },
+            success: function (response) {
+                if (response.success) {
+                    renderDeviceChart(response.data.devices);
+                    renderOSChart(response.data.os);
+                    renderBrowserChart(response.data.browsers);
+                }
+            }
+        });
+    }
+
+    /**
+     * 패턴 분석 API 호출
+     */
+    function loadPatternAnalytics() {
+        var params = getFilterParams();
+
+        $.ajax({
+            url: sbAdmin.restUrl + 'analytics/patterns',
+            method: 'GET',
+            data: params,
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+            },
+            success: function (response) {
+                if (response.success) {
+                    renderWeekdayChart(response.data.weekday_pattern);
+                    renderVisitorStats(response.data.returning_visitors);
+                    renderAnomalies(response.data.anomalies);
+                }
+            }
+        });
+    }
+
+    /**
+     * 필터 파라미터 추출
+     */
+    function getFilterParams() {
+        var range = $('#sb-date-range').val();
+        var platform = $('#sb-platform-filter').val();
+        var params = {
+            range: range,
+            platform_filter: platform
+        };
+
+        if (range === 'custom') {
+            params.start_date = $('#sb-start-date').val();
+            params.end_date = $('#sb-end-date').val();
+        }
+
+        return params;
+    }
+
+    /**
+     * 유입 경로 TOP 10 차트
+     */
+    function renderRefererChart(data) {
+        var ctx = document.getElementById('sb-referer-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.referer) {
+            analyticsCharts.referer.destroy();
+        }
+
+        var labels = data.map(function (item) { return item.referer_domain; });
+        var clicks = data.map(function (item) { return parseInt(item.clicks); });
+
+        analyticsCharts.referer = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '클릭',
+                    data: clicks,
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    /**
+     * 유입 그룹 분포 차트
+     */
+    function renderRefererGroupsChart(data) {
+        var ctx = document.getElementById('sb-referer-groups-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.refererGroups) {
+            analyticsCharts.refererGroups.destroy();
+        }
+
+        analyticsCharts.refererGroups = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Direct', 'SNS', 'Search', 'Other'],
+                datasets: [{
+                    data: [data.Direct, data.SNS, data.Search, data.Other],
+                    backgroundColor: ['#3b82f6', '#ec4899', '#22c55e', '#f59e0b']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    /**
+     * 디바이스 분포 차트
+     */
+    function renderDeviceChart(data) {
+        var ctx = document.getElementById('sb-device-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.device) {
+            analyticsCharts.device.destroy();
+        }
+
+        analyticsCharts.device = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    data: Object.values(data),
+                    backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    }
+
+    /**
+     * OS 분포 차트
+     */
+    function renderOSChart(data) {
+        var ctx = document.getElementById('sb-os-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.os) {
+            analyticsCharts.os.destroy();
+        }
+
+        var colors = ['#667eea', '#764ba2', '#f59e0b', '#22c55e', '#ef4444', '#3b82f6'];
+
+        analyticsCharts.os = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    data: Object.values(data),
+                    backgroundColor: colors.slice(0, Object.keys(data).length)
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    }
+
+    /**
+     * 브라우저 분포 차트
+     */
+    function renderBrowserChart(data) {
+        var ctx = document.getElementById('sb-browser-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.browser) {
+            analyticsCharts.browser.destroy();
+        }
+
+        var colors = ['#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444'];
+
+        analyticsCharts.browser = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    data: Object.values(data),
+                    backgroundColor: colors.slice(0, Object.keys(data).length)
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    }
+
+    /**
+     * 요일별 패턴 차트
+     */
+    function renderWeekdayChart(data) {
+        var ctx = document.getElementById('sb-weekday-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.weekday) {
+            analyticsCharts.weekday.destroy();
+        }
+
+        analyticsCharts.weekday = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    label: '클릭',
+                    data: Object.values(data),
+                    fill: true,
+                    backgroundColor: 'rgba(102, 126, 234, 0.3)',
+                    borderColor: '#667eea',
+                    pointBackgroundColor: '#667eea'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    r: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * 방문자 통계 렌더링
+     */
+    function renderVisitorStats(data) {
+        $('#sb-new-visitors').text(data.new_visitors.toLocaleString());
+        $('#sb-returning-visitors').text(data.returning.toLocaleString());
+        $('#sb-frequent-visitors').text(data.frequent.toLocaleString());
+        $('#sb-returning-rate').text(data.returning_rate + '%');
+    }
+
+    /**
+     * 이상치 렌더링
+     */
+    function renderAnomalies(data) {
+        var $section = $('#sb-anomaly-section');
+        var $content = $('#sb-anomaly-content');
+
+        if (data.message || (data.spikes.length === 0 && data.drops.length === 0)) {
+            $section.hide();
+            return;
+        }
+
+        $section.show();
+        $content.empty();
+
+        data.spikes.forEach(function (item) {
+            $content.append(`
+                <div class="sb-anomaly-item spike">
+                    <span>📈 ${item.date}</span>
+                    <span><strong>${item.clicks}</strong> 클릭 (+${item.deviation}σ)</span>
+                </div>
+            `);
+        });
+
+        data.drops.forEach(function (item) {
+            $content.append(`
+                <div class="sb-anomaly-item drop">
+                    <span>📉 ${item.date}</span>
+                    <span><strong>${item.clicks}</strong> 클릭 (${item.deviation}σ)</span>
+                </div>
+            `);
+        });
+    }
+
+    /**
+     * 기간 비교 토글
+     */
+    $(document).on('click', '#sb-toggle-comparison', function () {
+        var $container = $('#sb-comparison-container');
+        var $btn = $(this);
+
+        if ($container.is(':visible')) {
+            $container.slideUp();
+            $btn.text('비교 모드 활성화');
+        } else {
+            $container.slideDown();
+            $btn.text('비교 모드 비활성화');
+        }
+    });
+
+    /**
+     * 기간 비교 데이터 로드
+     */
+    $(document).on('click', '#sb-load-comparison', function () {
+        var type = $('#sb-comparison-type').val();
+        var params = getFilterParams();
+
+        $.ajax({
+            url: sbAdmin.restUrl + 'analytics/comparison',
+            method: 'GET',
+            data: params,
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+            },
+            success: function (response) {
+                if (response.success) {
+                    renderComparison(response.data);
+                }
+            }
+        });
+    });
+
+    /**
+     * 기간 비교 렌더링
+     */
+    function renderComparison(data) {
+        $('#sb-current-clicks').text(data.current.clicks.toLocaleString());
+        $('#sb-previous-clicks').text(data.previous.clicks.toLocaleString());
+
+        var rate = data.comparison.clicks_rate;
+        var rateText = (rate >= 0 ? '+' : '') + rate + '%';
+        var $rateEl = $('#sb-comparison-rate');
+        $rateEl.text(rateText)
+            .removeClass('positive negative')
+            .addClass(rate >= 0 ? 'positive' : 'negative');
+
+        // 비교 차트
+        var ctx = document.getElementById('sb-comparison-chart');
+        if (!ctx) return;
+
+        if (analyticsCharts.comparison) {
+            analyticsCharts.comparison.destroy();
+        }
+
+        var currentLabels = data.current.trend.map(function (i) { return i.date.substring(5); });
+        var currentData = data.current.trend.map(function (i) { return i.clicks; });
+        var previousData = data.previous.trend.map(function (i) { return i.clicks; });
+
+        analyticsCharts.comparison = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: currentLabels,
+                datasets: [
+                    {
+                        label: '현재 기간',
+                        data: currentData,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: '이전 기간',
+                        data: previousData,
+                        borderColor: '#94a3b8',
+                        backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        borderDash: [5, 5]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                }
+            }
+        });
+    }
+
+    /**
+     * 링크 상세 모달 열기
+     */
+    $(document).on('click', '#sb-today-links tbody tr', function () {
+        var $row = $(this);
+        var linkId = $row.find('a.button').attr('href');
+
+        if (!linkId) return;
+
+        var match = linkId.match(/post=(\d+)/);
+        if (!match) return;
+
+        var id = match[1];
+        openLinkDetailModal(id);
+    });
+
+    function openLinkDetailModal(linkId) {
+        var params = getFilterParams();
+        params.id = linkId;
+
+        $.ajax({
+            url: sbAdmin.restUrl + 'links/' + linkId + '/analytics',
+            method: 'GET',
+            data: params,
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+            },
+            success: function (response) {
+                if (response.success) {
+                    renderLinkDetailModal(response.data);
+                    $('#sb-link-detail-modal').fadeIn(200);
+                }
+            }
+        });
+    }
+
+    function renderLinkDetailModal(data) {
+        // 기본 정보
+        $('#sb-link-slug').text(data.link_info.slug);
+        $('#sb-link-platform').text(data.link_info.platform);
+        $('#sb-link-created').text(data.link_info.created_at.substring(0, 10));
+
+        // 통계
+        $('#sb-link-total-clicks').text(data.stats.total_clicks.toLocaleString());
+        $('#sb-link-unique-visitors').text(data.stats.unique_visitors.toLocaleString());
+
+        // 시간대별 차트
+        var ctx = document.getElementById('sb-link-hourly-chart');
+        if (ctx) {
+            if (analyticsCharts.linkHourly) {
+                analyticsCharts.linkHourly.destroy();
+            }
+
+            var labels = [];
+            for (var i = 0; i < 24; i++) {
+                labels.push(i + '시');
+            }
+
+            analyticsCharts.linkHourly = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '클릭',
+                        data: data.stats.clicks_by_hour,
+                        backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // 유입 경로
+        var $referers = $('#sb-link-referers');
+        $referers.empty();
+        if (data.referers.length === 0) {
+            $referers.append('<div class="sb-referer-item">데이터 없음</div>');
+        } else {
+            data.referers.forEach(function (item) {
+                $referers.append(`
+                    <div class="sb-referer-item">
+                        <span>${item.referer_domain}</span>
+                        <strong>${parseInt(item.clicks).toLocaleString()}</strong>
+                    </div>
+                `);
+            });
+        }
+
+        // 디바이스
+        var $devices = $('#sb-link-device-bars');
+        $devices.empty();
+        var deviceData = data.devices.devices;
+        Object.keys(deviceData).forEach(function (device) {
+            $devices.append(`
+                <div class="sb-device-bar">
+                    <div class="sb-device-bar-value">${deviceData[device].toLocaleString()}</div>
+                    <div class="sb-device-bar-label">${device}</div>
+                </div>
+            `);
+        });
+    }
+
+    // 모달 닫기
+    $(document).on('click', '.sb-modal-close, .sb-modal-overlay', function () {
+        $(this).closest('.sb-modal').fadeOut(200);
+    });
+
+    // 대시보드 초기 로드 시 분석 데이터도 로드
+    $(document).ready(function () {
+        if (typeof sbChartData !== 'undefined') {
+            setTimeout(function () {
+                loadRefererAnalytics();
+                loadDeviceAnalytics();
+                loadPatternAnalytics();
+            }, 500);
+        }
+    });
+
 })(jQuery);
+

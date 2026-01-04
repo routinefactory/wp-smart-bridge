@@ -298,10 +298,8 @@ class SB_Admin
         // 서버사이드 검증
         $validation = SB_Helpers::validate_template($template);
 
-        if (!$validation['valid']) {
-            wp_send_json_error([
-                'message' => '필수 Placeholder가 누락되었습니다: ' . implode(', ', $validation['missing'])
-            ]);
+        if ($validation !== true) {
+            wp_send_json_error(['message' => $validation]);
         }
 
         update_option('sb_redirect_template', $template);

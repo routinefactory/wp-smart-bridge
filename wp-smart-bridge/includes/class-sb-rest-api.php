@@ -43,6 +43,45 @@ class SB_Rest_API
             'callback' => [__CLASS__, 'get_links'],
             'permission_callback' => [__CLASS__, 'check_stats_permission'],
         ]);
+
+        // ========================================
+        // 새로운 분석 API 엔드포인트
+        // ========================================
+
+        // GET /analytics/referers - 유입 경로 분석
+        register_rest_route(self::NAMESPACE , '/analytics/referers', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_referer_analytics'],
+            'permission_callback' => [__CLASS__, 'check_stats_permission'],
+        ]);
+
+        // GET /analytics/devices - 디바이스 분석
+        register_rest_route(self::NAMESPACE , '/analytics/devices', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_device_analytics'],
+            'permission_callback' => [__CLASS__, 'check_stats_permission'],
+        ]);
+
+        // GET /analytics/comparison - 기간 비교
+        register_rest_route(self::NAMESPACE , '/analytics/comparison', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_period_comparison'],
+            'permission_callback' => [__CLASS__, 'check_stats_permission'],
+        ]);
+
+        // GET /analytics/patterns - 패턴 분석 (요일, 재방문, 이상치)
+        register_rest_route(self::NAMESPACE , '/analytics/patterns', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_pattern_analytics'],
+            'permission_callback' => [__CLASS__, 'check_stats_permission'],
+        ]);
+
+        // GET /links/{id}/analytics - 개별 링크 상세 분석
+        register_rest_route(self::NAMESPACE , '/links/(?P<id>\d+)/analytics', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_link_analytics'],
+            'permission_callback' => [__CLASS__, 'check_stats_permission'],
+        ]);
     }
 
     /**
@@ -159,20 +198,15 @@ class SB_Rest_API
     }
 
     /**
-     * 통계 조회 API (Dashboard용)
-     * 
-     * @param WP_REST_Request $request REST 요청
-     * @return WP_REST_Response 응답
+     * 날짜 범위 파라미터 파싱 헬퍼
      */
-    public static function get_stats($request)
+    private static function parse_date_params($request)
     {
-        // 파라미터 추출
         $range = $request->get_param('range') ?: '30d';
         $start_date = $request->get_param('start_date');
         $end_date = $request->get_param('end_date');
         $platform_filter = $request->get_param('platform_filter');
 
-        // 날짜 범위 계산
         if ($start_date && $end_date) {
             $date_range = [
                 'start' => $start_date . ' 00:00:00',
@@ -182,10 +216,30 @@ class SB_Rest_API
             $date_range = SB_Helpers::get_date_range($range);
         }
 
-        // 분석 데이터 조회
+        return [
+            'date_range' => $date_range,
+            'platform' => $platform_filter,
+            'range_type' => $range,
+        ];
+    }
+
+    /**
+     * 통계 조회 API (Dashboard용) - 필터 정합성 개선
+     * 
+     * @param WP_REST_Request $request REST 요청
+     * @return WP_REST_Response 응답
+     */
+    public static function get_stats($request)
+    {
+        $params = self::parse_date_params($request);
+        $date_range = $params['date_range'];
+        $platform_filter = $params['platform'];
+
         $analytics = new SB_Analytics();
 
+        // ✅ 모든 데이터에 필터 일괄 적용
         $data = [
+            // 선택 기간 + 플랫폼 필터 적용된 클릭/UV
             'total_clicks' => $analytics->get_total_clicks(
                 $date_range['start'],
                 $date_range['end'],
@@ -196,28 +250,256 @@ class SB_Rest_API
                 $date_range['end'],
                 $platform_filter
             ),
-            'growth_rate' => $analytics->get_growth_rate($platform_filter),
+            // ✅ 동적 증감률 (선택 기간 vs 이전 동일 기간)
+            'growth_rate_data' => $analytics->get_dynamic_growth_rate(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'growth_rate' => $analytics->get_dynamic_growth_rate(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            )['rate'],
             'active_links' => $analytics->get_active_links_count(),
             'clicks_by_hour' => $analytics->get_clicks_by_hour(
                 $date_range['start'],
                 $date_range['end'],
                 $platform_filter
             ),
-            'platform_share' => $analytics->get_platform_share(
+            // ✅ 플랫폼 점유율도 필터 적용
+            'platform_share' => $analytics->get_platform_share_filtered(
                 $date_range['start'],
-                $date_range['end']
+                $date_range['end'],
+                $platform_filter
             ),
             'daily_trend' => $analytics->get_daily_trend(
                 $date_range['start'],
                 $date_range['end'],
                 $platform_filter
             ),
-            // ✅ 인기 링크 목록도 필터링해서 함께 반환 (대시보드 테이블 업데이트용)
             'top_links' => $analytics->get_top_links(
                 $date_range['start'],
                 $date_range['end'],
                 $platform_filter,
-                20 // Limit
+                20
+            ),
+            // 필터 정보 반환 (프론트엔드 확인용)
+            'filter_info' => [
+                'start_date' => $date_range['start'],
+                'end_date' => $date_range['end'],
+                'platform' => $platform_filter,
+            ],
+        ];
+
+        return new WP_REST_Response([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
+    /**
+     * 유입 경로 분석 API
+     */
+    public static function get_referer_analytics($request)
+    {
+        $params = self::parse_date_params($request);
+        $date_range = $params['date_range'];
+        $platform_filter = $params['platform'];
+
+        $analytics = new SB_Analytics();
+
+        $data = [
+            'top_referers' => $analytics->get_referer_stats(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter,
+                10
+            ),
+            'referer_groups' => $analytics->get_referer_groups(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+        ];
+
+        return new WP_REST_Response([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
+    /**
+     * 디바이스 분석 API
+     */
+    public static function get_device_analytics($request)
+    {
+        $params = self::parse_date_params($request);
+        $date_range = $params['date_range'];
+        $platform_filter = $params['platform'];
+
+        $analytics = new SB_Analytics();
+
+        $data = [
+            'devices' => $analytics->get_device_stats(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'os' => $analytics->get_os_stats(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'browsers' => $analytics->get_browser_stats(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'mobile_trend' => $analytics->get_mobile_ratio_trend(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'platform_device_matrix' => $analytics->get_platform_device_matrix(
+                $date_range['start'],
+                $date_range['end']
+            ),
+        ];
+
+        return new WP_REST_Response([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
+    /**
+     * 기간 비교 API
+     */
+    public static function get_period_comparison($request)
+    {
+        $params = self::parse_date_params($request);
+        $platform_filter = $params['platform'];
+
+        // 현재 기간
+        $current_start = $request->get_param('current_start');
+        $current_end = $request->get_param('current_end');
+        $previous_start = $request->get_param('previous_start');
+        $previous_end = $request->get_param('previous_end');
+
+        // 지정되지 않은 경우 자동 계산 (최근 7일 vs 이전 7일)
+        if (!$current_start || !$current_end) {
+            $today = new DateTime('now', wp_timezone());
+            $current_end = $today->format('Y-m-d 23:59:59');
+            $current_start = (clone $today)->modify('-6 days')->format('Y-m-d 00:00:00');
+            $previous_end = (clone $today)->modify('-7 days')->format('Y-m-d 23:59:59');
+            $previous_start = (clone $today)->modify('-13 days')->format('Y-m-d 00:00:00');
+        } else {
+            $current_start .= ' 00:00:00';
+            $current_end .= ' 23:59:59';
+            $previous_start .= ' 00:00:00';
+            $previous_end .= ' 23:59:59';
+        }
+
+        $analytics = new SB_Analytics();
+
+        $data = $analytics->get_period_comparison(
+            $current_start,
+            $current_end,
+            $previous_start,
+            $previous_end,
+            $platform_filter
+        );
+
+        return new WP_REST_Response([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
+    /**
+     * 패턴 분석 API (요일, 재방문, 이상치)
+     */
+    public static function get_pattern_analytics($request)
+    {
+        $params = self::parse_date_params($request);
+        $date_range = $params['date_range'];
+        $platform_filter = $params['platform'];
+
+        $analytics = new SB_Analytics();
+
+        $data = [
+            'weekday_pattern' => $analytics->get_weekday_pattern(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'returning_visitors' => $analytics->get_returning_visitors(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'anomalies' => $analytics->get_anomalies(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
+            'link_age_performance' => $analytics->get_link_age_performance(
+                $date_range['start'],
+                $date_range['end']
+            ),
+        ];
+
+        return new WP_REST_Response([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
+    /**
+     * 개별 링크 상세 분석 API
+     */
+    public static function get_link_analytics($request)
+    {
+        $link_id = (int) $request->get_param('id');
+        $params = self::parse_date_params($request);
+        $date_range = $params['date_range'];
+
+        // 링크 존재 확인
+        $post = get_post($link_id);
+        if (!$post || $post->post_type !== 'sb_link') {
+            return new WP_Error(
+                'not_found',
+                '링크를 찾을 수 없습니다.',
+                ['status' => 404]
+            );
+        }
+
+        $analytics = new SB_Analytics();
+
+        $data = [
+            'link_info' => [
+                'id' => $link_id,
+                'slug' => $post->post_title,
+                'short_link' => SB_Helpers::get_short_link_url($post->post_title),
+                'target_url' => get_post_meta($link_id, 'target_url', true),
+                'platform' => get_post_meta($link_id, 'platform', true),
+                'created_at' => $post->post_date,
+            ],
+            'stats' => $analytics->get_link_detailed_stats(
+                $link_id,
+                $date_range['start'],
+                $date_range['end']
+            ),
+            'referers' => $analytics->get_link_referer_breakdown(
+                $link_id,
+                $date_range['start'],
+                $date_range['end']
+            ),
+            'devices' => $analytics->get_link_device_breakdown(
+                $link_id,
+                $date_range['start'],
+                $date_range['end']
             ),
         ];
 
@@ -304,3 +586,4 @@ class SB_Rest_API
         ], 200);
     }
 }
+
