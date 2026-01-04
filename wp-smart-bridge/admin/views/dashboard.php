@@ -33,7 +33,7 @@ $growth_rate = $analytics->get_growth_rate();
 $active_links = $analytics->get_active_links_count();
 $clicks_by_hour = $analytics->get_clicks_by_hour($date_range['start'], $date_range['end']);
 $platform_share = $analytics->get_platform_share($date_range['start'], $date_range['end']);
-$daily_trend = $analytics->get_daily_trend(30);
+$daily_trend = $analytics->get_daily_trend($date_range['start'], $date_range['end']);
 
 // 실제 데이터 기반 플랫폼 목록
 $available_platforms = $analytics->get_available_platforms();
