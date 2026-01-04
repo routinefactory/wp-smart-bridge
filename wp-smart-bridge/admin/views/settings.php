@@ -16,7 +16,6 @@ $api_keys = SB_Database::get_user_api_keys($user_id);
 $settings = get_option('sb_settings', []);
 
 $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay'] : 0;
-$default_loading_message = isset($settings['default_loading_message']) ? $settings['default_loading_message'] : '잠시만 기다려주세요...';
 ?>
 
 <div class="wrap sb-settings">
@@ -70,8 +69,8 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                                                                                    <?php echo esc_html($key['secret_key']); ?>
-                                                                                                </code>
+                                                                                                                    <?php echo esc_html($key['secret_key']); ?>
+                                                                                                                </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -125,19 +124,6 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
                         <p class="description">
                             로딩 메시지를 표시할 시간입니다. 0초면 바로 리다이렉션됩니다.<br>
                             <strong>0.5초, 1.5초</strong> 같은 소수점 단위도 입력 가능합니다.
-                        </p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="sb-default-loading-message">기본 로딩 메시지</label>
-                    </th>
-                    <td>
-                        <textarea id="sb-default-loading-message" name="default_loading_message" rows="3"
-                            class="large-text"><?php echo esc_textarea($default_loading_message); ?></textarea>
-                        <p class="description">
-                            리다이렉션 딜레이가 설정된 경우 표시될 기본 메시지입니다.
-                            허용 태그: &lt;strong&gt;, &lt;em&gt;, &lt;br&gt;, &lt;p&gt;, &lt;span&gt;
                         </p>
                     </td>
                 </tr>

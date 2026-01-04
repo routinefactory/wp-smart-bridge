@@ -193,25 +193,4 @@ class SB_Security
     {
         return current_user_can('edit_posts');
     }
-
-    /**
-     * HTML 살균 (로딩 메시지용)
-     * 
-     * @param string $html 입력 HTML
-     * @return string 살균된 HTML
-     */
-    public static function sanitize_loading_message($html)
-    {
-        $allowed_tags = [
-            'strong' => [],
-            'em' => [],
-            'b' => [],
-            'i' => [],
-            'br' => [],
-            'p' => [],
-            'span' => ['class' => []],
-        ];
-
-        return wp_kses($html, $allowed_tags);
-    }
 }

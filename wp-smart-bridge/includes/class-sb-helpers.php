@@ -233,25 +233,6 @@ class SB_Helpers
         return get_post_meta($post_id, 'platform', true) ?: 'Etc';
     }
 
-    /**
-     * 포스트 메타에서 로딩 메시지 조회
-     * 
-     * @param int $post_id 포스트 ID
-     * @return string 로딩 메시지
-     */
-    public static function get_loading_message($post_id)
-    {
-        $message = get_post_meta($post_id, 'loading_message', true);
-
-        if (empty($message)) {
-            $settings = get_option('sb_settings', []);
-            $message = isset($settings['default_loading_message'])
-                ? $settings['default_loading_message']
-                : '잠시만 기다려주세요...';
-        }
-
-        return $message;
-    }
 
     /**
      * 클릭 수 증가

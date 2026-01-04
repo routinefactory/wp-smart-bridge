@@ -228,12 +228,6 @@ class SB_Admin
             $settings['redirect_delay'] = intval($_POST['redirect_delay']);
         }
 
-        if (isset($_POST['default_loading_message'])) {
-            $settings['default_loading_message'] = SB_Security::sanitize_loading_message(
-                $_POST['default_loading_message']
-            );
-        }
-
         update_option('sb_settings', $settings);
 
         wp_send_json_success(['message' => '설정이 저장되었습니다.']);

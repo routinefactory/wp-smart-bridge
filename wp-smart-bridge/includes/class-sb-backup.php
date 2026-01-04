@@ -41,7 +41,6 @@ class SB_Backup
                 'slug' => $link->post_title,
                 'target_url' => get_post_meta($link->ID, 'target_url', true),
                 'platform' => get_post_meta($link->ID, 'platform', true),
-                'loading_message' => get_post_meta($link->ID, 'loading_message', true),
                 'created_at' => $link->post_date,
                 'status' => $link->post_status,
             ];
@@ -119,9 +118,6 @@ class SB_Backup
                 if ($post_id) {
                     update_post_meta($post_id, 'target_url', $link_data['target_url']);
                     update_post_meta($post_id, 'platform', $link_data['platform']);
-                    if (!empty($link_data['loading_message'])) {
-                        update_post_meta($post_id, 'loading_message', $link_data['loading_message']);
-                    }
                     $stats['links']++;
                 }
             }

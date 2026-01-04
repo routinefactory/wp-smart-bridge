@@ -3,7 +3,7 @@
  * Plugin Name: WP Smart Bridge
  * Plugin URI: https://github.com/routinefactory/wp-smart-bridge
  * Description: 제휴 마케팅용 단축 링크 자동화 플러그인 - HMAC-SHA256 보안 인증, SaaS급 분석 기능 포함
- * Version: 2.7.2
+ * Version: 2.7.6
  * Author: Routine Factory
  * Author URI: https://github.com/routinefactory
  * License: GPL v2 or later
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '2.7.2');
+define('SB_VERSION', '2.7.6');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -161,7 +161,6 @@ class WP_Smart_Bridge
         if (!get_option('sb_settings')) {
             update_option('sb_settings', [
                 'redirect_delay' => 2, // 2초 딜레이 (브랜딩 및 로깅 확실성)
-                'default_loading_message' => '잠시만 기다려주세요...',
                 'ip_hash_salt' => wp_generate_password(32, true, true),
                 'delete_data_on_uninstall' => false, // ✅ 기본값: 데이터 보존
             ]);

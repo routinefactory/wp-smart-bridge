@@ -163,8 +163,6 @@ class SB_Redirect
      */
     private static function show_redirect_page($link_id, $target_url, $delay)
     {
-        $loading_message = SB_Helpers::get_loading_message($link_id);
-
         // 변수가 템플릿에서 사용 가능하도록 설정
         $target_url = esc_url($target_url);
         $delay = intval($delay);

@@ -110,7 +110,6 @@ class SB_Post_Type
 
         $target_url = get_post_meta($post->ID, 'target_url', true);
         $platform = get_post_meta($post->ID, 'platform', true);
-        $loading_message = get_post_meta($post->ID, 'loading_message', true);
         $short_link = SB_Helpers::get_short_link_url($post->post_title);
         $click_count = get_post_meta($post->ID, 'click_count', true) ?: 0;
 
@@ -221,17 +220,6 @@ class SB_Post_Type
                         <?php echo esc_html($platform ?: 'Etc'); ?>
                     </span>
                     <p class="description">타겟 URL의 도메인을 기반으로 자동 분류됩니다.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="sb_loading_message">로딩 메시지</label></th>
-                <td>
-                    <textarea id="sb_loading_message" name="sb_loading_message" class="large-text"
-                        rows="3"><?php echo esc_textarea($loading_message); ?></textarea>
-                    <p class="description">
-                        리다이렉션 중 표시될 메시지입니다.
-                        허용 태그: &lt;strong&gt;, &lt;em&gt;, &lt;br&gt;, &lt;p&gt;, &lt;span&gt;
-                    </p>
                 </td>
             </tr>
         </table>
@@ -348,12 +336,6 @@ class SB_Post_Type
                 $platform = SB_Helpers::detect_platform($target_url);
                 update_post_meta($post_id, 'platform', $platform);
             }
-        }
-
-        // 로딩 메시지 저장
-        if (isset($_POST['sb_loading_message'])) {
-            $loading_message = SB_Security::sanitize_loading_message($_POST['sb_loading_message']);
-            update_post_meta($post_id, 'loading_message', $loading_message);
         }
     }
 

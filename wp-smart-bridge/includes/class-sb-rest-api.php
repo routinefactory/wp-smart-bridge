@@ -127,7 +127,6 @@ class SB_Rest_API
                 'target_url' => $target_url,
                 'platform' => $platform,
                 'click_count' => 0,
-                'loading_message' => '',
             ],
         ]);
 
