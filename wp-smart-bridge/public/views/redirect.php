@@ -43,6 +43,7 @@ $replacements = [
     '{{DELAY_SECONDS}}' => intval($delay),
     '{{TARGET_URL}}' => esc_url($target_url),
     '{{COUNTDOWN_SCRIPT}}' => $countdown_script,
+    '{{COUNTDOWN_ID}}' => 'countdown',
 ];
 
 $output = str_replace(array_keys($replacements), array_values($replacements), $template);

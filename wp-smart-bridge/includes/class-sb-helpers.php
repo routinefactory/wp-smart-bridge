@@ -510,7 +510,7 @@ class SB_Helpers
                 <circle class="track" cx="50" cy="50" r="45"></circle>
                 <circle id="progress-ring" class="bar" cx="50" cy="50" r="45"></circle>
             </svg>
-            <div class="timer-val" id="countdown">{{DELAY_SECONDS}}</div>
+            <div class="timer-val" id="{{COUNTDOWN_ID}}">{{DELAY_SECONDS}}</div>
         </div>
         
         <h1>페이지로 이동 중입니다...</h1>
@@ -559,7 +559,7 @@ class SB_Helpers
             '{{DELAY_SECONDS}}',
             '{{TARGET_URL}}',
             '{{COUNTDOWN_SCRIPT}}',
-            // 'id="countdown"', // JavaScript가 참조하는 필수 ID - Moved to validate_template for regex check
+            '{{COUNTDOWN_ID}}',
         ];
     }
 
@@ -571,12 +571,12 @@ class SB_Helpers
      */
     public static function validate_template($template)
     {
-        // 필수 플레이스홀더 검사
+        // 필수 플레이스홀더 검사 (모든 플레이스홀더를 동일한 방식으로 검증)
         $required_placeholders = [
             '{{DELAY_SECONDS}}' => '타이머 숫자',
-            '{{TARGET_URL}}' => '타겟 URL', // Added based on get_ai_prompt_example and common sense for this template
+            '{{TARGET_URL}}' => '타겟 URL',
             '{{COUNTDOWN_SCRIPT}}' => '카운트다운 스크립트',
-            // '{{LOADING_MESSAGE}}' => '로딩 메시지', // 제거됨 (v2.9.14) - 사용자 피드백 반영
+            '{{COUNTDOWN_ID}}' => '카운트다운 요소 ID',
         ];
 
         foreach ($required_placeholders as $placeholder => $name) {
@@ -585,11 +585,6 @@ class SB_Helpers
             }
         }
 
-        // 필수 HTML ID 검사 (느슨한 검사)
-        // id="countdown" 또는 id='countdown' 허용, 공백 허용
-        if (!preg_match('/id\s*=\s*["\']countdown["\']/', $template)) {
-            return '오류: 필수 HTML ID가 누락되었습니다: id="countdown" (타이머 표시에 필요)';
-        }
 
         // 자바스크립트 보안 검사 (간단한 XSS 방지)
         if (preg_match('/<script\b[^>]*>(.*?)<\/script>/is', $template)) {
@@ -613,7 +608,7 @@ class SB_Helpers
 1. {{DELAY_SECONDS}} - 딜레이 초 placeholder  
 2. {{TARGET_URL}} - 타겟 URL placeholder
 3. {{COUNTDOWN_SCRIPT}} - 카운트다운 스크립트 placeholder
-4. id="countdown" - 카운트다운을 표시할 요소의 ID (반드시 이 ID를 가진 요소가 있어야 함)
+4. {{COUNTDOWN_ID}} - 카운트다운 표시 요소의 ID (예: id="{{COUNTDOWN_ID}}")
 
 디자인 변경 예시:
 - 배경을 다크 모드로 변경

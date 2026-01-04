@@ -69,8 +69,8 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                                                                                                                    <?php echo esc_html($key['secret_key']); ?>
-                                                                                                                                </code>
+                                                                                                                                                            <?php echo esc_html($key['secret_key']); ?>
+                                                                                                                                                        </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -152,7 +152,7 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                 <li><code>{{DELAY_SECONDS}}</code> - 초기 딜레이 초가 표시될 위치</li>
                 <li><code>{{TARGET_URL}}</code> - 타겟 URL (href 속성 등에 사용)</li>
                 <li><code>{{COUNTDOWN_SCRIPT}}</code> - 카운트다운 JavaScript 코드</li>
-                <li><code>id="countdown"</code> - 카운트다운 숫자가 업데이트될 요소의 ID (반드시 필요)</li>
+                <li><code>{{COUNTDOWN_ID}}</code> - 카운트다운 요소의 ID (예: id="{{COUNTDOWN_ID}}")</li>
             </ul>
             <p style="margin: 10px 0 0; font-size: 12px; color: #666;">
                 💡 <strong>로딩 메시지</strong>는 placeholder 없이 HTML에 직접 입력하세요!
@@ -275,7 +275,8 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                     var required = [
                         '{{DELAY_SECONDS}}',
                         '{{TARGET_URL}}',
-                        '{{COUNTDOWN_SCRIPT}}'
+                        '{{COUNTDOWN_SCRIPT}}',
+                        '{{COUNTDOWN_ID}}'
                     ];
 
                     var missing = [];
@@ -285,10 +286,6 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                         }
                     });
 
-                    // id="countdown" 또는 id='countdown' 정규식 검사 (서버측과 동일)
-                    if (!/id\s*=\s*["']countdown["']/.test(template)) {
-                        missing.push('id="countdown"');
-                    }
 
                     var valid = missing.length === 0;
 
