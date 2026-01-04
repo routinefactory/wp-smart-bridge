@@ -37,6 +37,11 @@
             }
         });
 
+        // 필터 적용 버튼
+        $('#sb-apply-filter').on('click', function () {
+            loadStats();
+        });
+
 
         $('#sb-check-update').on('click', function () {
             checkUpdate($(this));

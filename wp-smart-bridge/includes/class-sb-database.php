@@ -15,6 +15,25 @@ class SB_Database
 
     /**
      * 커스텀 테이블 생성
+     * 
+     * ✅ 안전성 보장:
+     * - dbDelta()는 WordPress 표준 함수로 안전하게 테이블을 생성/수정합니다
+     * - 기존 테이블이 있으면 스킵하고 데이터를 보존합니다
+     * - 새 컬럼이 추가되면 ALTER TABLE로 안전하게 추가합니다
+     * - 기존 데이터는 절대 삭제되지 않습니다
+     * 
+     * 📌 호출 시점:
+     * 1. 플러그인 최초 설치 시 (activate() 훅)
+     * 2. 플러그인 재활성화 시 (activate() 훅)
+     * 3. 플러그인 업데이트 시 (maybe_upgrade_database() 자동 실행)
+     * 
+     * 🔄 스키마 변경 가이드:
+     * 향후 테이블 구조를 변경할 때는 아래 SQL만 수정하면 됩니다.
+     * - 새 컬럼 추가: SQL에 컬럼 정의 추가 → 자동 ALTER TABLE
+     * - 인덱스 추가: INDEX 정의 추가 → 자동 CREATE INDEX
+     * - 기존 데이터: 자동 보존됨
+     * 
+     * @since 2.5.0
      */
     public static function create_tables()
     {
@@ -22,7 +41,15 @@ class SB_Database
 
         $charset_collate = $wpdb->get_charset_collate();
 
-        // 분석 로그 테이블
+        /**
+         * 📊 분석 로그 테이블 (wp_sb_analytics_logs)
+         * 
+         * 용도: 모든 클릭 이벤트의 상세 로그 저장
+         * 특징: 시간대별, 플랫폼별, UV 분석의 기반 데이터
+         * 
+         * ⚠️ 주의: 이 테이블은 사용자의 마케팅 성과 분석의 핵심입니다.
+         * 절대로 삭제하거나 TRUNCATE하지 마세요!
+         */
         $analytics_table = $wpdb->prefix . 'sb_analytics_logs';
         $sql_analytics = "CREATE TABLE $analytics_table (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -39,7 +66,15 @@ class SB_Database
             INDEX idx_visitor_ip (visitor_ip)
         ) $charset_collate;";
 
-        // API 키 테이블
+        /**
+         * 🔑 API 키 테이블 (wp_sb_api_keys)
+         * 
+         * 용도: EXE 클라이언트 인증용 API 키 저장
+         * 특징: HMAC 서명 검증의 Secret Key 보관
+         * 
+         * ⚠️ 주의: API 키가 삭제되면 외부 EXE 클라이언트를 재설정해야 합니다.
+         * 사용자가 명시적으로 삭제하지 않는 한 유지되어야 합니다!
+         */
         $api_keys_table = $wpdb->prefix . 'sb_api_keys';
         $sql_api_keys = "CREATE TABLE $api_keys_table (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -55,6 +90,19 @@ class SB_Database
             INDEX idx_status (status)
         ) $charset_collate;";
 
+        /**
+         * 🚀 테이블 생성/업데이트 실행
+         * 
+         * dbDelta()는 다음과 같이 동작합니다:
+         * - 테이블 없음 → CREATE TABLE 실행
+         * - 테이블 있음 + 새 컬럼 → ALTER TABLE ADD COLUMN 실행
+         * - 테이블 있음 + 컬럼 동일 → 아무것도 안 함 (데이터 보존)
+         * 
+         * 💡 Tip: dbDelta()는 SQL 포맷에 매우 민감합니다.
+         * - PRIMARY KEY와 괄호 사이에 공백 필요
+         * - 각 라인은 정확히 한 개의 컬럼 정의만 포함
+         * - CREATE TABLE 다음에 반드시 괄호로 열기
+         */
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql_analytics);
         dbDelta($sql_api_keys);

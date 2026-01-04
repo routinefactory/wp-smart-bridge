@@ -103,8 +103,8 @@ class SB_Redirect
             exit;
         }
 
-        // 즉시 리다이렉트
-        wp_redirect($target_url, 301);
+        // 즉시 리다이렉트 (302 Temporary - Target URL 수정 가능하도록)
+        wp_redirect($target_url, 302);
         exit;
     }
 

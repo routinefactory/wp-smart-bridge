@@ -1,30 +1,154 @@
-name: Build and Release
+name: Build and Release WordPress Plugin
 
+# ===================================================================
+# Workflow 트리거: Git 태그 푸시 시 자동 실행
+# 예: git tag v2.6.5 && git push origin v2.6.5
+# ===================================================================
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'  # v로 시작하는 모든 태그 (예: v2.6.5, v3.0.0)
 
 jobs:
-  build:
-    name: Create Release
+  build-and-release:
+    name: Build WordPress Plugin and Create GitHub Release
     runs-on: ubuntu-latest
+    
     permissions:
-      contents: write
+      contents: write  # GitHub Release 생성 권한
+    
     steps:
-      - name: Checkout code
+      # ===============================================================
+      # Step 1: 저장소 체크아웃
+      # ===============================================================
+      - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Create Zip Archive
+      
+      # ===============================================================
+      # Step 2: 버전 정보 추출 (태그명에서)
+      # ===============================================================
+      - name: Extract Version from Tag
+        id: version
         run: |
-          zip -r wp-smart-bridge.zip wp-smart-bridge -x "*.git*" "node_modules/*" ".github/*" "prd.md" "python_client_example.py" "README.md" ".gitignore"
-
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📌 Building version: $VERSION"
+      
+      # ===============================================================
+      # Step 3: ZIP 아카이브 생성 (WordPress 플러그인 표준)
+      # ===============================================================
+      - name: Create WordPress Plugin ZIP
+        run: |
+          echo "🔨 Creating plugin ZIP archive..."
+          
+          # wp-smart-bridge 디렉토리만 압축
+          # 개발 파일 제외: Git 관련, 문서, 예제 코드, IDE 설정
+          cd wp-smart-bridge
+          
+          zip -r ../wp-smart-bridge.zip . \
+            -x "*.git*" \
+            -x "*.github/*" \
+            -x "*.gitignore" \
+            -x "*.DS_Store" \
+            -x "*.vscode/*" \
+            -x "*.idea/*" \
+            -x "node_modules/*" \
+            -x "*.log" \
+            -x "*.tmp" \
+            -x "tests/*" \
+            -x "*.md" \
+            -x "phpunit.xml*" \
+            -x "composer.*"
+          
+          cd ..
+          
+          echo "✅ ZIP archive created: wp-smart-bridge.zip"
+          echo "📦 Archive size: $(du -h wp-smart-bridge.zip | cut -f1)"
+      
+      # ===============================================================
+      # Step 4: ZIP 파일 검증
+      # ===============================================================
+      - name: Verify ZIP Contents
+        run: |
+          echo "🔍 Verifying ZIP archive structure..."
+          unzip -l wp-smart-bridge.zip | head -20
+          
+          # 필수 파일 존재 확인
+          if unzip -l wp-smart-bridge.zip | grep -q "wp-smart-bridge.php"; then
+            echo "✅ Main plugin file found"
+          else
+            echo "❌ Main plugin file not found!"
+            exit 1
+          fi
+          
+          if unzip -l wp-smart-bridge.zip | grep -q "uninstall.php"; then
+            echo "✅ Uninstall file found"
+          else
+            echo "❌ Uninstall file not found!"
+            exit 1
+          fi
+      
+      # ===============================================================
+      # Step 5: GitHub Release 생성 및 ZIP 첨부
+      # ===============================================================
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # 릴리스에 첨부할 파일
           files: wp-smart-bridge.zip
+          
+          # 자동 릴리스 노트 생성 (커밋 기록 기반)
           generate_release_notes: true
-          draft: false
-          prerelease: false
+          
+          # 릴리스 설정
+          draft: false           # 즉시 공개
+          prerelease: false      # 정식 릴리스 (베타 아님)
+          
+          # 릴리스 이름 및 본문
+          name: "WP Smart Bridge v${{ steps.version.outputs.version }}"
+          body: |
+            ## 🚀 WP Smart Bridge v${{ steps.version.outputs.version }}
+            
+            ### 📦 설치 방법
+            
+            1. 아래 **wp-smart-bridge.zip** 파일 다운로드
+            2. WordPress 관리자 → 플러그인 → 새로 추가 → 플러그인 업로드
+            3. ZIP 파일 선택 후 설치
+            4. 플러그인 활성화
+            
+            ### 🔄 업데이트 방법 (기존 사용자)
+            
+            **자동 업데이트** (권장):
+            - WordPress 관리자 → 대시보드 → 업데이트
+            - "Smart Bridge" 플러그인 옆 "지금 업데이트" 클릭
+            
+            **수동 업데이트**:
+            1. 기존 플러그인 비활성화 (데이터는 보존됨)
+            2. 위 ZIP 파일 다운로드 후 재설치
+            3. 플러그인 재활성화 → 모든 설정/링크 자동 복원
+            
+            ### 📊 데이터 보존 보장
+            
+            ✅ 업데이트 시 모든 데이터 자동 보존:
+            - 제휴 링크 및 단축 URL
+            - 클릭 분석 데이터
+            - API 키 및 설정값
+            
+            ### 📝 변경사항
+            
+            자세한 변경 내역은 아래 "Full Changelog"를 참고하세요.
+            
+            ---
+            
+            **⚠️ 참고**: 이 릴리스는 GitHub Actions를 통해 자동으로 생성되었습니다.
+        
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # ===============================================================
+      # Step 6: 완료 알림
+      # ===============================================================
+      - name: Release Complete
+        run: |
+          echo "🎉 Release v${{ steps.version.outputs.version }} published successfully!"
+          echo "📥 Download URL: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.version }}"
