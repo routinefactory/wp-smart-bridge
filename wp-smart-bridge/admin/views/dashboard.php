@@ -38,8 +38,14 @@ $daily_trend = $analytics->get_daily_trend($date_range['start'], $date_range['en
 // 실제 데이터 기반 플랫폼 목록
 $available_platforms = $analytics->get_available_platforms();
 
-// 인기 링크 (오늘 / 누적)
-$today_top_links = $analytics->get_today_top_links(20);
+// 인기 링크 (현재 필터 적용)
+$top_links = $analytics->get_top_links(
+    $date_range['start'],
+    $date_range['end'],
+    null
+);
+
+// 전체 기간 인기 링크
 $alltime_top_links = $analytics->get_all_time_top_links(20);
 
 // 업데이트 확인 (수동 안내용)
@@ -389,13 +395,9 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
     <script>
         jQuery(document).ready(function ($) {
             // 인기 링크 탭 전환
-            $('.sb-tab-btn').on('click', function () {
-                var tab = $(this).data('tab');
-                $('.sb-tab-btn').removeClass('active');
-                $(this).addClass('active');
-                $('.sb-top-links-panel').hide();
-                $('#sb-' + tab + '-links').show();
-            });
+            // 인기 링크 탭 전환 (하지만 이제 필터로 통합되었으므로, 탭 기능을 숨기고 '현재 조회 기준' 하나만 보여주는 것이 좋음)
+            $('.sb-top-links-tabs').hide();
+            $('.sb-top-links-header h3').text('📈 인기 링크 (현재 필터 기준)');
         });
     </script>
 

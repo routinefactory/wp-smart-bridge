@@ -294,6 +294,62 @@
             .addClass(rateClass);
 
         $('#sb-active-links').text(data.active_links.toLocaleString());
+
+        // ✅ 인기 링크 테이블 업데이트
+        if (data.top_links) {
+            renderTopLinksTable(data.top_links);
+        }
+    }
+
+    /**
+     * 인기 링크 테이블 렌더링
+     */
+    function renderTopLinksTable(links) {
+        var $tbody = $('#sb-today-links tbody'); // ID는 'today'지만 실제로는 '현재 필터' 기준임
+        $tbody.empty();
+
+        if (links.length === 0) {
+            $tbody.append('<tr><td colspan="6" class="sb-no-data">데이터가 없습니다.</td></tr>');
+            return;
+        }
+
+        links.forEach(function (link, index) {
+            var platformClass = 'sb-platform-' + (link.platform ? link.platform.toLowerCase().replace(/\s+/g, '-') : 'unknown');
+
+            // 타겟 URL 말줄임 처리
+            var targetUrl = link.target_url || '';
+            var displayUrl = targetUrl.length > 40 ? targetUrl.substring(0, 40) + '...' : targetUrl;
+
+            // 관리자 수정 링크 생성 (동적으로 ID 추적 불가피하므로 href에서 추출하거나 별도 처리 필요하지만, 
+            // 여기서는 JS 객체에 edit_link가 없으므로 간단히 알림 처리하거나, 백엔드에서 edit_link를 보내줘야 함.
+            // 일단 수정 버튼은 '링크 목록' 페이지로 안내하는 것이 안전함)
+
+            var row = `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <a href="${link.short_link}" target="_blank">
+                            ${link.slug}
+                        </a>
+                    </td>
+                    <td>
+                        <a href="${link.target_url}" target="_blank" class="sb-target-url">
+                            ${displayUrl}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="sb-platform-badge ${platformClass}">
+                            ${link.platform || 'Unknown'}
+                        </span>
+                    </td>
+                    <td><strong>${parseInt(link.clicks).toLocaleString()}</strong></td>
+                    <td>
+                         <a href="${sbAdmin.adminUrl}post.php?post=${link.id}&action=edit" class="button button-small">수정</a>
+                    </td>
+                </tr>
+            `;
+            $tbody.append(row);
+        });
     }
 
     /**

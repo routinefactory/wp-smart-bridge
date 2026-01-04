@@ -366,61 +366,77 @@ class SB_Analytics
     }
 
     /**
-     * 오늘의 인기 링크 조회 (N+1 쿼리 최적화)
+     * 기간별 인기 링크 조회 (필터 지원)
      * 
-     * @param int $limit 조회 개수
-     * @return array 링크 배열
+     * @param string $start_date 시작일
+     * @param string $end_date 종료일
+     * @param string|null $platform 플랫폼 필터
+     * @param int $limit 개수
+     * @return array 링크 목록
      */
-    public function get_today_top_links($limit = 10)
+    public function get_top_links($start_date, $end_date, $platform = null, $limit = 20)
     {
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $today = current_time('Y-m-d');
 
-        // 오늘의 인기 링크 ID 조회
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT link_id, COUNT(*) as click_count
-             FROM $table
-             WHERE DATE(visited_at) = %s
-             GROUP BY link_id
-             ORDER BY click_count DESC
-             LIMIT %d",
-            $today,
-            $limit
-        ));
+        $sql = "SELECT link_id, COUNT(*) as clicks 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
+        $params = [$start_date, $end_date];
+
+        if ($platform) {
+            $sql .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY link_id ORDER BY clicks DESC LIMIT %d";
+        $params[] = $limit;
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params));
 
         if (empty($results)) {
             return [];
         }
 
-        // 링크 포스트 조회
-        $link_ids = array_column($results, 'link_id');
+        // 링크 ID 배열 추출
+        $link_ids = [];
+        foreach ($results as $result) {
+            $link_ids[] = $result->link_id;
+        }
+
+        // 포스트 조회 (한 번에)
         $posts = get_posts([
             'post_type' => 'sb_link',
             'include' => $link_ids,
             'posts_per_page' => -1,
         ]);
 
-        // ✅ N+1 쿼리 최적화: 모든 메타 데이터 한 번에 로드
+        // ✅ N+1 쿼리 최적화
         update_meta_cache('post', $link_ids);
 
-        $links = [];
+        // 포스트 ID를 키로 하는 맵 생성 (빠른 조회를 위해)
+        $posts_map = [];
         foreach ($posts as $post) {
-            $click_count = 0;
-            foreach ($results as $result) {
-                if ($result->link_id == $post->ID) {
-                    $click_count = (int) $result->click_count;
-                    break;
-                }
+            $posts_map[$post->ID] = $post;
+        }
+
+        $links = [];
+        foreach ($results as $result) {
+            if (!isset($posts_map[$result->link_id])) {
+                continue; // 삭제된 링크 건너뜀
             }
+
+            $post = $posts_map[$result->link_id];
+            $slug = $post->post_title;
 
             $links[] = [
                 'id' => $post->ID,
-                'slug' => $post->post_title,
-                'target_url' => get_post_meta($post->ID, 'target_url', true), // 캐시에서 로드
-                'platform' => get_post_meta($post->ID, 'platform', true),      // 캐시에서 로드
-                'clicks_today' => $click_count,
+                'slug' => $slug,
+                'short_link' => SB_Helpers::get_short_link_url($slug), // ✅ 실제 단축 URL 생성
+                'target_url' => get_post_meta($post->ID, 'target_url', true),
+                'platform' => get_post_meta($post->ID, 'platform', true),
+                'clicks' => (int) $result->clicks,
             ];
         }
 
@@ -428,25 +444,30 @@ class SB_Analytics
     }
 
     /**
-     * 누적 인기 링크 조회 (N+1 쿼리 최적화)
+     * 누적 인기 링크 조회 (필터 지원)
      * 
      * @param int $limit 개수
+     * @param string|null $platform 플랫폼 필터
      * @return array 링크 목록
      */
-    public function get_all_time_top_links($limit = 100)
+    public function get_all_time_top_links($limit = 100, $platform = null)
     {
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT link_id, COUNT(*) as clicks 
-             FROM $table 
-             GROUP BY link_id 
-             ORDER BY clicks DESC 
-             LIMIT %d",
-            $limit
-        ), ARRAY_A);
+        $sql = "SELECT link_id, COUNT(*) as clicks FROM $table";
+        $params = [];
+
+        if ($platform) {
+            $sql .= " WHERE platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY link_id ORDER BY clicks DESC LIMIT %d";
+        $params[] = $limit;
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
         if (empty($results)) {
             return [];
@@ -463,10 +484,14 @@ class SB_Analytics
         foreach ($results as $row) {
             $post = get_post($row['link_id']);
             if ($post) {
+                // Short Link가 명확하게 생성되는지 확인
+                $slug = $post->post_title;
+                $short_link = SB_Helpers::get_short_link_url($slug);
+
                 $top_links[] = [
                     'id' => $post->ID,
-                    'slug' => $post->post_title,
-                    'short_link' => SB_Helpers::get_short_link_url($post->post_title),
+                    'slug' => $slug,
+                    'short_link' => $short_link,
                     'target_url' => get_post_meta($post->ID, 'target_url', true), // 캐시에서 로드
                     'platform' => get_post_meta($post->ID, 'platform', true),      // 캐시에서 로드
                     'clicks' => (int) $row['clicks'],

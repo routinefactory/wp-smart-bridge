@@ -212,6 +212,13 @@ class SB_Rest_API
                 $date_range['end'],
                 $platform_filter
             ),
+            // ✅ 인기 링크 목록도 필터링해서 함께 반환 (대시보드 테이블 업데이트용)
+            'top_links' => $analytics->get_top_links(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter,
+                20 // Limit
+            ),
         ];
 
         return new WP_REST_Response([
