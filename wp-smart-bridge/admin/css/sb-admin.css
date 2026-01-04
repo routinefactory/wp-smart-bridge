@@ -406,4 +406,81 @@
     .sb-card-value {
         font-size: 24px;
     }
+
+    /* 테이블 모바일 최적화 */
+    .sb-top-links {
+        padding: 16px;
+        overflow: hidden;
+    }
+
+    .sb-top-links h3 {
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+
+    /* 테이블 가로 스크롤 */
+    .sb-top-links table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sb-top-links thead,
+    .sb-top-links tbody,
+    .sb-top-links tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    /* 테이블 최소 너비 설정 */
+    .sb-top-links table {
+        min-width: 600px;
+    }
+
+    /* URL은 말줄임 */
+    .sb-target-url {
+        display: block;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* 탭 버튼 크기 줄이기 */
+    .sb-tab-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    /* 스크롤 힌트 추가 */
+    .sb-top-links::after {
+        content: "← 좌우로 스크롤 →";
+        display: block;
+        text-align: center;
+        font-size: 11px;
+        color: #999;
+        margin-top: 8px;
+        padding: 4px;
+    }
+}
+
+/* 아주 작은 화면 (360px 이하) */
+@media (max-width: 360px) {
+    .sb-card {
+        padding: 12px;
+    }
+
+    .sb-card-value {
+        font-size: 20px;
+    }
+
+    .sb-card-label {
+        font-size: 11px;
+    }
+
+    .sb-top-links {
+        padding: 12px;
+    }
 }

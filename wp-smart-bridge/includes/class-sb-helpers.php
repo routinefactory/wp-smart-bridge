@@ -324,93 +324,170 @@ class SB_Helpers
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>리다이렉트 중...</title>
+    <title>Connecting...</title>
     <style>
-        * {
+        :root {
+            --primary: #2563EB;
+            --surface: #ffffff;
+            --bg: #F3F4F6;
+            --text: #1F2937;
+            --text-secondary: #6B7280;
+        }
+        body {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
         }
-
-        .redirect-container {
-            text-align: center;
+        .card {
+            background: var(--surface);
             padding: 40px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-            max-width: 400px;
-            margin: 20px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
         }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #e0e0e0;
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 24px;
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(90deg, #2563EB, #60A5FA);
         }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .progress-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 30px;
         }
-
-        .loading-message {
+        .progress-svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        .progress-circle-bg {
+            fill: none;
+            stroke: #E5E7EB;
+            stroke-width: 4;
+        }
+        .progress-circle {
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 238;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear;
+        }
+        .countdown-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .message {
             font-size: 18px;
-            color: #333;
-            line-height: 1.6;
-            margin-bottom: 16px;
-        }
-
-        .countdown {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .countdown span {
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .skip-link {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 12px 24px;
-            background: #667eea;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 8px;
             font-weight: 600;
-            transition: background 0.2s;
+            margin-bottom: 8px;
+            color: var(--text);
         }
-
-        .skip-link:hover {
-            background: #5a67d8;
+        .sub-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 24px;
+            background-color: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        }
+        .btn:hover {
+            background-color: #1D4ED8;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+        }
+        .security-badge {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            opacity: 0.8;
+        }
+        .icon-lock {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
         }
     </style>
 </head>
 <body>
-    <div class="redirect-container">
-        <div class="spinner"></div>
-        <div class="loading-message">
-            {{LOADING_MESSAGE}}
+    <div class="card">
+        <div class="progress-container">
+            <svg class="progress-svg" viewBox="0 0 80 80">
+                <circle class="progress-circle-bg" cx="40" cy="40" r="38"></circle>
+                <circle class="progress-circle" cx="40" cy="40" r="38" id="progress-ring"></circle>
+            </svg>
+            <div class="countdown-text" id="countdown">{{DELAY_SECONDS}}</div>
         </div>
-        <div class="countdown">
-            <span id="countdown">{{DELAY_SECONDS}}</span>초 후 이동합니다...
+        
+        <div class="message">{{LOADING_MESSAGE}}</div>
+        <div class="sub-message">안전하게 이동 중입니다. 잠시만 기다려주세요.</div>
+        
+        <a href="{{TARGET_URL}}" class="btn">지금 바로 이동</a>
+        
+        <div class="security-badge">
+            <svg class="icon-lock" viewBox="0 0 24 24">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+            </svg>
+            Secure Redirect Technology
         </div>
-        <a href="{{TARGET_URL}}" class="skip-link">바로 이동</a>
     </div>
+    
     {{COUNTDOWN_SCRIPT}}
+    
+    <script>
+        (function() {
+            var totalSeconds = {{DELAY_SECONDS}};
+            var circle = document.getElementById("progress-ring");
+            var radius = circle.r.baseVal.value;
+            var circumference = radius * 2 * Math.PI;
+            
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = circumference;
+            
+            setTimeout(() => {
+                circle.style.transition = `stroke-dashoffset ${totalSeconds}s linear`;
+                circle.style.strokeDashoffset = "0";
+            }, 100);
+        })();
+    </script>
 </body>
 </html>';
     }
