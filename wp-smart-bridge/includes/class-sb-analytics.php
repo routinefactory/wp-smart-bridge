@@ -298,54 +298,6 @@ class SB_Analytics
         ];
     }
 
-    /**
-     * 인기 링크 TOP N 조회
-     * 
-     * @param int $limit 개수
-     * @param int $days 기간 (일)
-     * @return array 링크 목록
-     */
-    public function get_top_links($limit = 10, $days = 30)
-    {
-        global $wpdb;
-
-        $table = $wpdb->prefix . 'sb_analytics_logs';
-        $timezone = wp_timezone();
-
-        $end = new DateTime('now', $timezone);
-        $start = clone $end;
-        $start->modify('-' . ($days - 1) . ' days');
-
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT link_id, COUNT(*) as clicks 
-             FROM $table 
-             WHERE visited_at BETWEEN %s AND %s 
-             GROUP BY link_id 
-             ORDER BY clicks DESC 
-             LIMIT %d",
-            $start->format('Y-m-d 00:00:00'),
-            $end->format('Y-m-d 23:59:59'),
-            $limit
-        ), ARRAY_A);
-
-        $top_links = [];
-
-        foreach ($results as $row) {
-            $post = get_post($row['link_id']);
-            if ($post) {
-                $top_links[] = [
-                    'id' => $post->ID,
-                    'slug' => $post->post_title,
-                    'short_link' => SB_Helpers::get_short_link_url($post->post_title),
-                    'target_url' => get_post_meta($post->ID, 'target_url', true),
-                    'platform' => get_post_meta($post->ID, 'platform', true),
-                    'clicks' => (int) $row['clicks'],
-                ];
-            }
-        }
-
-        return $top_links;
-    }
 
     /**
      * 실제 데이터에서 유니크한 플랫폼 목록 조회
