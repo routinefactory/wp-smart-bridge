@@ -501,4 +501,90 @@ class SB_Analytics
             $today->format('Y-m-d 23:59:59')
         ));
     }
+
+    /**
+     * 오늘 총 클릭수 조회 (전체 링크)
+     * 
+     * @return int 오늘 총 클릭수
+     */
+    public function get_today_total_clicks()
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $timezone = wp_timezone();
+        $today = new DateTime('now', $timezone);
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table WHERE visited_at BETWEEN %s AND %s",
+            $today->format('Y-m-d 00:00:00'),
+            $today->format('Y-m-d 23:59:59')
+        ));
+    }
+
+    /**
+     * 오늘 고유 방문자 수 조회 (전체 링크)
+     * 
+     * @return int 오늘 UV
+     */
+    public function get_today_unique_visitors()
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $timezone = wp_timezone();
+        $today = new DateTime('now', $timezone);
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT visitor_ip) FROM $table WHERE visited_at BETWEEN %s AND %s",
+            $today->format('Y-m-d 00:00:00'),
+            $today->format('Y-m-d 23:59:59')
+        ));
+    }
+
+    /**
+     * 누적 총 클릭수 조회 (전체 링크, 전체 기간)
+     * 
+     * @return int 누적 총 클릭수
+     */
+    public function get_cumulative_total_clicks()
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+
+        return (int) $wpdb->get_var("SELECT COUNT(*) FROM $table");
+    }
+
+    /**
+     * 누적 고유 방문자 수 조회 (전체 링크, 전체 기간)
+     * 
+     * @return int 누적 UV
+     */
+    public function get_cumulative_unique_visitors()
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+
+        return (int) $wpdb->get_var("SELECT COUNT(DISTINCT visitor_ip) FROM $table");
+    }
+
+    /**
+     * 특정 링크의 누적 총 클릭수 조회
+     * 
+     * @param int $link_id 링크 ID
+     * @return int 누적 클릭수
+     */
+    public function get_link_cumulative_clicks($link_id)
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table WHERE link_id = %d",
+            $link_id
+        ));
+    }
 }

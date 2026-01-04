@@ -70,8 +70,8 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                            <?php echo esc_html($key['secret_key']); ?>
-                                        </code>
+                                                                                            <?php echo esc_html($key['secret_key']); ?>
+                                                                                        </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -118,15 +118,13 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
                         <label for="sb-redirect-delay">리다이렉션 딜레이</label>
                     </th>
                     <td>
-                        <select id="sb-redirect-delay" name="redirect_delay">
-                            <option value="0" <?php selected($redirect_delay, 0); ?>>즉시 리다이렉션 (0초)</option>
-                            <option value="1" <?php selected($redirect_delay, 1); ?>>1초</option>
-                            <option value="2" <?php selected($redirect_delay, 2); ?>>2초</option>
-                            <option value="3" <?php selected($redirect_delay, 3); ?>>3초</option>
-                            <option value="5" <?php selected($redirect_delay, 5); ?>>5초</option>
-                        </select>
+                        <input type="number" id="sb-redirect-delay" name="redirect_delay"
+                            value="<?php echo esc_attr($redirect_delay); ?>" min="0" max="10" step="0.1"
+                            style="width: 100px;" />
+                        <span style="margin-left: 5px;">초</span>
                         <p class="description">
-                            로딩 메시지를 표시할 시간입니다. 0초면 바로 리다이렉션됩니다.
+                            로딩 메시지를 표시할 시간입니다. 0초면 바로 리다이렉션됩니다.<br>
+                            <strong>0.5초, 1.5초</strong> 같은 소수점 단위도 입력 가능합니다.
                         </p>
                     </td>
                 </tr>
@@ -153,6 +151,186 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
         </form>
     </div>
 
+    <!-- 커스텀 리다이렉션 템플릿 -->
+    <div class="sb-settings-section">
+        <h2>🎨 커스텀 리다이렉션 템플릿</h2>
+        <p class="description">
+            리다이렉션 대기 페이지의 전체 HTML/CSS를 자유롭게 커스터마이징할 수 있습니다.<br>
+            <strong>⚠️ 필수 Placeholder를 반드시 포함해야 합니다!</strong>
+        </p>
+
+        <div
+            style="margin: 20px 0; padding: 15px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px;">
+            <h4 style="margin: 0 0 10px;">📝 필수 Placeholder 목록</h4>
+            <ul style="margin: 0; padding-left: 20px;">
+                <li><code>{{LOADING_MESSAGE}}</code> - 로딩 메시지가 표시될 위치</li>
+                <li><code>{{DELAY_SECONDS}}</code> - 초기 딜레이 초가 표시될 위치</li>
+                <li><code>{{TARGET_URL}}</code> - 타겟 URL (href 속성 등에 사용)</li>
+                <li><code>{{COUNTDOWN_SCRIPT}}</code> - 카운트다운 JavaScript 코드</li>
+                <li><code>id="countdown"</code> - 카운트다운 숫자가 업데이트될 요소의 ID (반드시 필요)</li>
+            </ul>
+        </div>
+
+        <div
+            style="margin: 20px 0; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+            <h4 style="margin: 0 0 10px;">🤖 AI로 디자인 변경하기</h4>
+            <p style="margin: 0 0 10px; font-size: 13px;">
+                ChatGPT, Claude 등 AI에게 아래 프롬프트를 복사해서 붙여넣으면 안전하게 디자인을 변경할 수 있습니다:
+            </p>
+            <textarea readonly
+                style="width: 100%; height: 180px; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"><?php echo esc_textarea(SB_Helpers::get_ai_prompt_example()); ?></textarea>
+            <p style="margin: 10px 0 0; font-size: 12px; color: #666;">
+                💡 <strong>사용 방법</strong>: 위 프롬프트를 복사 → 아래 "현재 템플릿" 복사해서 AI에게 함께 전달 → AI가 생성한 HTML을 아래 편집기에 붙여넣기
+            </p>
+        </div>
+
+        <form id="sb-template-form">
+            <div style="margin-bottom: 15px;">
+                <label for="sb-redirect-template" style="font-weight: 600; display: block; margin-bottom: 5px;">
+                    리다이렉션 페이지 HTML 템플릿
+                </label>
+                <textarea id="sb-redirect-template" name="redirect_template" rows="20"
+                    style="width: 100%; font-family: 'Courier New', monospace; font-size: 12px; padding: 10px;"><?php
+                    $current_template = get_option('sb_redirect_template', SB_Helpers::get_default_redirect_template());
+                    echo esc_textarea($current_template);
+                    ?></textarea>
+                <p class="description" style="margin-top: 5px;">
+                    전체 HTML을 자유롭게 편집할 수 있습니다. CSS, JavaScript 포함 가능합니다.
+                </p>
+            </div>
+
+            <div id="sb-template-validation"
+                style="display: none; padding: 15px; margin-bottom: 15px; border-radius: 4px;"></div>
+
+            <p class="submit" style="display: flex; gap: 10px;">
+                <button type="button" id="sb-validate-template" class="button">
+                    ✓ 템플릿 검증
+                </button>
+                <button type="submit" class="button button-primary" id="sb-save-template">
+                    템플릿 저장
+                </button>
+                <button type="button" id="sb-reset-template" class="button">
+                    기본값으로 복원
+                </button>
+            </p>
+        </form>
+
+        <script>
+            jQuery(document).ready(function ($) {
+                // 템플릿 검증
+                $('#sb-validate-template').on('click', function () {
+                    var template = $('#sb-redirect-template').val();
+                    validateTemplate(template, true);
+                });
+
+                // 템플릿 저장
+                $('#sb-template-form').on('submit', function (e) {
+                    e.preventDefault();
+
+                    var template = $('#sb-redirect-template').val();
+                    var validation = validateTemplate(template, false);
+
+                    if (!validation.valid) {
+                        return;
+                    }
+
+                    var $btn = $('#sb-save-template');
+                    $btn.prop('disabled', true).text('저장 중...');
+
+                    $.ajax({
+                        url: sbAdmin.ajaxUrl,
+                        method: 'POST',
+                        data: {
+                            action: 'sb_save_redirect_template',
+                            nonce: sbAdmin.ajaxNonce,
+                            template: template
+                        },
+                        success: function (response) {
+                            if (response.success) {
+                                showValidation(true, '✅ 템플릿이 저장되었습니다!');
+                            } else {
+                                showValidation(false, '❌ ' + (response.data.message || '저장 실패'));
+                            }
+                        },
+                        error: function () {
+                            showValidation(false, '❌ 통신 오류가 발생했습니다.');
+                        },
+                        complete: function () {
+                            $btn.prop('disabled', false).text('템플릿 저장');
+                        }
+                    });
+                });
+
+                // 기본값 복원
+                $('#sb-reset-template').on('click', function () {
+                    if (!confirm('정말 기본 템플릿으로 복원하시겠습니까? 현재 템플릿은 사라집니다.')) {
+                        return;
+                    }
+
+                    $.ajax({
+                        url: sbAdmin.ajaxUrl,
+                        method: 'POST',
+                        data: {
+                            action: 'sb_reset_redirect_template',
+                            nonce: sbAdmin.ajaxNonce
+                        },
+                        success: function (response) {
+                            if (response.success && response.data.template) {
+                                $('#sb-redirect-template').val(response.data.template);
+                                showValidation(true, '✅ 기본 템플릿으로 복원되었습니다!');
+                            }
+                        }
+                    });
+                });
+
+                function validateTemplate(template, showSuccess) {
+                    var required = [
+                        '{{LOADING_MESSAGE}}',
+                        '{{DELAY_SECONDS}}',
+                        '{{TARGET_URL}}',
+                        '{{COUNTDOWN_SCRIPT}}',
+                        'id="countdown"'
+                    ];
+
+                    var missing = [];
+                    required.forEach(function (placeholder) {
+                        if (template.indexOf(placeholder) === -1) {
+                            missing.push(placeholder);
+                        }
+                    });
+
+                    var valid = missing.length === 0;
+
+                    if (showSuccess || !valid) {
+                        showValidation(valid, valid
+                            ? '✅ 모든 필수 Placeholder가 포함되어 있습니다!'
+                            : '❌ 누락된 Placeholder: ' + missing.join(', ')
+                        );
+                    }
+
+                    return { valid: valid, missing: missing };
+                }
+
+                function showValidation(isValid, message) {
+                    var $box = $('#sb-template-validation');
+                    $box.show()
+                        .css({
+                            'background': isValid ? '#d1f2dd' : '#f8d7da',
+                            'border': '1px solid ' + (isValid ? '#00a32a' : '#d63638'),
+                            'color': isValid ? '#00664a' : '#721c24'
+                        })
+                        .html('<strong>' + message + '</strong>');
+
+                    setTimeout(function () {
+                        if (isValid) {
+                            $box.fadeOut();
+                        }
+                    }, 5000);
+                }
+            });
+        </script>
+    </div>
+
     <!-- 사용 안내 -->
     <div class="sb-settings-section sb-usage-guide">
         <h2>📖 EXE 프로그램 연동 방법</h2>
@@ -170,7 +348,7 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
             </ul>
 
             <h4>3. 링크 생성</h4>
-            <p>EXE 프로그램에서 제휴 링크를 입력하면 자동으로 단축 링크가 생성됩니다.</p>
+            <p>EXE 프로그램에서 제휴 링크가 생성될 때 자동으로 단축 링크로 생성됩니다.</p>
 
             <div class="sb-warning-box">
                 <strong>⚠️ 주의사항</strong>

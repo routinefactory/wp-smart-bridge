@@ -310,4 +310,173 @@ class SB_Helpers
             'end' => $end->format('Y-m-d H:i:s'),
         ];
     }
+
+    /**
+     * 기본 리다이렉션 템플릿 가져오기
+     * 
+     * @return string HTML 템플릿 (placeholder 포함)
+     */
+    public static function get_default_redirect_template()
+    {
+        return '<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>리다이렉트 중...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .redirect-container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            margin: 20px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-message {
+            font-size: 18px;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .countdown {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .countdown span {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .skip-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #667eea;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .skip-link:hover {
+            background: #5a67d8;
+        }
+    </style>
+</head>
+<body>
+    <div class="redirect-container">
+        <div class="spinner"></div>
+        <div class="loading-message">
+            {{LOADING_MESSAGE}}
+        </div>
+        <div class="countdown">
+            <span id="countdown">{{DELAY_SECONDS}}</span>초 후 이동합니다...
+        </div>
+        <a href="{{TARGET_URL}}" class="skip-link">바로 이동</a>
+    </div>
+    {{COUNTDOWN_SCRIPT}}
+</body>
+</html>';
+    }
+
+    /**
+     * 필수 템플릿 placeholder 목록
+     * 
+     * @return array placeholder 배열
+     */
+    public static function get_required_placeholders()
+    {
+        return [
+            '{{LOADING_MESSAGE}}',
+            '{{DELAY_SECONDS}}',
+            '{{TARGET_URL}}',
+            '{{COUNTDOWN_SCRIPT}}',
+            'id="countdown"', // JavaScript가 참조하는 필수 ID
+        ];
+    }
+
+    /**
+     * 템플릿 검증
+     * 
+     * @param string $template 검증할 템플릿
+     * @return array ['valid' => bool, 'missing' => array]
+     */
+    public static function validate_template($template)
+    {
+        $required = self::get_required_placeholders();
+        $missing = [];
+
+        foreach ($required as $placeholder) {
+            if (strpos($template, $placeholder) === false) {
+                $missing[] = $placeholder;
+            }
+        }
+
+        return [
+            'valid' => empty($missing),
+            'missing' => $missing,
+        ];
+    }
+
+    /**
+     * AI 프롬프트 예시 가져오기
+     * 
+     * @return string 예시 프롬프트
+     */
+    public static function get_ai_prompt_example()
+    {
+        return '아래 HTML 템플릿의 디자인을 세련되게 변경해줘. 단, 다음 규칙을 **반드시** 지켜줘:
+
+필수 유지 항목:
+1. {{LOADING_MESSAGE}} - 로딩 메시지 placeholder
+2. {{DELAY_SECONDS}} - 딜레이 초 placeholder  
+3. {{TARGET_URL}} - 타겟 URL placeholder
+4. {{COUNTDOWN_SCRIPT}} - 카운트다운 스크립트 placeholder
+5. id="countdown" - 카운트다운을 표시할 요소의 ID (반드시 이 ID를 가진 요소가 있어야 함)
+
+디자인 변경 예시:
+- 배경을 다크 모드로 변경
+- 애니메이션을 더 부드럽게
+- 글꼴을 모던한 스타일로
+- 버튼 스타일을 3D 효과로
+
+현재 템플릿:
+[아래에 현재 템플릿 붙여넣기]';
+    }
 }

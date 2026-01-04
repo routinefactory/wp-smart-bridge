@@ -41,6 +41,8 @@ class SB_Admin
         add_action('wp_ajax_sb_save_settings', [$this, 'ajax_save_settings']);
         add_action('wp_ajax_sb_dismiss_welcome', [$this, 'ajax_dismiss_welcome']);
         add_action('wp_ajax_sb_check_update', [$this, 'ajax_check_update']);
+        add_action('wp_ajax_sb_save_redirect_template', [$this, 'ajax_save_redirect_template']);
+        add_action('wp_ajax_sb_reset_redirect_template', [$this, 'ajax_reset_redirect_template']);
     }
 
     /**
@@ -262,5 +264,56 @@ class SB_Admin
         SB_Updater::force_check();
 
         wp_send_json_success(['message' => '업데이트를 확인했습니다. 최신 버전이 있는 경우 워드프레스 업데이트 메뉴에 표시됩니다.']);
+    }
+
+    /**
+     * 리다이렉션 템플릿 저장 AJAX
+     */
+    public function ajax_save_redirect_template()
+    {
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => '권한이 없습니다.']);
+        }
+
+        $template = isset($_POST['template']) ? $_POST['template'] : '';
+
+        if (empty($template)) {
+            wp_send_json_error(['message' => '템플릿이 비어있습니다.']);
+        }
+
+        // 서버사이드 검증
+        $validation = SB_Helpers::validate_template($template);
+
+        if (!$validation['valid']) {
+            wp_send_json_error([
+                'message' => '필수 Placeholder가 누락되었습니다: ' . implode(', ', $validation['missing'])
+            ]);
+        }
+
+        update_option('sb_redirect_template', $template);
+
+        wp_send_json_success(['message' => '템플릿이 저장되었습니다.']);
+    }
+
+    /**
+     * 리다이렉션 템플릿 기본값 복원 AJAX
+     */
+    public function ajax_reset_redirect_template()
+    {
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => '권한이 없습니다.']);
+        }
+
+        $default_template = SB_Helpers::get_default_redirect_template();
+        update_option('sb_redirect_template', $default_template);
+
+        wp_send_json_success([
+            'message' => '기본 템플릿으로 복원되었습니다.',
+            'template' => $default_template
+        ]);
     }
 }

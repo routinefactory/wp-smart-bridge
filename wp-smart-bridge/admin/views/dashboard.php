@@ -18,6 +18,15 @@ $has_api_keys = !empty($user_api_keys);
 $analytics = new SB_Analytics();
 $date_range = SB_Helpers::get_date_range('30d');
 
+// 일일 통계 (오늘)
+$today_total_clicks = $analytics->get_today_total_clicks();
+$today_unique_visitors = $analytics->get_today_unique_visitors();
+
+// 누적 통계 (전체 기간)
+$cumulative_total_clicks = $analytics->get_cumulative_total_clicks();
+$cumulative_unique_visitors = $analytics->get_cumulative_unique_visitors();
+
+// 기존 통계 (호환성 유지)
 $total_clicks = $analytics->get_total_clicks($date_range['start'], $date_range['end']);
 $unique_visitors = $analytics->get_unique_visitors($date_range['start'], $date_range['end']);
 $growth_rate = $analytics->get_growth_rate();
@@ -102,30 +111,63 @@ $alltime_top_links = $analytics->get_all_time_top_links(20);
 
     <!-- 요약 카드 -->
     <div class="sb-summary-cards">
-        <div class="sb-card">
-            <div class="sb-card-icon sb-icon-clicks">
-                <span class="dashicons dashicons-visibility"></span>
-            </div>
-            <div class="sb-card-content">
-                <span class="sb-card-value" id="sb-total-clicks">
-                    <?php echo number_format($total_clicks); ?>
-                </span>
-                <span class="sb-card-label">총 방문수</span>
-            </div>
-        </div>
-
+        <!-- 오늘 고유 클릭 (UV) -->
         <div class="sb-card">
             <div class="sb-card-icon sb-icon-uv">
                 <span class="dashicons dashicons-groups"></span>
             </div>
             <div class="sb-card-content">
-                <span class="sb-card-value" id="sb-unique-visitors">
-                    <?php echo number_format($unique_visitors); ?>
+                <span class="sb-card-value" id="sb-today-unique">
+                    <?php echo number_format($today_unique_visitors); ?>
                 </span>
-                <span class="sb-card-label">고유 방문자 (UV)</span>
+                <span class="sb-card-label">오늘 고유 클릭 (UV)</span>
+                <span class="sb-card-sublabel">📅 Today</span>
             </div>
         </div>
 
+        <!-- 오늘 전체 클릭 -->
+        <div class="sb-card">
+            <div class="sb-card-icon sb-icon-clicks">
+                <span class="dashicons dashicons-visibility"></span>
+            </div>
+            <div class="sb-card-content">
+                <span class="sb-card-value" id="sb-today-total">
+                    <?php echo number_format($today_total_clicks); ?>
+                </span>
+                <span class="sb-card-label">오늘 전체 클릭</span>
+                <span class="sb-card-sublabel">📅 Today (중복 포함)</span>
+            </div>
+        </div>
+
+        <!-- 누적 고유 클릭 (UV) -->
+        <div class="sb-card">
+            <div class="sb-card-icon sb-icon-uv-cumulative">
+                <span class="dashicons dashicons-admin-users"></span>
+            </div>
+            <div class="sb-card-content">
+                <span class="sb-card-value" id="sb-cumulative-unique">
+                    <?php echo number_format($cumulative_unique_visitors); ?>
+                </span>
+                <span class="sb-card-label">누적 고유 클릭 (UV)</span>
+                <span class="sb-card-sublabel">📊 All Time</span>
+            </div>
+        </div>
+
+        <!-- 누적 전체 클릭 -->
+        <div class="sb-card">
+            <div class="sb-card-icon sb-icon-clicks-cumulative">
+                <span class="dashicons dashicons-chart-line"></span>
+            </div>
+            <div class="sb-card-content">
+                <span class="sb-card-value" id="sb-cumulative-total">
+                    <?php echo number_format($cumulative_total_clicks); ?>
+                </span>
+                <span class="sb-card-label">누적 전체 클릭</span>
+                <span class="sb-card-sublabel">📊 All Time (중복 포함)</span>
+            </div>
+        </div>
+
+        <!-- 전일 대비 증감률 -->
         <div class="sb-card">
             <div class="sb-card-icon sb-icon-growth <?php echo $growth_rate >= 0 ? 'positive' : 'negative'; ?>">
                 <span
@@ -137,9 +179,11 @@ $alltime_top_links = $analytics->get_all_time_top_links(20);
                     <?php echo ($growth_rate >= 0 ? '+' : '') . $growth_rate; ?>%
                 </span>
                 <span class="sb-card-label">전일 대비 증감률</span>
+                <span class="sb-card-sublabel">📈 Growth Rate</span>
             </div>
         </div>
 
+        <!-- 활성 링크 수 -->
         <div class="sb-card">
             <div class="sb-card-icon sb-icon-links">
                 <span class="dashicons dashicons-admin-links"></span>
@@ -149,6 +193,7 @@ $alltime_top_links = $analytics->get_all_time_top_links(20);
                     <?php echo number_format($active_links); ?>
                 </span>
                 <span class="sb-card-label">활성 링크 수</span>
+                <span class="sb-card-sublabel">🔗 Active Links</span>
             </div>
         </div>
     </div>

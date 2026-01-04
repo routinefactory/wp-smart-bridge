@@ -162,7 +162,7 @@ class WP_Smart_Bridge
          */
         if (!get_option('sb_settings')) {
             update_option('sb_settings', [
-                'redirect_delay' => 0,
+                'redirect_delay' => 2, // 2초 딜레이 (브랜딩 및 로깅 확실성)
                 'default_loading_message' => '잠시만 기다려주세요...',
                 'ip_hash_salt' => wp_generate_password(32, true, true),
                 'delete_data_on_uninstall' => false, // ✅ 기본값: 데이터 보존
