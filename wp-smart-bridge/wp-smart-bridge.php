@@ -3,7 +3,7 @@
  * Plugin Name: WP Smart Bridge
  * Plugin URI: https://github.com/routinefactory/wp-smart-bridge
  * Description: 제휴 마케팅용 단축 링크 자동화 플러그인 - HMAC-SHA256 보안 인증, 분석 기능 포함
- * Version: 2.9.6
+ * Version: 2.9.7
  * Author: Routine Factory
  * Author URI: https://github.com/routinefactory
  * License: GPL v2 or later
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '2.9.6');
+define('SB_VERSION', '2.9.7');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -88,6 +88,10 @@ class WP_Smart_Bridge
 
         // 초기화
         add_action('init', [$this, 'init']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_styles']);
+
+        // 지연된 퍼마링크 플러시 처리 (안정성 확보)
+        add_action('admin_init', [$this, 'maybe_flush_rewrite_rules']);
         add_action('rest_api_init', [$this, 'init_rest_api']);
 
         // 플러그인 로드 완료
@@ -174,15 +178,13 @@ class WP_Smart_Bridge
         }
 
         /**
-         * 7. 퍼마링크 자동 플러시 (Rewrite Rules)
+         * 7. 퍼마링크 자동 플러시 예약
          * 
-         * 중요: 플러그인 활성화 시 자동으로 rewrite rules를 갱신하여
-         * 사용자가 수동으로 "설정 → 퍼마링크 → 저장"을 클릭하지 않아도
-         * 단축 링크가 즉시 작동하도록 합니다.
-         * 
-         * 이 함수를 호출하지 않으면 기존 단축 링크 접속 시 404 에러 발생!
+         * 직접 flush_rewrite_rules()를 호출하는 것보다,
+         * 옵션을 설정해두고 admin_init 훅에서 처리하는 것이 훨씬 안정적입니다.
+         * (모든 포스트 타입과 규칙이 완벽하게 로드된 후 실행되므로)
          */
-        flush_rewrite_rules();
+        update_option('sb_needs_flush', true);
     }
 
     /**
