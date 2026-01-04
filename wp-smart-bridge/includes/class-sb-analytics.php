@@ -68,7 +68,7 @@ class SB_Analytics
      * 
      * @return float 증감률 (%)
      */
-    public function get_growth_rate()
+    public function get_growth_rate($platform = null)
     {
         global $wpdb;
 
@@ -78,17 +78,24 @@ class SB_Analytics
         $today = new DateTime('now', $timezone);
         $yesterday = new DateTime('yesterday', $timezone);
 
+        $sql_today = "SELECT COUNT(*) FROM $table WHERE DATE(visited_at) = %s";
+        $params_today = [$today->format('Y-m-d')];
+
+        $sql_yesterday = "SELECT COUNT(*) FROM $table WHERE DATE(visited_at) = %s";
+        $params_yesterday = [$yesterday->format('Y-m-d')];
+
+        if ($platform) {
+            $sql_today .= " AND platform = %s";
+            $params_today[] = $platform;
+            $sql_yesterday .= " AND platform = %s";
+            $params_yesterday[] = $platform;
+        }
+
         // 오늘 클릭 수
-        $today_clicks = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table WHERE DATE(visited_at) = %s",
-            $today->format('Y-m-d')
-        ));
+        $today_clicks = (int) $wpdb->get_var($wpdb->prepare($sql_today, $params_today));
 
         // 어제 클릭 수
-        $yesterday_clicks = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table WHERE DATE(visited_at) = %s",
-            $yesterday->format('Y-m-d')
-        ));
+        $yesterday_clicks = (int) $wpdb->get_var($wpdb->prepare($sql_yesterday, $params_yesterday));
 
         // 증감률 계산
         if ($yesterday_clicks === 0) {
@@ -123,21 +130,25 @@ class SB_Analytics
      * @param string $end_date 종료 날짜
      * @return array 24개 요소 배열
      */
-    public function get_clicks_by_hour($start_date, $end_date)
+    public function get_clicks_by_hour($start_date, $end_date, $platform = null)
     {
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT HOUR(visited_at) as hour, COUNT(*) as clicks 
-             FROM $table 
-             WHERE visited_at BETWEEN %s AND %s 
-             GROUP BY HOUR(visited_at) 
-             ORDER BY hour",
-            $start_date,
-            $end_date
-        ), ARRAY_A);
+        $sql = "SELECT HOUR(visited_at) as hour, COUNT(*) as clicks 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
+        $params = [$start_date, $end_date];
+
+        if ($platform) {
+            $sql .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY HOUR(visited_at) ORDER BY hour";
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
         // 24시간 배열 초기화
         $clicks_by_hour = array_fill(0, 24, 0);
@@ -187,26 +198,25 @@ class SB_Analytics
      * @param int $days 일수
      * @return array 날짜별 클릭 수 배열
      */
-    public function get_daily_trend($days = 30)
+    public function get_daily_trend($start_date, $end_date, $platform = null)
     {
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $timezone = wp_timezone();
 
-        $end = new DateTime('now', $timezone);
-        $start = clone $end;
-        $start->modify('-' . ($days - 1) . ' days');
+        $sql = "SELECT DATE(visited_at) as date, COUNT(*) as clicks 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
+        $params = [$start_date, $end_date];
 
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE(visited_at) as date, COUNT(*) as clicks 
-             FROM $table 
-             WHERE visited_at BETWEEN %s AND %s 
-             GROUP BY DATE(visited_at) 
-             ORDER BY date",
-            $start->format('Y-m-d 00:00:00'),
-            $end->format('Y-m-d 23:59:59')
-        ), ARRAY_A);
+        if ($platform) {
+            $sql .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY DATE(visited_at) ORDER BY date";
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
         // 날짜별 데이터 맵 생성
         $date_map = [];
@@ -216,6 +226,8 @@ class SB_Analytics
 
         // 모든 날짜에 대해 데이터 생성 (없는 날짜는 0)
         $daily_trend = [];
+        $start = new DateTime($start_date);
+        $end = new DateTime($end_date);
         $current = clone $start;
 
         while ($current <= $end) {

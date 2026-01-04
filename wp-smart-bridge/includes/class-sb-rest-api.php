@@ -196,17 +196,22 @@ class SB_Rest_API
                 $date_range['end'],
                 $platform_filter
             ),
-            'growth_rate' => $analytics->get_growth_rate(),
+            'growth_rate' => $analytics->get_growth_rate($platform_filter),
             'active_links' => $analytics->get_active_links_count(),
             'clicks_by_hour' => $analytics->get_clicks_by_hour(
                 $date_range['start'],
-                $date_range['end']
+                $date_range['end'],
+                $platform_filter
             ),
             'platform_share' => $analytics->get_platform_share(
                 $date_range['start'],
                 $date_range['end']
             ),
-            'daily_trend' => $analytics->get_daily_trend($range === '7d' ? 7 : 30),
+            'daily_trend' => $analytics->get_daily_trend(
+                $date_range['start'],
+                $date_range['end'],
+                $platform_filter
+            ),
         ];
 
         return new WP_REST_Response([
