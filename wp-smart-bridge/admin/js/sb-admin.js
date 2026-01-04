@@ -234,6 +234,13 @@
     }
 
     /**
+     * 필터 적용 (대시보드 새로고침)
+     */
+    function applyFilters() {
+        loadStats();
+    }
+
+    /**
      * 통계 데이터 로드
      */
     function loadStats() {
@@ -395,8 +402,7 @@
                 data: {
                     action: 'sb_save_settings',
                     nonce: sbAdmin.ajaxNonce,
-                    redirect_delay: $('#sb-redirect-delay').val(),
-                    default_loading_message: $('#sb-default-loading-message').val()
+                    redirect_delay: $('#sb-redirect-delay').val()
                 },
                 success: function (response) {
                     if (response.success) {
@@ -407,6 +413,69 @@
                 },
                 complete: function () {
                     $btn.prop('disabled', false).text('설정 저장');
+                }
+            });
+        });
+
+        // 템플릿 저장
+        $('#sb-template-form').on('submit', function (e) {
+            e.preventDefault();
+
+            var $btn = $(this).find('button[type="submit"]');
+            var originalText = $btn.text();
+            $btn.prop('disabled', true).text('저장 중...');
+
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_save_redirect_template',
+                    nonce: sbAdmin.ajaxNonce,
+                    template: $('#sb-redirect-template').val()
+                },
+                success: function (response) {
+                    if (response.success) {
+                        alert('템플릿이 저장되었습니다.');
+                        $('#sb-template-validation').hide(); // 유효성 검사 경고 숨김
+                    } else {
+                        alert('오류: ' + response.data.message);
+                    }
+                },
+                error: function () {
+                    alert('저장 중 오류가 발생했습니다.');
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).text(originalText);
+                }
+            });
+        });
+
+        // 템플릿 초기화
+        $('#sb-reset-template').on('click', function () {
+            if (!confirm('정말로 기본 템플릿으로 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                return;
+            }
+
+            var $btn = $(this);
+            $btn.prop('disabled', true);
+
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_reset_redirect_template',
+                    nonce: sbAdmin.ajaxNonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        alert('템플릿이 초기화되었습니다.');
+                        $('#sb-redirect-template').val(response.data.template);
+                    } else {
+                        alert(response.data.message);
+                    }
+                },
+                complete: function () {
+                    $btn.prop('disabled', false);
                 }
             });
         });

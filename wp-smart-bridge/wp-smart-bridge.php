@@ -3,7 +3,7 @@
  * Plugin Name: WP Smart Bridge
  * Plugin URI: https://github.com/routinefactory/wp-smart-bridge
  * Description: 제휴 마케팅용 단축 링크 자동화 플러그인 - HMAC-SHA256 보안 인증, 분석 기능 포함
- * Version: 2.9.1
+ * Version: 2.9.6
  * Author: Routine Factory
  * Author URI: https://github.com/routinefactory
  * License: GPL v2 or later
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '2.9.1');
+define('SB_VERSION', '2.9.6');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -172,6 +172,17 @@ class WP_Smart_Bridge
         if (!get_option('sb_first_install_notice')) {
             update_option('sb_first_install_notice', true);
         }
+
+        /**
+         * 7. 퍼마링크 자동 플러시 (Rewrite Rules)
+         * 
+         * 중요: 플러그인 활성화 시 자동으로 rewrite rules를 갱신하여
+         * 사용자가 수동으로 "설정 → 퍼마링크 → 저장"을 클릭하지 않아도
+         * 단축 링크가 즉시 작동하도록 합니다.
+         * 
+         * 이 함수를 호출하지 않으면 기존 단축 링크 접속 시 404 에러 발생!
+         */
+        flush_rewrite_rules();
     }
 
     /**

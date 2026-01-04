@@ -62,7 +62,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
             Smart Bridge 대시보드
         </h1>
         <div class="sb-header-actions">
-            <button type="button" id="sb-check-update" class="button">
+            <button type="button" id="sb-force-check-update" class="button">
                 <span class="dashicons dashicons-update"></span>
                 업데이트 확인
             </button>
@@ -116,7 +116,8 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
             </select>
         </div>
 
-        <button type="button" id="sb-apply-filter" class="button button-primary">
+        <button type="button" id="sb-apply-filters" class="button button-primary">
+            <span class="dashicons dashicons-yes"></span>
             필터 적용
         </button>
     </div>

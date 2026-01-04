@@ -225,7 +225,7 @@ class SB_Admin
         $settings = get_option('sb_settings', []);
 
         if (isset($_POST['redirect_delay'])) {
-            $settings['redirect_delay'] = intval($_POST['redirect_delay']);
+            $settings['redirect_delay'] = floatval($_POST['redirect_delay']);
         }
 
         update_option('sb_settings', $settings);

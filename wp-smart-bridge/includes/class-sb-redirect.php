@@ -95,7 +95,7 @@ class SB_Redirect
 
         // 설정 조회
         $settings = get_option('sb_settings', []);
-        $redirect_delay = isset($settings['redirect_delay']) ? (int) $settings['redirect_delay'] : 0;
+        $redirect_delay = isset($settings['redirect_delay']) ? (float) $settings['redirect_delay'] : 0.0;
 
         // 딜레이가 있으면 중간 페이지 표시
         if ($redirect_delay > 0) {
