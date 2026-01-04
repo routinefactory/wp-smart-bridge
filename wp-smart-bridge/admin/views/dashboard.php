@@ -315,6 +315,45 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
                             <td colspan="6" class="sb-no-data">아직 데이터가 없습니다.</td>
                         </tr>
                     <?php else: ?>
+                        <?php if (isset($update_info) && version_compare(SB_VERSION, $update_info['version'], '<')): ?>
+                            <div class="notice notice-info"
+                                style="border-left: 4px solid #0073aa; padding: 15px; margin-bottom: 20px;">
+                                <h3 style="margin-top: 0;">📢 새로운 버전이 출시되었습니다!</h3>
+                                <p>
+                                    <strong>현재 버전:</strong> v<?php echo esc_html(SB_VERSION); ?><br>
+                                    <strong>최신 버전:</strong> v<?php echo esc_html($update_info['version']); ?>
+                                </p>
+                                <p>
+                                    <a href="<?php echo esc_url($update_info['download_url']); ?>" class="button button-primary"
+                                        style="margin-right: 10px;">
+                                        📥 v<?php echo esc_html($update_info['version']); ?> ZIP 다운로드
+                                    </a>
+                                    <button type="button" id="sb-force-check-update" class="button" style="margin-right: 10px;">
+                                        🔄 지금 바로 확인
+                                    </button>
+                                    <a href="<?php echo esc_url($update_info['release_url']); ?>" class="button"
+                                        target="_blank">
+                                        📄 릴리스 노트
+                                    </a>
+                                </p>
+                                <details style="margin-top: 15px;">
+                                    <summary style="cursor: pointer; font-weight: 600;">📖 수동 업데이트 방법 (7단계)</summary>
+                                    <ol style="margin: 10px 0 0 20px; line-height: 1.8;">
+                                        <li>위의 <strong>"📥 ZIP 다운로드"</strong> 버튼을 클릭하여 최신 버전 ZIP 파일을 다운로드합니다.</li>
+                                        <li><strong>플러그인 → 설치된 플러그인</strong> 메뉴로 이동합니다.</li>
+                                        <li><strong>WP Smart Bridge</strong>를 <strong>비활성화</strong>합니다. (데이터는 보존됩니다)</li>
+                                        <li><strong>삭제</strong> 버튼을 클릭합니다. (데이터는 보존됩니다)</li>
+                                        <li><strong>플러그인 → 새로 추가 → 플러그인 업로드</strong>를 클릭합니다.</li>
+                                        <li>다운로드한 ZIP 파일을 업로드하고 <strong>지금 설치</strong>를 클릭합니다.</li>
+                                        <li>설치 완료 후 <strong>활성화</strong>합니다. 모든 데이터가 그대로 유지됩니다!</li>
+                                    </ol>
+                                    <p
+                                        style="margin: 10px 0 0; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                                        ✅ <strong>데이터 안전 보장:</strong> 플러그인 삭제 시에도 모든 링크, 통계, API 키가 보존됩니다!
+                                    </p>
+                                </details>
+                            </div>
+                        <?php endif; ?>
                         <?php foreach ($alltime_top_links as $index => $link): ?>
                             <tr>
                                 <td><?php echo $index + 1; ?></td>

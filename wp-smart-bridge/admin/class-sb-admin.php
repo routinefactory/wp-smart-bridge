@@ -40,7 +40,7 @@ class SB_Admin
         add_action('wp_ajax_sb_delete_api_key', [$this, 'ajax_delete_api_key']);
         add_action('wp_ajax_sb_save_settings', [$this, 'ajax_save_settings']);
         add_action('wp_ajax_sb_dismiss_welcome', [$this, 'ajax_dismiss_welcome']);
-        add_action('wp_ajax_sb_check_update', [$this, 'ajax_check_update']);
+        add_action('wp_ajax_sb_force_check_update', [$this, 'ajax_force_check_update']);
         add_action('wp_ajax_sb_save_redirect_template', [$this, 'ajax_save_redirect_template']);
         add_action('wp_ajax_sb_reset_redirect_template', [$this, 'ajax_reset_redirect_template']);
         add_action('wp_ajax_sb_download_backup', [$this, 'ajax_download_backup']);
@@ -246,20 +246,33 @@ class SB_Admin
     }
 
     /**
-     * 업데이트 확인 AJAX
+     * 수동 업데이트 강제 체크 AJAX
      */
-    public function ajax_check_update()
+    public function ajax_force_check_update()
     {
         check_ajax_referer('sb_admin_nonce', 'nonce');
 
-        if (!current_user_can('update_plugins')) {
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => '권한이 없습니다.']);
         }
 
-        // 업데이트 체크 강제 실행 (캐시 삭제 포함)
-        SB_Updater::force_check();
+        // 캐시 삭제 후 즉시 체크
+        $update_info = SB_Updater::force_check_release();
 
-        wp_send_json_success(['message' => '업데이트를 확인했습니다. 최신 버전이 있는 경우 워드프레스 업데이트 메뉴에 표시됩니다.']);
+        if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
+            wp_send_json_success([
+                'has_update' => true,
+                'current_version' => SB_VERSION,
+                'latest_version' => $update_info['version'],
+                'download_url' => $update_info['download_url'],
+                'release_url' => $update_info['release_url'],
+            ]);
+        } else {
+            wp_send_json_success([
+                'has_update' => false,
+                'message' => '최신 버전을 사용 중입니다! (v' . SB_VERSION . ')',
+            ]);
+        }
     }
 
     /**

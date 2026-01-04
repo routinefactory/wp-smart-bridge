@@ -354,52 +354,69 @@ class SB_Analytics
     }
 
     /**
-     * 오늘 인기 링크 TOP N 조회
+     * 오늘의 인기 링크 조회 (N+1 쿼리 최적화)
      * 
-     * @param int $limit 개수
-     * @return array 링크 목록
+     * @param int $limit 조회 개수
+     * @return array 링크 배열
      */
-    public function get_today_top_links($limit = 100)
+    public function get_today_top_links($limit = 10)
     {
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $timezone = wp_timezone();
-        $today = new DateTime('now', $timezone);
+        $today = current_time('Y-m-d');
 
+        // 오늘의 인기 링크 ID 조회
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT link_id, COUNT(*) as clicks 
-             FROM $table 
-             WHERE visited_at BETWEEN %s AND %s 
-             GROUP BY link_id 
-             ORDER BY clicks DESC 
+            "SELECT link_id, COUNT(*) as click_count
+             FROM $table
+             WHERE DATE(visited_at) = %s
+             GROUP BY link_id
+             ORDER BY click_count DESC
              LIMIT %d",
-            $today->format('Y-m-d 00:00:00'),
-            $today->format('Y-m-d 23:59:59'),
+            $today,
             $limit
-        ), ARRAY_A);
+        ));
 
-        $top_links = [];
-
-        foreach ($results as $row) {
-            $post = get_post($row['link_id']);
-            if ($post) {
-                $top_links[] = [
-                    'id' => $post->ID,
-                    'slug' => $post->post_title,
-                    'short_link' => SB_Helpers::get_short_link_url($post->post_title),
-                    'target_url' => get_post_meta($post->ID, 'target_url', true),
-                    'platform' => get_post_meta($post->ID, 'platform', true),
-                    'clicks' => (int) $row['clicks'],
-                ];
-            }
+        if (empty($results)) {
+            return [];
         }
 
-        return $top_links;
+        // 링크 포스트 조회
+        $link_ids = array_column($results, 'link_id');
+        $posts = get_posts([
+            'post_type' => 'sb_link',
+            'include' => $link_ids,
+            'posts_per_page' => -1,
+        ]);
+
+        // ✅ N+1 쿼리 최적화: 모든 메타 데이터 한 번에 로드
+        update_meta_cache('post', $link_ids);
+
+        $links = [];
+        foreach ($posts as $post) {
+            $click_count = 0;
+            foreach ($results as $result) {
+                if ($result->link_id == $post->ID) {
+                    $click_count = (int) $result->click_count;
+                    break;
+                }
+            }
+
+            $links[] = [
+                'id' => $post->ID,
+                'slug' => $post->post_title,
+                'target_url' => get_post_meta($post->ID, 'target_url', true), // 캐시에서 로드
+                'platform' => get_post_meta($post->ID, 'platform', true),      // 캐시에서 로드
+                'clicks_today' => $click_count,
+            ];
+        }
+
+        return $links;
     }
 
     /**
-     * 누적 인기 링크 TOP N 조회
+     * 누적 인기 링크 조회 (N+1 쿼리 최적화)
      * 
      * @param int $limit 개수
      * @return array 링크 목록
@@ -419,6 +436,16 @@ class SB_Analytics
             $limit
         ), ARRAY_A);
 
+        if (empty($results)) {
+            return [];
+        }
+
+        // 링크 ID 배열 추출
+        $link_ids = array_column($results, 'link_id');
+
+        // ✅ N+1 쿼리 최적화: 모든 메타 데이터 한 번에 로드
+        update_meta_cache('post', $link_ids);
+
         $top_links = [];
 
         foreach ($results as $row) {
@@ -428,8 +455,8 @@ class SB_Analytics
                     'id' => $post->ID,
                     'slug' => $post->post_title,
                     'short_link' => SB_Helpers::get_short_link_url($post->post_title),
-                    'target_url' => get_post_meta($post->ID, 'target_url', true),
-                    'platform' => get_post_meta($post->ID, 'platform', true),
+                    'target_url' => get_post_meta($post->ID, 'target_url', true), // 캐시에서 로드
+                    'platform' => get_post_meta($post->ID, 'platform', true),      // 캐시에서 로드
                     'clicks' => (int) $row['clicks'],
                 ];
             }

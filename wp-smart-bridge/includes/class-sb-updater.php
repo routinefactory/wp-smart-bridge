@@ -70,4 +70,18 @@ class SB_Updater
 
         return $result;
     }
+
+    /**
+     * 캐시 무시하고 즉시 GitHub 릴리스 체크 (강제 새로고침)
+     * 
+     * @return array|null
+     */
+    public static function force_check_release()
+    {
+        // 캐시 삭제
+        delete_transient('sb_github_release_check');
+
+        // 즉시 체크
+        return self::check_github_release();
+    }
 }

@@ -63,7 +63,8 @@ class SB_Database
             INDEX idx_link_id (link_id),
             INDEX idx_visited_at (visited_at),
             INDEX idx_platform (platform),
-            INDEX idx_visitor_ip (visitor_ip)
+            INDEX idx_visitor_ip (visitor_ip),
+            INDEX idx_link_visited (link_id, visited_at)
         ) $charset_collate;";
 
         /**

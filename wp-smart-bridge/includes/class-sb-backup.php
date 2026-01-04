@@ -46,10 +46,23 @@ class SB_Backup
             ];
         }
 
-        // 분석 로그
+        // 분석 로그 (필요한 컬럼만 선택 - 성능 최적화)
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $logs = $wpdb->get_results("SELECT * FROM $table ORDER BY visited_at DESC LIMIT 10000", ARRAY_A);
-        $backup['data']['analytics'] = $logs;
+        $logs = $wpdb->get_results(
+            "SELECT link_id, visitor_ip, platform, visited_at 
+             FROM $table 
+             ORDER BY visited_at DESC"
+        );
+
+        $backup['data']['analytics'] = [];
+        foreach ($logs as $log) {
+            $backup['data']['analytics'][] = [
+                'link_id' => (int) $log->link_id,
+                'visitor_ip' => $log->visitor_ip,
+                'platform' => $log->platform,
+                'visited_at' => $log->visited_at,
+            ];
+        }
 
         // 설정
         $backup['data']['settings'] = get_option('sb_settings', []);
@@ -115,11 +128,15 @@ class SB_Backup
                     'post_date' => $link_data['created_at'] ?? current_time('mysql'),
                 ]);
 
-                if ($post_id) {
-                    update_post_meta($post_id, 'target_url', $link_data['target_url']);
-                    update_post_meta($post_id, 'platform', $link_data['platform']);
-                    $stats['links']++;
+                // 에러 체크
+                if (is_wp_error($post_id) || $post_id === 0) {
+                    continue; // 실패 시 다음 링크로
                 }
+
+                // 메타 데이터 저장
+                update_post_meta($post_id, 'target_url', $link_data['target_url']);
+                update_post_meta($post_id, 'platform', $link_data['platform']);
+                $stats['links']++;
             }
         }
 
@@ -146,12 +163,16 @@ class SB_Backup
             }
         }
 
-        // 설정 복원 (선택적)
-        if (isset($backup['data']['settings']) && !empty($backup['data']['settings'])) {
+        // 설정 복원 (백업이 우선)
+        if (isset($backup['data']['settings'])) {
             $current_settings = get_option('sb_settings', []);
-            // 현재 설정과 병합 (기존 설정 우선)
-            $merged = array_merge($backup['data']['settings'], $current_settings);
-            update_option('sb_settings', $merged);
+
+            // ✅ 올바른 순서: 백업이 현재 설정을 덮어씀
+            // array_merge(먼저, 나중) → 나중 것이 우선
+            $merged_settings = array_merge($current_settings, $backup['data']['settings']);
+
+            update_option('sb_settings', $merged_settings);
+            $stats['settings_restored'] = true;
         }
 
         return [
@@ -179,14 +200,44 @@ class SB_Backup
         $file = $_FILES['backup_file'];
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
-            wp_send_json_error(['message' => '파일 업로드 오류가 발생했습니다.']);
+            wp_send_json_error(['message' => '파일 업로드 실패: ' . $file['error']]);
         }
 
-        $content = file_get_contents($file['tmp_name']);
-        $backup = json_decode($content, true);
+        // 파일 크기 검증 (최대 10MB)
+        $max_size = 10 * 1024 * 1024; // 10MB
+        if ($file['size'] > $max_size) {
+            wp_send_json_error([
+                'message' => '파일이 너무 큽니다. 최대 크기: 10MB (현재: ' .
+                    round($file['size'] / 1024 / 1024, 2) . 'MB)'
+            ]);
+        }
 
-        if (!$backup) {
-            wp_send_json_error(['message' => 'JSON 파싱 실패: 잘못된 백업 파일입니다.']);
+        // 확장자 검증
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if ($extension !== 'json') {
+            wp_send_json_error(['message' => 'JSON 파일만 허용됩니다.']);
+        }
+
+        // MIME 타입 검증 (보안 강화)
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime_type = finfo_file($finfo, $file['tmp_name']);
+            finfo_close($finfo);
+
+            $allowed_mimes = ['application/json', 'text/plain', 'application/octet-stream'];
+            if (!in_array($mime_type, $allowed_mimes)) {
+                wp_send_json_error([
+                    'message' => '유효하지 않은 파일 형식입니다. (감지된 타입: ' . $mime_type . ')'
+                ]);
+            }
+        }
+
+        // JSON 파일 읽기
+        $json_content = file_get_contents($file['tmp_name']);
+        $backup = json_decode($json_content, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            wp_send_json_error(['message' => '유효하지 않은 JSON 파일입니다: ' . json_last_error_msg()]);
         }
 
         $result = self::restore_backup($backup);

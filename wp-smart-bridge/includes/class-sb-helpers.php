@@ -235,14 +235,39 @@ class SB_Helpers
 
 
     /**
-     * 클릭 수 증가
+     * 클릭 수 증가 (Atomic Operation - Race Condition 방지)
+     * 
+     * 기존 문제:
+     * - get_post_meta() → +1 → update_post_meta() 방식은 동시 접속 시 클릭 손실 발생
+     * 
+     * 해결:
+     * - SQL UPDATE ... SET meta_value = meta_value + 1로 원자적 연산 수행
+     * - 데이터베이스 레벨에서 동시성 보장
      * 
      * @param int $post_id 포스트 ID
      */
     public static function increment_click_count($post_id)
     {
-        $current = (int) get_post_meta($post_id, 'click_count', true);
-        update_post_meta($post_id, 'click_count', $current + 1);
+        global $wpdb;
+
+        // 원자적 증가 연산 (Atomic Increment)
+        $table = $wpdb->prefix . 'postmeta';
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE $table 
+             SET meta_value = CAST(meta_value AS UNSIGNED) + 1 
+             WHERE post_id = %d 
+               AND meta_key = 'click_count'",
+            $post_id
+        ));
+
+        // 메타가 없으면 생성
+        if ($updated === 0) {
+            add_post_meta($post_id, 'click_count', 1, true);
+        }
+
+        // 캐시 무효화 (WordPress 메타 캐시)
+        wp_cache_delete($post_id, 'post_meta');
     }
 
     /**

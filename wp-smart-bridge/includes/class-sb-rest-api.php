@@ -130,10 +130,19 @@ class SB_Rest_API
             ],
         ]);
 
+        // 에러 체크: WP_Error 또는 0 반환
         if (is_wp_error($post_id)) {
             return new WP_Error(
                 'db_error',
-                'Failed to save link to database.',
+                'Failed to save link: ' . $post_id->get_error_message(),
+                ['status' => 500]
+            );
+        }
+
+        if ($post_id === 0) {
+            return new WP_Error(
+                'db_error',
+                'Failed to create link: wp_insert_post returned 0',
                 ['status' => 500]
             );
         }

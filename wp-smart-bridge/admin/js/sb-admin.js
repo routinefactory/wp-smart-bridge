@@ -37,46 +37,47 @@
             }
         });
 
-        // 필터 적용 버튼
-        $('#sb-apply-filter').on('click', function () {
-            loadStats();
-        });
+        // 대시보드 필터 적용
+        $('#sb-apply-filters').on('click', applyFilters);
 
+        // 수동 업데이트 강제 체크
+        $('#sb-force-check-update').on('click', function () {
+            var $btn = $(this);
+            if ($btn.prop('disabled')) return;
 
-        $('#sb-check-update').on('click', function () {
-            checkUpdate($(this));
-        });
-    }
+            var originalHtml = $btn.html();
+            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> 확인 중...');
 
-    /**
-     * 업데이트 확인 실행
-     */
-    function checkUpdate($btn) {
-        if ($btn.hasClass('updating')) return;
-
-        var originalHtml = $btn.html();
-        $btn.addClass('updating').prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> 확인 중...');
-
-        $.ajax({
-            url: sbAdmin.ajaxUrl,
-            method: 'POST',
-            data: {
-                action: 'sb_check_update',
-                nonce: sbAdmin.ajaxNonce
-            },
-            success: function (response) {
-                if (response.success) {
-                    alert(response.data.message);
-                } else {
-                    alert('에러: ' + response.data.message);
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_force_check_update',
+                    nonce: sbAdmin.ajaxNonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        if (response.data.has_update) {
+                            // 새 버전 발견 - 페이지 새로고침하여 배너 업데이트
+                            alert('✅ 새로운 버전이 발견되었습니다!\n\n' +
+                                '현재: v' + response.data.current_version + '\n' +
+                                '최신: v' + response.data.latest_version + '\n\n' +
+                                '페이지를 새로고침합니다.');
+                            location.reload();
+                        } else {
+                            alert(response.data.message);
+                        }
+                    } else {
+                        alert('오류: ' + response.data.message);
+                    }
+                },
+                error: function () {
+                    alert('❌ 업데이트 확인 중 오류가 발생했습니다.');
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).html(originalHtml);
                 }
-            },
-            error: function () {
-                alert('업데이트 확인 중 통신 오류가 발생했습니다.');
-            },
-            complete: function () {
-                $btn.removeClass('updating').prop('disabled', false).html(originalHtml);
-            }
+            });
         });
     }
 
