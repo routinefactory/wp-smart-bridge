@@ -44,7 +44,9 @@ class SB_Admin
         add_action('wp_ajax_sb_save_redirect_template', [$this, 'ajax_save_redirect_template']);
         add_action('wp_ajax_sb_reset_redirect_template', [$this, 'ajax_reset_redirect_template']);
         add_action('wp_ajax_sb_download_backup', [$this, 'ajax_download_backup']);
+        add_action('wp_ajax_sb_download_backup', [$this, 'ajax_download_backup']);
         add_action('wp_ajax_sb_restore_backup', [$this, 'ajax_restore_backup']);
+        add_action('wp_ajax_sb_health_check', [$this, 'ajax_health_check']);
     }
 
     /**
@@ -136,6 +138,7 @@ class SB_Admin
         wp_localize_script('sb-admin', 'sbAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'restUrl' => rest_url('sb/v1/'),
+            'adminUrl' => admin_url(),
             'nonce' => wp_create_nonce('wp_rest'),
             'ajaxNonce' => wp_create_nonce('sb_admin_nonce'),
         ]);
@@ -346,5 +349,68 @@ class SB_Admin
     public function ajax_restore_backup()
     {
         SB_Backup::handle_restore_upload();
+    }
+
+    /**
+     * 시스템 상태 점검 (퍼마링크 404 감지)
+     */
+    public function ajax_health_check()
+    {
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        // 1. 테스트할 단축 링크 가져오기 (공개된 것 중 최신 1개)
+        $posts = get_posts([
+            'post_type' => 'sb_link',
+            'post_status' => 'publish',
+            'posts_per_page' => 1,
+            'orderby' => 'date',
+            'order' => 'DESC'
+        ]);
+
+        if (empty($posts)) {
+            // 테스트할 링크가 없으면 정상(문제없음)으로 간주하되, 
+            // 프론트엔드에서 "링크가 없음"을 알 수 있게 상태 전달
+            wp_send_json_success(['status' => 'no_links']);
+        }
+
+        $test_post = $posts[0];
+        $slug = $test_post->post_title;
+
+        // 실제 접속 URL (예: http://site.com/go/abcd)
+        $test_url = SB_Helpers::get_short_link_url($slug);
+
+        // 2. HTTP 요청 보내기 (Loopback Request)
+        $response = wp_remote_get($test_url, [
+            'timeout' => 5,
+            'redirection' => 0, // 리다이렉트 따라가지 않음 (302/301 받으면 성공)
+            'sslverify' => false // 로컬 환경 등 고려
+        ]);
+
+        if (is_wp_error($response)) {
+            // 연결 실패 (DNS, 방화벽 등)
+            // 404는 아니므로 'unknown' 처리하거나, 사용자에게 알림
+            wp_send_json_success([
+                'status' => 'connection_error',
+                'msg' => $response->get_error_message()
+            ]);
+        }
+
+        $response_code = wp_remote_retrieve_response_code($response);
+
+        // 3. 상태 판단
+        // - 200: 정상 (리다이렉트 화면이 바로 뜰 경우)
+        // - 301, 302: 정상 (리다이렉트 응답)
+        // - 404: 비정상 (퍼마링크 깨짐) 🚨
+        if ($response_code === 404) {
+            wp_send_json_success([
+                'status' => 'error_404',
+                'test_url' => $test_url
+            ]);
+        } else {
+            wp_send_json_success([
+                'status' => 'ok',
+                'code' => $response_code
+            ]);
+        }
     }
 }

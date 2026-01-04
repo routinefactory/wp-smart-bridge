@@ -40,6 +40,9 @@
         // 대시보드 필터 적용
         $('#sb-apply-filters').on('click', applyFilters);
 
+        // 시스템 상태 점검 (퍼마링크 404 감지)
+        performHealthCheck();
+
         // 수동 업데이트 강제 체크
         $('#sb-force-check-update').on('click', function () {
             var $btn = $(this);
@@ -517,6 +520,59 @@
                 });
             }
         });
+    }
+
+    /**
+     * 상태 점검 (퍼마링크 깨짐 확인)
+     */
+    function performHealthCheck() {
+        // 대시보드 페이지만 실행
+        if ($('#sb-traffic-trend-chart').length === 0) return;
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_health_check',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function (response) {
+                if (response.success && response.data.status === 'error_404') {
+                    showPermalinkWarning();
+                }
+            }
+        });
+    }
+
+    /**
+     * 퍼마링크 경고 배너 표시
+     */
+    function showPermalinkWarning() {
+        var $container = $('.wrap.sb-dashboard');
+        if ($container.length === 0) return;
+
+        var html = `
+            <div class="notice notice-error is-dismissible" style="border-left-color: #d63638; padding: 15px 20px;">
+                <h3 style="margin: 0 0 10px; color: #d63638; display: flex; align-items: center;">
+                    <span class="dashicons dashicons-warning" style="font-size: 24px; margin-right: 10px;"></span>
+                    긴급: 단축 링크가 작동하지 않습니다!
+                </h3>
+                <p style="font-size: 14px; margin: 0 0 15px;">
+                    현재 "페이지를 찾을 수 없음(404)" 오류가 발생하고 있습니다.<br>
+                    이는 워드프레스의 고유주소(Permalink) 설정이 갱신되지 않아서 발생하는 문제입니다.
+                </p>
+                <p style="margin: 0;">
+                    <a href="${sbAdmin.adminUrl}options-permalink.php" class="button button-primary" style="background: #d63638; border-color: #d63638;">
+                        문제 해결하기 (고유주소 설정 이동)
+                    </a>
+                    <span style="display: inline-block; margin-left: 10px; color: #666; font-size: 13px;">
+                        👉 이동 후 아무것도 변경하지 말고 <strong>[변경사항 저장]</strong> 버튼만 한 번 눌러주세요.
+                    </span>
+                </p>
+            </div>
+        `;
+
+        $container.prepend(html);
     }
 
 })(jQuery);
