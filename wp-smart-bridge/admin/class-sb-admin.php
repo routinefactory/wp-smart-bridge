@@ -43,6 +43,8 @@ class SB_Admin
         add_action('wp_ajax_sb_check_update', [$this, 'ajax_check_update']);
         add_action('wp_ajax_sb_save_redirect_template', [$this, 'ajax_save_redirect_template']);
         add_action('wp_ajax_sb_reset_redirect_template', [$this, 'ajax_reset_redirect_template']);
+        add_action('wp_ajax_sb_download_backup', [$this, 'ajax_download_backup']);
+        add_action('wp_ajax_sb_restore_backup', [$this, 'ajax_restore_backup']);
     }
 
     /**
@@ -315,5 +317,27 @@ class SB_Admin
             'message' => '기본 템플릿으로 복원되었습니다.',
             'template' => $default_template
         ]);
+    }
+
+    /**
+     * 백업 다운로드 AJAX
+     */
+    public function ajax_download_backup()
+    {
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => '권한이 없습니다.']);
+        }
+
+        SB_Backup::download_backup();
+    }
+
+    /**
+     * 백업 복원 AJAX
+     */
+    public function ajax_restore_backup()
+    {
+        SB_Backup::handle_restore_upload();
     }
 }

@@ -324,167 +324,217 @@ class SB_Helpers
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Connecting...</title>
+    <title>안전하게 연결 중...</title>
     <style>
         :root {
-            --primary: #2563EB;
-            --surface: #ffffff;
-            --bg: #F3F4F6;
-            --text: #1F2937;
-            --text-secondary: #6B7280;
+            --primary: #0066FF;
+            --primary-glow: rgba(0, 102, 255, 0.3);
+            --bg: #05070A;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --text-main: #FFFFFF;
+            --text-dim: #94A3B8;
+            --border: rgba(255, 255, 255, 0.08);
         }
-        body {
+
+        * {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
-            color: var(--text);
+            color: var(--text-main);
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            background: radial-gradient(circle at 50% 50%, #111827 0%, #05070A 100%);
         }
-        .card {
-            background: var(--surface);
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 420px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .card::before {
-            content: "";
-            position: absolute;
+
+        /* Animated background mesh */
+        .mesh {
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            height: 6px;
-            background: linear-gradient(90deg, #2563EB, #60A5FA);
+            height: 100%;
+            z-index: -1;
+            opacity: 0.4;
+            filter: blur(80px);
         }
-        .progress-container {
+
+        .mesh-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(40px);
+            animation: move 20s infinite alternate;
+        }
+
+        @keyframes move {
+            from { transform: translate(-10%, -10%); }
+            to { transform: translate(10%, 10%); }
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            padding: 48px 32px;
+            border-radius: 32px;
+            width: 100%;
+            max-width: 440px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeInScale 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .progress-wrapper {
             position: relative;
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 30px;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 36px;
         }
+
         .progress-svg {
             transform: rotate(-90deg);
-            width: 100%;
-            height: 100%;
         }
-        .progress-circle-bg {
+
+        .track {
             fill: none;
-            stroke: #E5E7EB;
+            stroke: var(--border);
             stroke-width: 4;
         }
-        .progress-circle {
+
+        .bar {
             fill: none;
             stroke: var(--primary);
             stroke-width: 4;
             stroke-linecap: round;
-            stroke-dasharray: 238;
-            stroke-dashoffset: 0;
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            filter: drop-shadow(0 0 8px var(--primary-glow));
             transition: stroke-dashoffset 1s linear;
         }
-        .countdown-text {
+
+        .timer-val {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 24px;
+            font-size: 32px;
             font-weight: 700;
             color: var(--primary);
+            letter-spacing: -0.02em;
         }
-        .message {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text);
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
         }
-        .sub-message {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-bottom: 30px;
+
+        p.sub {
+            font-size: 15px;
+            color: var(--text-dim);
+            line-height: 1.6;
+            margin-bottom: 40px;
         }
-        .btn {
+
+        .action-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 12px 24px;
-            background-color: var(--primary);
+            padding: 16px 32px;
+            background: var(--primary);
             color: white;
             text-decoration: none;
-            border-radius: 12px;
-            font-weight: 500;
-            transition: all 0.2s;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            width: 100%;
+            box-shadow: 0 10px 20px -5px var(--primary-glow);
         }
-        .btn:hover {
-            background-color: #1D4ED8;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px var(--primary-glow);
+            filter: brightness(1.1);
         }
-        .security-badge {
-            margin-top: 30px;
+
+        .security-footer {
+            margin-top: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--text-secondary);
-            opacity: 0.8;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-dim);
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
         }
-        .icon-lock {
-            width: 14px;
-            height: 14px;
-            fill: currentColor;
+
+        .shield-icon {
+            width: 16px;
+            height: 16px;
+            color: var(--primary);
         }
     </style>
 </head>
 <body>
+    <div class="mesh">
+        <div class="mesh-circle" style="width: 400px; height: 400px; background: #003366; top: 10%; left: 10%;"></div>
+        <div class="mesh-circle" style="width: 300px; height: 300px; background: #001a33; bottom: 10%; right: 10%; animation-delay: -5s;"></div>
+    </div>
+
     <div class="card">
-        <div class="progress-container">
-            <svg class="progress-svg" viewBox="0 0 80 80">
-                <circle class="progress-circle-bg" cx="40" cy="40" r="38"></circle>
-                <circle class="progress-circle" cx="40" cy="40" r="38" id="progress-ring"></circle>
+        <div class="progress-wrapper">
+            <svg class="progress-svg" viewBox="0 0 100 100">
+                <circle class="track" cx="50" cy="50" r="45"></circle>
+                <circle id="progress-ring" class="bar" cx="50" cy="50" r="45"></circle>
             </svg>
-            <div class="countdown-text" id="countdown">{{DELAY_SECONDS}}</div>
+            <div class="timer-val" id="countdown">{{DELAY_SECONDS}}</div>
         </div>
         
-        <div class="message">{{LOADING_MESSAGE}}</div>
-        <div class="sub-message">안전하게 이동 중입니다. 잠시만 기다려주세요.</div>
+        <h1>페이지로 이동 중입니다...</h1>
+        <p class="sub">보안 서버를 통해 안전하게 연결하고 있습니다.<br>잠시만 기다려 주세요.</p>
         
-        <a href="{{TARGET_URL}}" class="btn">지금 바로 이동</a>
+        <a href="{{TARGET_URL}}" class="action-btn">즉시 연결하기</a>
         
-        <div class="security-badge">
-            <svg class="icon-lock" viewBox="0 0 24 24">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+        <div class="security-footer">
+            <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
-            Secure Redirect Technology
+            Verified Secure Connection
         </div>
     </div>
-    
+
     {{COUNTDOWN_SCRIPT}}
     
     <script>
         (function() {
-            var totalSeconds = {{DELAY_SECONDS}};
-            var circle = document.getElementById("progress-ring");
-            var radius = circle.r.baseVal.value;
-            var circumference = radius * 2 * Math.PI;
+            const total = {{DELAY_SECONDS}};
+            const ring = document.getElementById("progress-ring");
+            const circumference = 2 * Math.PI * 45;
             
-            circle.style.strokeDasharray = `${circumference} ${circumference}`;
-            circle.style.strokeDashoffset = circumference;
+            ring.style.strokeDasharray = circumference;
+            ring.style.strokeDashoffset = circumference;
             
+            // Subtle entrance sync
             setTimeout(() => {
-                circle.style.transition = `stroke-dashoffset ${totalSeconds}s linear`;
-                circle.style.strokeDashoffset = "0";
+                ring.style.transition = `stroke-dashoffset ${total}s linear`;
+                ring.style.strokeDashoffset = 0;
             }, 100);
         })();
     </script>
@@ -500,7 +550,6 @@ class SB_Helpers
     public static function get_required_placeholders()
     {
         return [
-            '{{LOADING_MESSAGE}}',
             '{{DELAY_SECONDS}}',
             '{{TARGET_URL}}',
             '{{COUNTDOWN_SCRIPT}}',
@@ -541,17 +590,17 @@ class SB_Helpers
         return '아래 HTML 템플릿의 디자인을 세련되게 변경해줘. 단, 다음 규칙을 **반드시** 지켜줘:
 
 필수 유지 항목:
-1. {{LOADING_MESSAGE}} - 로딩 메시지 placeholder
-2. {{DELAY_SECONDS}} - 딜레이 초 placeholder  
-3. {{TARGET_URL}} - 타겟 URL placeholder
-4. {{COUNTDOWN_SCRIPT}} - 카운트다운 스크립트 placeholder
-5. id="countdown" - 카운트다운을 표시할 요소의 ID (반드시 이 ID를 가진 요소가 있어야 함)
+1. {{DELAY_SECONDS}} - 딜레이 초 placeholder  
+2. {{TARGET_URL}} - 타겟 URL placeholder
+3. {{COUNTDOWN_SCRIPT}} - 카운트다운 스크립트 placeholder
+4. id="countdown" - 카운트다운을 표시할 요소의 ID (반드시 이 ID를 가진 요소가 있어야 함)
 
 디자인 변경 예시:
 - 배경을 다크 모드로 변경
 - 애니메이션을 더 부드럽게
 - 글꼴을 모던한 스타일로
 - 버튼 스타일을 3D 효과로
+- 로딩 메시지 텍스트를 원하는 대로 변경 (하드코딩)
 
 현재 템플릿:
 [아래에 현재 템플릿 붙여넣기]';

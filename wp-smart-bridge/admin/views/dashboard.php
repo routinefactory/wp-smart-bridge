@@ -41,6 +41,18 @@ $available_platforms = $analytics->get_available_platforms();
 // 인기 링크 (오늘 / 누적)
 $today_top_links = $analytics->get_today_top_links(20);
 $alltime_top_links = $analytics->get_all_time_top_links(20);
+
+// 업데이트 확인 (수동 안내용)
+$update_info = SB_Updater::check_github_release();
+$has_update = false;
+$latest_version = SB_VERSION;
+$download_url = '';
+
+if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
+    $has_update = true;
+    $latest_version = $update_info['version'];
+    $download_url = $update_info['download_url'];
+}
 ?>
 
 <div class="wrap sb-dashboard">

@@ -40,7 +40,6 @@ $countdown_script = "
 
 // Placeholder 치환
 $replacements = [
-    '{{LOADING_MESSAGE}}' => wp_kses_post($loading_message),
     '{{DELAY_SECONDS}}' => intval($delay),
     '{{TARGET_URL}}' => esc_url($target_url),
     '{{COUNTDOWN_SCRIPT}}' => $countdown_script,

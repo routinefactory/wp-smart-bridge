@@ -70,8 +70,8 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                                                                            <?php echo esc_html($key['secret_key']); ?>
-                                                                                        </code>
+                                                                                                    <?php echo esc_html($key['secret_key']); ?>
+                                                                                                </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -163,12 +163,14 @@ $default_loading_message = isset($settings['default_loading_message']) ? $settin
             style="margin: 20px 0; padding: 15px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px;">
             <h4 style="margin: 0 0 10px;">📝 필수 Placeholder 목록</h4>
             <ul style="margin: 0; padding-left: 20px;">
-                <li><code>{{LOADING_MESSAGE}}</code> - 로딩 메시지가 표시될 위치</li>
                 <li><code>{{DELAY_SECONDS}}</code> - 초기 딜레이 초가 표시될 위치</li>
                 <li><code>{{TARGET_URL}}</code> - 타겟 URL (href 속성 등에 사용)</li>
                 <li><code>{{COUNTDOWN_SCRIPT}}</code> - 카운트다운 JavaScript 코드</li>
                 <li><code>id="countdown"</code> - 카운트다운 숫자가 업데이트될 요소의 ID (반드시 필요)</li>
             </ul>
+            <p style="margin: 10px 0 0; font-size: 12px; color: #666;">
+                💡 <strong>로딩 메시지</strong>는 placeholder 없이 HTML에 직접 입력하세요!
+            </p>
         </div>
 
         <div
