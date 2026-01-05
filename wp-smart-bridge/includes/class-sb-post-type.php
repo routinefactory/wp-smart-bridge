@@ -26,17 +26,17 @@ class SB_Post_Type
         // 포스트 타입 등록
         register_post_type(self::POST_TYPE, [
             'labels' => [
-                'name' => '단축 링크',
-                'singular_name' => '단축 링크',
-                'menu_name' => '단축 링크',
-                'add_new' => '새 링크 추가',
-                'add_new_item' => '새 단축 링크 추가',
-                'edit_item' => '단축 링크 수정',
-                'new_item' => '새 단축 링크',
-                'view_item' => '단축 링크 보기',
-                'search_items' => '단축 링크 검색',
-                'not_found' => '단축 링크가 없습니다',
-                'not_found_in_trash' => '휴지통에 단축 링크가 없습니다',
+                'name' => __('단축 링크', 'sb'),
+                'singular_name' => __('단축 링크', 'sb'),
+                'menu_name' => __('단축 링크', 'sb'),
+                'add_new' => __('새 링크 추가', 'sb'),
+                'add_new_item' => __('새 단축 링크 추가', 'sb'),
+                'edit_item' => __('단축 링크 수정', 'sb'),
+                'new_item' => __('새 단축 링크', 'sb'),
+                'view_item' => __('단축 링크 보기', 'sb'),
+                'search_items' => __('단축 링크 검색', 'sb'),
+                'not_found' => __('단축 링크가 없습니다', 'sb'),
+                'not_found_in_trash' => __('휴지통에 단축 링크가 없습니다', 'sb'),
             ],
             'public' => false,
             'publicly_queryable' => false,
@@ -59,12 +59,6 @@ class SB_Post_Type
         // 메타 저장
         add_action('save_post_' . self::POST_TYPE, [__CLASS__, 'save_meta'], 10, 2);
 
-        // 제목(Slug) 필드 비활성화 스크립트
-        add_action('edit_form_after_title', [__CLASS__, 'disable_title_field']);
-
-        // "새로 만들기" 버튼 숨김
-        add_action('admin_head', [__CLASS__, 'hide_add_new_button']);
-
         // 생성 권한 차단 필터
         add_filter('user_has_cap', [__CLASS__, 'filter_capabilities'], 10, 3);
 
@@ -84,7 +78,7 @@ class SB_Post_Type
     {
         add_meta_box(
             'sb_link_details',
-            '링크 상세 정보',
+            __('링크 상세 정보', 'sb'),
             [__CLASS__, 'render_meta_box'],
             self::POST_TYPE,
             'normal',
@@ -93,7 +87,7 @@ class SB_Post_Type
 
         add_meta_box(
             'sb_link_stats',
-            '클릭 통계',
+            __('클릭 통계', 'sb'),
             [__CLASS__, 'render_stats_meta_box'],
             self::POST_TYPE,
             'side',
@@ -109,7 +103,7 @@ class SB_Post_Type
         wp_nonce_field('sb_link_meta', 'sb_link_meta_nonce');
 
         $target_url = get_post_meta($post->ID, 'target_url', true);
-        $platform = get_post_meta($post->ID, 'platform', true);
+        $platform = get_post_meta($post->ID, 'platform', true) ?: 'Etc'; // Fixed potential warnings
         $short_link = SB_Helpers::get_short_link_url($post->post_title);
         $click_count = get_post_meta($post->ID, 'click_count', true) ?: 0;
 
@@ -122,137 +116,66 @@ class SB_Post_Type
         ?>
         <!-- 클릭 통계 섹션 -->
         <div class="sb-stats-section">
-            <h4>📊 클릭 통계</h4>
+            <h4>📊 <?php _e('클릭 통계', 'sb'); ?></h4>
             <div class="sb-stats-grid">
                 <div class="sb-stat-box">
-                    <span class="sb-stat-label">오늘 클릭 (PV)</span>
+                    <span class="sb-stat-label"><?php _e('오늘 클릭 (PV)', 'sb'); ?></span>
                     <span class="sb-stat-value"><?php echo number_format($today_clicks); ?></span>
                 </div>
                 <div class="sb-stat-box">
-                    <span class="sb-stat-label">오늘 방문자 (UV)</span>
+                    <span class="sb-stat-label"><?php _e('오늘 방문자 (UV)', 'sb'); ?></span>
                     <span class="sb-stat-value"><?php echo number_format($today_uv); ?></span>
                 </div>
                 <div class="sb-stat-box">
-                    <span class="sb-stat-label">누적 클릭 (PV)</span>
+                    <span class="sb-stat-label"><?php _e('누적 클릭 (PV)', 'sb'); ?></span>
                     <span class="sb-stat-value"><?php echo number_format($click_count); ?></span>
                 </div>
                 <div class="sb-stat-box">
-                    <span class="sb-stat-label">누적 방문자 (UV)</span>
+                    <span class="sb-stat-label"><?php _e('누적 방문자 (UV)', 'sb'); ?></span>
                     <span class="sb-stat-value"><?php echo number_format($total_uv); ?></span>
                 </div>
             </div>
         </div>
 
-        <style>
-            .sb-stats-section {
-                background: #f8f9fa;
-                padding: 15px;
-                border-radius: 8px;
-                margin-bottom: 20px;
-                border: 1px solid #e2e4e7;
-            }
-
-            .sb-stats-section h4 {
-                margin: 0 0 12px;
-                font-size: 14px;
-            }
-
-            .sb-stats-grid {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 10px;
-            }
-
-            .sb-stat-box {
-                background: #fff;
-                padding: 12px;
-                border-radius: 6px;
-                text-align: center;
-                border: 1px solid #e2e4e7;
-            }
-
-            .sb-stat-label {
-                display: block;
-                font-size: 11px;
-                color: #666;
-                margin-bottom: 5px;
-            }
-
-            .sb-stat-value {
-                display: block;
-                font-size: 18px;
-                font-weight: 700;
-                color: #1e1e1e;
-            }
-
-            @media (max-width: 782px) {
-                .sb-stats-grid {
-                    grid-template-columns: repeat(2, 1fr);
-                }
-            }
-        </style>
-
         <table class="form-table">
             <tr>
-                <th><label>단축 URL</label></th>
+                <th><label><?php _e('단축 URL', 'sb'); ?></label></th>
                 <td>
                     <input type="text" value="<?php echo esc_url($short_link); ?>" class="large-text" readonly>
                     <p class="description">
                         <button type="button" class="button button-secondary sb-copy-link"
-                            data-link="<?php echo esc_url($short_link); ?>">
-                            📋 복사
+                            data-link="<?php echo esc_url($short_link); ?>" aria-label="<?php esc_attr_e('단축 링크 복사', 'sb'); ?>">
+                            <span class="dashicons dashicons-clipboard" aria-hidden="true"></span>
+                            <?php _e('복사', 'sb'); ?>
                         </button>
                     </p>
                 </td>
             </tr>
             <tr>
-                <th><label for="sb_target_url">타겟 URL</label></th>
+                <th><label for="sb_target_url"><?php _e('타겟 URL', 'sb'); ?></label></th>
                 <td>
                     <input type="url" id="sb_target_url" name="sb_target_url" value="<?php echo esc_url($target_url); ?>"
-                        class="large-text" required>
-                    <p class="description">리다이렉션될 최종 목적지 URL입니다. (http:// 또는 https:// 필수)</p>
+                        class="large-text" required placeholder="https://example.com">
+                    <p class="description">
+                        <span class="sb-text-subtle"><?php _e('이동할 최종 목적지 URL을 입력하세요. (Protocol 필수)', 'sb'); ?></span>
+                    </p>
                 </td>
             </tr>
             <tr>
-                <th><label>플랫폼</label></th>
+                <th><label><?php _e('플랫폼', 'sb'); ?></label></th>
                 <td>
                     <span class="sb-platform-badge sb-platform-<?php echo esc_attr(strtolower($platform)); ?>">
-                        <?php echo esc_html($platform ?: 'Etc'); ?>
+                        <?php echo esc_html($platform); ?>
                     </span>
                     <p class="description">
-                        타겟 URL의 도메인을 기반으로 자동 분류됩니다.<br>
-                        <span style="color: #6b7280; font-size: 12px;">
-                            💡 타겟 URL 변경 시 플랫폼도 자동으로 업데이트됩니다.
-                            단, 기존 클릭 로그는 변경 전 플랫폼으로 유지됩니다.
+                        <?php _e('타겟 URL의 도메인을 기반으로 자동 분류됩니다.', 'sb'); ?><br>
+                        <span class="sb-text-subtle">
+                            💡 <?php _e('타겟 URL 변경 시 플랫폼도 자동으로 업데이트됩니다. 단, 기존 클릭 로그는 변경 전 플랫폼으로 유지됩니다.', 'sb'); ?>
                         </span>
                     </p>
                 </td>
             </tr>
         </table>
-
-        <style>
-            .sb-platform-badge {
-                display: inline-block;
-                padding: 4px 12px;
-                border-radius: 4px;
-                font-weight: 600;
-                font-size: 13px;
-                background: #6B7280;
-                /* 기본색 */
-                color: white;
-            }
-        </style>
-
-        <script>
-            jQuery(document).ready(function ($) {
-                $('.sb-copy-link').on('click', function () {
-                    var link = $(this).data('link');
-                    navigator.clipboard.writeText(link).then(function () {
-                        alert('링크가 클립보드에 복사되었습니다!');
-                    });
-                });
-            });
-        </script>
         <?php
     }
 
@@ -265,46 +188,20 @@ class SB_Post_Type
         $created = get_the_date('Y-m-d H:i:s', $post);
 
         ?>
-        <div class="sb-stats-box">
-            <div class="sb-stat-item">
-                <span class="sb-stat-label">총 클릭 수</span>
-                <span class="sb-stat-value">
+        <div class="sb-side-stats-box">
+            <div class="sb-side-stat-item">
+                <span class="sb-side-stat-label"><?php _e('총 클릭 수', 'sb'); ?></span>
+                <span class="sb-side-stat-value">
                     <?php echo number_format($click_count); ?>
                 </span>
             </div>
-            <div class="sb-stat-item">
-                <span class="sb-stat-label">생성일</span>
-                <span class="sb-stat-value">
+            <div class="sb-side-stat-item">
+                <span class="sb-side-stat-label"><?php _e('생성일', 'sb'); ?></span>
+                <span class="sb-side-stat-value">
                     <?php echo esc_html($created); ?>
                 </span>
             </div>
         </div>
-
-        <style>
-            .sb-stats-box {
-                padding: 10px 0;
-            }
-
-            .sb-stat-item {
-                display: flex;
-                justify-content: space-between;
-                padding: 8px 0;
-                border-bottom: 1px solid #eee;
-            }
-
-            .sb-stat-item:last-child {
-                border-bottom: none;
-            }
-
-            .sb-stat-label {
-                color: #666;
-            }
-
-            .sb-stat-value {
-                font-weight: 600;
-                color: #1e40af;
-            }
-        </style>
         <?php
     }
 
@@ -346,50 +243,6 @@ class SB_Post_Type
     }
 
     /**
-     * 제목 필드 비활성화
-     */
-    public static function disable_title_field($post)
-    {
-        if ($post->post_type !== self::POST_TYPE) {
-            return;
-        }
-
-        ?>
-        <script>
-            jQuery(document).ready(function ($) {
-                // 제목(Slug) 필드 비활성화
-                $('#title').prop('disabled', true).prop('readonly', true);
-                $('#title-prompt-text').text('단축 주소는 변경할 수 없습니다');
-
-                // 안내 메시지 추가
-                $('#title').after('<p class="description" style="color: #d63638; margin-top: 5px;">⚠️ 단축 주소는 생성 후 변경할 수 없습니다. 링크 무결성을 위해 영구적으로 고정됩니다.</p>');
-            });
-        </script>
-        <?php
-    }
-
-    /**
-     * "새로 만들기" 버튼 숨김
-     */
-    public static function hide_add_new_button()
-    {
-        global $typenow;
-
-        if ($typenow === self::POST_TYPE) {
-            ?>
-            <style>
-                .page-title-action,
-                #favorite-actions,
-                .add-new-h2,
-                .wp-heading-inline+.page-title-action {
-                    display: none !important;
-                }
-            </style>
-            <?php
-        }
-    }
-
-    /**
      * 생성 권한 차단 필터
      */
     public static function filter_capabilities($allcaps, $caps, $args)
@@ -417,10 +270,10 @@ class SB_Post_Type
 
         $new_columns['cb'] = $columns['cb'];
         $new_columns['title'] = 'Slug';
-        $new_columns['target_url'] = '타겟 URL';
-        $new_columns['platform'] = '플랫폼';
-        $new_columns['click_count'] = '클릭 수';
-        $new_columns['date'] = '생성일';
+        $new_columns['target_url'] = __('타겟 URL', 'sb');
+        $new_columns['platform'] = __('플랫폼', 'sb');
+        $new_columns['click_count'] = __('클릭 수', 'sb');
+        $new_columns['date'] = __('생성일', 'sb');
 
         return $new_columns;
     }

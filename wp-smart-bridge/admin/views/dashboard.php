@@ -26,12 +26,12 @@ if (!defined('ABSPATH')) {
     <div class="sb-header-with-actions">
         <h1>
             <span class="dashicons dashicons-admin-links"></span>
-            Smart Bridge 대시보드
+            <?php _e('Smart Bridge 대시보드', 'sb'); ?>
         </h1>
         <div class="sb-header-actions">
             <button type="button" id="sb-force-check-update" class="button">
                 <span class="dashicons dashicons-update"></span>
-                업데이트 확인
+                <?php _e('업데이트 확인', 'sb'); ?>
             </button>
         </div>
     </div>
@@ -40,10 +40,8 @@ if (!defined('ABSPATH')) {
         <!-- API 키 미발급 경고 -->
         <div class="notice notice-warning">
             <p>
-                <strong>⚠️ API 키가 발급되지 않았습니다.</strong>
-                EXE 프로그램을 사용하려면 먼저
-                <a href="<?php echo esc_url(admin_url('admin.php?page=smart-bridge-settings')); ?>">설정 페이지</a>에서
-                API 키를 발급받으세요.
+                <strong><?php _e('⚠️ API 키가 발급되지 않았습니다.', 'sb'); ?></strong>
+                <?php printf(__('EXE 프로그램을 사용하려면 먼저 %s설정 페이지%s에서 API 키를 발급받으세요.', 'sb'), '<a href="' . esc_url(admin_url('admin.php?page=smart-bridge-settings')) . '">', '</a>'); ?>
             </p>
         </div>
     <?php endif; ?>
@@ -51,42 +49,56 @@ if (!defined('ABSPATH')) {
     <!-- 필터 영역 -->
     <div class="sb-filters">
         <div class="sb-filter-group">
-            <label for="sb-date-range">기간</label>
+            <label for="sb-date-range"><?php _e('기간', 'sb'); ?></label>
             <select id="sb-date-range" class="sb-filter-select">
-                <option value="today">오늘</option>
-                <option value="yesterday">어제</option>
-                <option value="7d">최근 7일</option>
-                <option value="30d" selected>최근 30일</option>
-                <option value="custom">사용자 지정</option>
+                <option value="today"><?php _e('오늘', 'sb'); ?></option>
+                <option value="yesterday"><?php _e('어제', 'sb'); ?></option>
+                <option value="7d"><?php _e('최근 7일', 'sb'); ?></option>
+                <option value="30d" selected><?php _e('최근 30일', 'sb'); ?></option>
+                <option value="custom"><?php _e('사용자 지정', 'sb'); ?></option>
             </select>
         </div>
 
         <div class="sb-filter-group sb-custom-dates" style="display: none;">
-            <label for="sb-start-date">시작일</label>
+            <label for="sb-start-date"><?php _e('시작일', 'sb'); ?></label>
             <input type="date" id="sb-start-date" class="sb-filter-input">
-            <label for="sb-end-date">종료일</label>
+            <label for="sb-end-date"><?php _e('종료일', 'sb'); ?></label>
             <input type="date" id="sb-end-date" class="sb-filter-input">
         </div>
 
         <div class="sb-filter-group">
-            <label for="sb-platform-filter">플랫폼</label>
+            <label for="sb-platform-filter"><?php _e('플랫폼', 'sb'); ?></label>
             <select id="sb-platform-filter" class="sb-filter-select">
-                <option value="">전체</option>
+                <option value=""><?php _e('전체', 'sb'); ?></option>
                 <?php foreach ($available_platforms as $platform): ?>
                     <option value="<?php echo esc_attr($platform); ?>">
                         <?php echo esc_html($platform); ?>
                     </option>
                 <?php endforeach; ?>
                 <?php if (empty($available_platforms)): ?>
-                    <option value="" disabled>데이터 없음</option>
+                    <option value="" disabled><?php _e('데이터 없음', 'sb'); ?></option>
                 <?php endif; ?>
             </select>
-            <span class="sb-filter-help" title="클릭 로그 기준으로 필터링됩니다. 링크의 타겟 URL을 변경한 경우, 변경 전 클릭도 포함될 수 있습니다.">ⓘ</span>
+            <span class="sb-filter-help"
+                title="<?php esc_attr_e('클릭 로그 기준으로 필터링됩니다. 링크의 타겟 URL을 변경한 경우, 변경 전 클릭도 포함될 수 있습니다.', 'sb'); ?>">ⓘ</span>
+        </div>
+
+        <!-- Tier 4: Link Groups Filter -->
+        <div class="sb-filter-group">
+            <label for="sb-group-filter"><?php _e('그룹', 'sb'); ?></label>
+            <select id="sb-group-filter" class="sb-filter-select">
+                <option value=""><?php _e('전체', 'sb'); ?></option>
+                <!-- JS Populated -->
+            </select>
+            <button type="button" id="sb-manage-groups-btn" class="button button-small"
+                title="<?php esc_attr_e('그룹 관리', 'sb'); ?>" aria-label="<?php esc_attr_e('그룹 관리', 'sb'); ?>">
+                <span class="dashicons dashicons-category"></span>
+            </button>
         </div>
 
         <button type="button" id="sb-apply-filters" class="button button-primary">
             <span class="dashicons dashicons-yes"></span>
-            필터 적용
+            <?php _e('필터 적용', 'sb'); ?>
         </button>
     </div>
 
@@ -94,7 +106,7 @@ if (!defined('ABSPATH')) {
     <!-- 요약 카드 -->
     <div class="sb-summary-cards">
         <!-- 오늘 고유 클릭 (UV) -->
-        <div class="sb-card">
+        <div class="sb-card" tabindex="0" role="button">
             <div class="sb-card-icon sb-icon-uv">
                 <span class="dashicons dashicons-groups"></span>
             </div>
@@ -102,13 +114,13 @@ if (!defined('ABSPATH')) {
                 <span class="sb-card-value" id="sb-today-unique">
                     <?php echo number_format($today_unique_visitors); ?>
                 </span>
-                <span class="sb-card-label">오늘 고유 클릭 (UV)</span>
-                <span class="sb-card-sublabel">📅 Today</span>
+                <span class="sb-card-label"><?php _e('오늘 고유 클릭 (UV)', 'sb'); ?></span>
+                <span class="sb-card-sublabel"><?php _e('📅 Today', 'sb'); ?></span>
             </div>
         </div>
 
         <!-- 오늘 전체 클릭 -->
-        <div class="sb-card">
+        <div class="sb-card" tabindex="0" role="button">
             <div class="sb-card-icon sb-icon-clicks">
                 <span class="dashicons dashicons-visibility"></span>
             </div>
@@ -116,13 +128,13 @@ if (!defined('ABSPATH')) {
                 <span class="sb-card-value" id="sb-today-total">
                     <?php echo number_format($today_total_clicks); ?>
                 </span>
-                <span class="sb-card-label">오늘 전체 클릭</span>
-                <span class="sb-card-sublabel">📅 Today (중복 포함)</span>
+                <span class="sb-card-label"><?php _e('오늘 전체 클릭', 'sb'); ?></span>
+                <span class="sb-card-sublabel"><?php _e('📅 Today (중복 포함)', 'sb'); ?></span>
             </div>
         </div>
 
         <!-- 누적 고유 클릭 (UV) -->
-        <div class="sb-card">
+        <div class="sb-card" tabindex="0" role="button">
             <div class="sb-card-icon sb-icon-uv-cumulative">
                 <span class="dashicons dashicons-admin-users"></span>
             </div>
@@ -130,13 +142,13 @@ if (!defined('ABSPATH')) {
                 <span class="sb-card-value" id="sb-cumulative-unique">
                     <?php echo number_format($cumulative_unique_visitors); ?>
                 </span>
-                <span class="sb-card-label">누적 고유 클릭 (UV)</span>
-                <span class="sb-card-sublabel">📊 All Time</span>
+                <span class="sb-card-label"><?php _e('누적 고유 클릭 (UV)', 'sb'); ?></span>
+                <span class="sb-card-sublabel"><?php _e('📊 All Time', 'sb'); ?></span>
             </div>
         </div>
 
         <!-- 누적 전체 클릭 -->
-        <div class="sb-card">
+        <div class="sb-card" tabindex="0" role="button">
             <div class="sb-card-icon sb-icon-clicks-cumulative">
                 <span class="dashicons dashicons-chart-line"></span>
             </div>
@@ -144,13 +156,13 @@ if (!defined('ABSPATH')) {
                 <span class="sb-card-value" id="sb-cumulative-total">
                     <?php echo number_format($cumulative_total_clicks); ?>
                 </span>
-                <span class="sb-card-label">누적 전체 클릭</span>
-                <span class="sb-card-sublabel">📊 All Time (중복 포함)</span>
+                <span class="sb-card-label"><?php _e('누적 전체 클릭', 'sb'); ?></span>
+                <span class="sb-card-sublabel"><?php _e('📊 All Time (중복 포함)', 'sb'); ?></span>
             </div>
         </div>
 
         <!-- 전일 대비 증감률 -->
-        <div class="sb-card">
+        <div class="sb-card" tabindex="0" role="button">
             <div class="sb-card-icon sb-icon-growth <?php echo $growth_rate >= 0 ? 'positive' : 'negative'; ?>">
                 <span
                     class="dashicons dashicons-<?php echo $growth_rate >= 0 ? 'arrow-up-alt' : 'arrow-down-alt'; ?>"></span>
@@ -160,18 +172,20 @@ if (!defined('ABSPATH')) {
                     id="sb-growth-rate">
                     <?php echo ($growth_rate >= 0 ? '+' : '') . $growth_rate; ?>%
                 </span>
-                <span class="sb-card-label">전일 대비 증감률</span>
-                <span class="sb-card-sublabel">📈 Growth Rate</span>
+                <span class="sb-card-label"><?php _e('전일 대비 증감률', 'sb'); ?></span>
+                <span class="sb-card-sublabel"><?php _e('📈 Growth Rate', 'sb'); ?></span>
                 <?php if ($growth_rate >= 0): ?>
-                    <a href="#sb-today-links" class="sb-card-cta sb-cta-positive">🎉 오늘 효과 있는 링크 보기 →</a>
+                    <a href="#sb-today-links"
+                        class="sb-card-cta sb-cta-positive"><?php _e('🎉 오늘 효과 있는 링크 보기 →', 'sb'); ?></a>
                 <?php else: ?>
-                    <a href="#sb-analytics-referer" class="sb-card-cta sb-cta-negative">📉 유입 경로 분석하기 →</a>
+                    <a href="#sb-analytics-referer"
+                        class="sb-card-cta sb-cta-negative"><?php _e('📉 유입 경로 분석하기 →', 'sb'); ?></a>
                 <?php endif; ?>
             </div>
         </div>
 
         <!-- 활성 링크 수 -->
-        <div class="sb-card">
+        <div class="sb-card" tabindex="0" role="button">
             <div class="sb-card-icon sb-icon-links">
                 <span class="dashicons dashicons-admin-links"></span>
             </div>
@@ -179,8 +193,8 @@ if (!defined('ABSPATH')) {
                 <span class="sb-card-value" id="sb-active-links">
                     <?php echo number_format($active_links); ?>
                 </span>
-                <span class="sb-card-label">활성 링크 수</span>
-                <span class="sb-card-sublabel">🔗 Active Links</span>
+                <span class="sb-card-label"><?php _e('활성 링크 수', 'sb'); ?></span>
+                <span class="sb-card-sublabel"><?php _e('🔗 Active Links', 'sb'); ?></span>
             </div>
         </div>
     </div>
@@ -189,7 +203,7 @@ if (!defined('ABSPATH')) {
     <div class="sb-charts-grid">
         <!-- 트래픽 추세선 -->
         <div class="sb-chart-box sb-chart-wide">
-            <h3>📈 트래픽 추세 (최근 30일)</h3>
+            <h3><?php _e('📈 트래픽 추세 (최근 30일)', 'sb'); ?></h3>
             <div class="sb-chart-container">
                 <canvas id="sb-traffic-trend-chart"></canvas>
             </div>
@@ -197,7 +211,7 @@ if (!defined('ABSPATH')) {
 
         <!-- 시간대별 히트맵 -->
         <div class="sb-chart-box">
-            <h3>🕐 시간대별 클릭 분포</h3>
+            <h3><?php _e('🕐 시간대별 클릭 분포', 'sb'); ?></h3>
             <div class="sb-chart-container">
                 <canvas id="sb-hourly-chart"></canvas>
             </div>
@@ -205,7 +219,7 @@ if (!defined('ABSPATH')) {
 
         <!-- 플랫폼 점유율 -->
         <div class="sb-chart-box">
-            <h3>🏪 플랫폼별 점유율</h3>
+            <h3><?php _e('🏪 플랫폼별 점유율', 'sb'); ?></h3>
             <div class="sb-chart-container">
                 <canvas id="sb-platform-chart"></canvas>
             </div>
@@ -218,20 +232,20 @@ if (!defined('ABSPATH')) {
     <div class="sb-analytics-section sb-collapsible" id="sb-analytics-referer">
         <h2 class="sb-section-title sb-section-toggle" data-target="sb-referer-content">
             <span class="dashicons dashicons-migrate"></span>
-            유입 경로 분석
+            <?php _e('유입 경로 분석', 'sb'); ?>
             <span class="sb-section-badge">Phase 2</span>
             <span class="sb-toggle-icon dashicons dashicons-arrow-down-alt2"></span>
         </h2>
         <div class="sb-section-content" id="sb-referer-content">
             <div class="sb-charts-grid">
                 <div class="sb-chart-box">
-                    <h3>🔗 유입 경로 TOP 10</h3>
+                    <h3><?php _e('🔗 유입 경로 TOP 10', 'sb'); ?></h3>
                     <div class="sb-chart-container">
                         <canvas id="sb-referer-chart"></canvas>
                     </div>
                 </div>
                 <div class="sb-chart-box">
-                    <h3>📊 유입 그룹 분포</h3>
+                    <h3><?php _e('📊 유입 그룹 분포', 'sb'); ?></h3>
                     <div class="sb-chart-container">
                         <canvas id="sb-referer-groups-chart"></canvas>
                     </div>
@@ -254,7 +268,7 @@ if (!defined('ABSPATH')) {
     <div class="sb-analytics-section sb-collapsible">
         <h2 class="sb-section-title sb-section-toggle" data-target="sb-device-content">
             <span class="dashicons dashicons-smartphone"></span>
-            디바이스 & 브라우저 분석
+            <?php _e('디바이스 & 브라우저 분석', 'sb'); ?>
             <span class="sb-section-badge">Phase 3</span>
             <span class="sb-toggle-icon dashicons dashicons-arrow-down-alt2"></span>
         </h2>
@@ -262,7 +276,8 @@ if (!defined('ABSPATH')) {
             <!-- 핵심: 디바이스 분포 (항상 표시) -->
             <div class="sb-charts-grid">
                 <div class="sb-chart-box sb-chart-wide">
-                    <h3>📱 디바이스 분포 <span class="sb-chart-essential">핵심 지표</span></h3>
+                    <h3><?php _e('📱 디바이스 분포', 'sb'); ?> <span
+                            class="sb-chart-essential"><?php _e('핵심 지표', 'sb'); ?></span></h3>
                     <div class="sb-chart-container">
                         <canvas id="sb-device-chart"></canvas>
                     </div>
@@ -272,19 +287,19 @@ if (!defined('ABSPATH')) {
             <div class="sb-advanced-toggle">
                 <button type="button" class="sb-btn-advanced" id="sb-toggle-advanced-device">
                     <span class="dashicons dashicons-arrow-down-alt2"></span>
-                    OS & 브라우저 상세 보기
+                    <span><?php _e('OS & 브라우저 상세 보기', 'sb'); ?></span>
                 </button>
             </div>
             <div class="sb-advanced-content" id="sb-advanced-device-content" style="display: none;">
                 <div class="sb-charts-grid">
                     <div class="sb-chart-box">
-                        <h3>💻 OS 분포</h3>
+                        <h3><?php _e('💻 OS 분포', 'sb'); ?></h3>
                         <div class="sb-chart-container">
                             <canvas id="sb-os-chart"></canvas>
                         </div>
                     </div>
                     <div class="sb-chart-box">
-                        <h3>🌐 브라우저 분포</h3>
+                        <h3><?php _e('🌐 브라우저 분포', 'sb'); ?></h3>
                         <div class="sb-chart-container">
                             <canvas id="sb-browser-chart"></canvas>
                         </div>
@@ -298,38 +313,38 @@ if (!defined('ABSPATH')) {
     <div class="sb-analytics-section">
         <h2 class="sb-section-title">
             <span class="dashicons dashicons-chart-area"></span>
-            고급 패턴 분석
+            <?php _e('고급 패턴 분석', 'sb'); ?>
             <span class="sb-section-badge">Phase 4</span>
         </h2>
         <div class="sb-charts-grid">
             <div class="sb-chart-box">
-                <h3>📅 요일별 클릭 패턴</h3>
+                <h3><?php _e('📅 요일별 클릭 패턴', 'sb'); ?></h3>
                 <div class="sb-chart-container">
                     <canvas id="sb-weekday-chart"></canvas>
                 </div>
             </div>
             <div class="sb-chart-box">
-                <h3>👥 방문자 유형</h3>
+                <h3><?php _e('👥 방문자 유형', 'sb'); ?></h3>
                 <div class="sb-visitor-stats" id="sb-visitor-stats">
                     <div class="sb-stat-card">
                         <div class="sb-stat-icon new">👋</div>
                         <div class="sb-stat-value" id="sb-new-visitors">-</div>
-                        <div class="sb-stat-label">신규 방문자 (1회)</div>
+                        <div class="sb-stat-label"><?php _e('신규 방문자 (1회)', 'sb'); ?></div>
                     </div>
                     <div class="sb-stat-card">
                         <div class="sb-stat-icon returning">🔄</div>
                         <div class="sb-stat-value" id="sb-returning-visitors">-</div>
-                        <div class="sb-stat-label">재방문자 (2-5회)</div>
+                        <div class="sb-stat-label"><?php _e('재방문자 (2-5회)', 'sb'); ?></div>
                     </div>
                     <div class="sb-stat-card">
                         <div class="sb-stat-icon frequent">⭐</div>
                         <div class="sb-stat-value" id="sb-frequent-visitors">-</div>
-                        <div class="sb-stat-label">단골 (6회+)</div>
+                        <div class="sb-stat-label"><?php _e('단골 (6회+)', 'sb'); ?></div>
                     </div>
                     <div class="sb-stat-card highlight">
                         <div class="sb-stat-icon rate">📈</div>
                         <div class="sb-stat-value" id="sb-returning-rate">-</div>
-                        <div class="sb-stat-label">재방문율</div>
+                        <div class="sb-stat-label"><?php _e('재방문율', 'sb'); ?></div>
                     </div>
                 </div>
             </div>
@@ -337,7 +352,7 @@ if (!defined('ABSPATH')) {
 
         <!-- 이상치 탐지 -->
         <div class="sb-anomaly-section" id="sb-anomaly-section" style="display: none;">
-            <h3>⚠️ 트래픽 이상 탐지</h3>
+            <h3><?php _e('⚠️ 트래픽 이상 탐지', 'sb'); ?></h3>
             <div class="sb-anomaly-content" id="sb-anomaly-content">
                 <!-- JS로 채워짐 -->
             </div>
@@ -348,40 +363,41 @@ if (!defined('ABSPATH')) {
     <div class="sb-analytics-section sb-comparison-section">
         <h2 class="sb-section-title">
             <span class="dashicons dashicons-chart-line"></span>
-            기간 비교 분석
+            <?php _e('기간 비교 분석', 'sb'); ?>
             <button type="button" id="sb-toggle-comparison" class="button button-primary" style="margin-left: 10px;">
-                📊 지난주와 비교하기
+                <?php _e('📊 지난주와 비교하기', 'sb'); ?>
             </button>
         </h2>
         <div id="sb-comparison-container" style="display: none;">
             <div class="sb-comparison-controls">
                 <select id="sb-comparison-type" class="sb-filter-select">
-                    <option value="wow">주간 비교 (WoW)</option>
-                    <option value="mom">월간 비교 (MoM)</option>
-                    <option value="custom">사용자 지정</option>
+                    <option value="wow"><?php _e('주간 비교 (WoW)', 'sb'); ?></option>
+                    <option value="mom"><?php _e('월간 비교 (MoM)', 'sb'); ?></option>
+                    <option value="custom"><?php _e('사용자 지정', 'sb'); ?></option>
                 </select>
-                <button type="button" id="sb-load-comparison" class="button button-primary">비교 데이터 로드</button>
+                <button type="button" id="sb-load-comparison"
+                    class="button button-primary"><?php _e('비교 데이터 로드', 'sb'); ?></button>
             </div>
             <div class="sb-comparison-result" id="sb-comparison-result">
                 <div class="sb-comparison-stats">
                     <div class="sb-comparison-card">
-                        <h4>현재 기간</h4>
+                        <h4><?php _e('현재 기간', 'sb'); ?></h4>
                         <div class="sb-comparison-value" id="sb-current-clicks">-</div>
-                        <div class="sb-comparison-label">클릭</div>
+                        <div class="sb-comparison-label"><?php _e('클릭', 'sb'); ?></div>
                     </div>
                     <div class="sb-comparison-card">
-                        <h4>이전 기간</h4>
+                        <h4><?php _e('이전 기간', 'sb'); ?></h4>
                         <div class="sb-comparison-value" id="sb-previous-clicks">-</div>
-                        <div class="sb-comparison-label">클릭</div>
+                        <div class="sb-comparison-label"><?php _e('클릭', 'sb'); ?></div>
                     </div>
                     <div class="sb-comparison-card highlight">
-                        <h4>변화율</h4>
+                        <h4><?php _e('변화율', 'sb'); ?></h4>
                         <div class="sb-comparison-value" id="sb-comparison-rate">-</div>
-                        <div class="sb-comparison-label">증감</div>
+                        <div class="sb-comparison-label"><?php _e('증감', 'sb'); ?></div>
                     </div>
                 </div>
                 <div class="sb-chart-box sb-chart-wide">
-                    <h3>📊 기간 비교 트렌드</h3>
+                    <h3><?php _e('📊 기간 비교 트렌드', 'sb'); ?></h3>
                     <div class="sb-chart-container">
                         <canvas id="sb-comparison-chart"></canvas>
                     </div>
@@ -390,15 +406,30 @@ if (!defined('ABSPATH')) {
         </div>
     </div>
 
+    <!-- Realtime Click Feed (v2.9.23/24) -->
+    <div class="sb-analytics-section sb-realtime-section">
+        <h2 class="sb-section-title">
+            <span class="dashicons dashicons-rss"></span>
+            <?php _e('실시간 클릭 피드', 'sb'); ?>
+            <span class="sb-badge-live">LIVE</span>
+            <div id="sb-realtime-status" class="sb-status-indicator connected"
+                title="<?php esc_attr_e('연결됨', 'sb'); ?>"></div>
+        </h2>
+        <div id="sb-realtime-feed" class="sb-realtime-list">
+            <!-- JS Populated -->
+            <div class="sb-feed-placeholder"><?php _e('최근 클릭 데이터를 기다리는 중...', 'sb'); ?></div>
+        </div>
+    </div>
+
 
 
     <!-- 인기 링크 테이블 (오늘/누적 탭) -->
     <div class="sb-top-links">
         <div class="sb-top-links-header">
-            <h3>🔥 인기 링크 TOP 20</h3>
+            <h3><?php _e('🔥 인기 링크 TOP 20', 'sb'); ?></h3>
             <div class="sb-top-links-tabs">
-                <button type="button" class="sb-tab-btn active" data-tab="today">📅 오늘</button>
-                <button type="button" class="sb-tab-btn" data-tab="alltime">📊 누적</button>
+                <button type="button" class="sb-tab-btn active" data-tab="today"><?php _e('📅 오늘', 'sb'); ?></button>
+                <button type="button" class="sb-tab-btn" data-tab="alltime"><?php _e('📊 누적', 'sb'); ?></button>
             </div>
         </div>
 
@@ -409,16 +440,16 @@ if (!defined('ABSPATH')) {
                     <tr>
                         <th style="width: 5%;">#</th>
                         <th style="width: 15%;">Slug</th>
-                        <th style="width: 35%;">타겟 URL</th>
-                        <th style="width: 15%;">플랫폼</th>
-                        <th style="width: 15%;">오늘 클릭</th>
-                        <th style="width: 15%;">액션</th>
+                        <th style="width: 35%;"><?php _e('타겟 URL', 'sb'); ?></th>
+                        <th style="width: 15%;"><?php _e('플랫폼', 'sb'); ?></th>
+                        <th style="width: 15%;"><?php _e('오늘 클릭', 'sb'); ?></th>
+                        <th style="width: 15%;"><?php _e('액션', 'sb'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($today_top_links)): ?>
                         <tr>
-                            <td colspan="6" class="sb-no-data">오늘 클릭 데이터가 없습니다.</td>
+                            <td colspan="6" class="sb-no-data"><?php _e('오늘 클릭 데이터가 없습니다.', 'sb'); ?></td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($today_top_links as $index => $link): ?>
@@ -442,7 +473,8 @@ if (!defined('ABSPATH')) {
                                 </td>
                                 <td><strong><?php echo number_format($link['clicks']); ?></strong></td>
                                 <td>
-                                    <a href="<?php echo get_edit_post_link($link['id']); ?>" class="button button-small">수정</a>
+                                    <a href="<?php echo get_edit_post_link($link['id']); ?>"
+                                        class="button button-small"><?php _e('수정', 'sb'); ?></a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -458,49 +490,60 @@ if (!defined('ABSPATH')) {
                     <tr>
                         <th style="width: 5%;">#</th>
                         <th style="width: 15%;">Slug</th>
-                        <th style="width: 35%;">타겟 URL</th>
-                        <th style="width: 15%;">플랫폼</th>
-                        <th style="width: 15%;">누적 클릭</th>
-                        <th style="width: 15%;">액션</th>
+                        <th style="width: 35%;"><?php _e('타겟 URL', 'sb'); ?></th>
+                        <th style="width: 15%;"><?php _e('플랫폼', 'sb'); ?></th>
+                        <th style="width: 15%;"><?php _e('누적 클릭', 'sb'); ?></th>
+                        <th style="width: 15%;"><?php _e('액션', 'sb'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($alltime_top_links)): ?>
                         <tr>
-                            <td colspan="6" class="sb-no-data">아직 데이터가 없습니다.</td>
+                            <td colspan="6" class="sb-no-data"><?php _e('아직 데이터가 없습니다.', 'sb'); ?></td>
                         </tr>
                     <?php else: ?>
                         <?php if (isset($update_info) && version_compare(SB_VERSION, $update_info['version'], '<')): ?>
                             <div class="notice notice-info"
                                 style="border-left: 4px solid #0073aa; padding: 15px; margin-bottom: 20px;">
-                                <h3 style="margin-top: 0;">📢 새로운 버전이 출시되었습니다!</h3>
+                                <h3 style="margin-top: 0;"><?php _e('📢 새로운 버전이 출시되었습니다!', 'sb'); ?></h3>
                                 <p>
-                                    <strong>현재 버전:</strong> v<?php echo esc_html(SB_VERSION); ?><br>
-                                    <strong>최신 버전:</strong> v<?php echo esc_html($update_info['version']); ?>
+                                    <strong><?php _e('현재 버전:', 'sb'); ?></strong> v<?php echo esc_html(SB_VERSION); ?><br>
+                                    <strong><?php _e('최신 버전:', 'sb'); ?></strong>
+                                    v<?php echo esc_html($update_info['version']); ?>
                                 </p>
                                 <p>
                                     <a href="<?php echo esc_url($update_info['download_url']); ?>" class="button button-primary"
                                         style="margin-right: 10px;">
-                                        📥 v<?php echo esc_html($update_info['version']); ?> ZIP 다운로드
+                                        <?php printf(__('📥 v%s ZIP 다운로드', 'sb'), esc_html($update_info['version'])); ?>
                                     </a>
                                     <button type="button" id="sb-force-check-update" class="button" style="margin-right: 10px;">
-                                        🔄 지금 바로 확인
+                                        <?php _e('🔄 지금 바로 확인', 'sb'); ?>
                                     </button>
                                 </p>
-                                <details style="margin-top: 15px;">
-                                    <summary style="cursor: pointer; font-weight: 600;">📖 수동 업데이트 방법 (7단계)</summary>
+                                <details class="sb-mt-15">
+                                    <summary style="cursor: pointer; font-weight: 600;">
+                                        <?php _e('📖 수동 업데이트 방법 (7단계)', 'sb'); ?>
+                                    </summary>
                                     <ol style="margin: 10px 0 0 20px; line-height: 1.8;">
-                                        <li>위의 <strong>"📥 ZIP 다운로드"</strong> 버튼을 클릭하여 최신 버전 ZIP 파일을 다운로드합니다.</li>
-                                        <li><strong>플러그인 → 설치된 플러그인</strong> 메뉴로 이동합니다.</li>
-                                        <li><strong>WP Smart Bridge</strong>를 <strong>비활성화</strong>합니다. (데이터는 보존됩니다)</li>
-                                        <li><strong>삭제</strong> 버튼을 클릭합니다. (데이터는 보존됩니다)</li>
-                                        <li><strong>플러그인 → 새로 추가 → 플러그인 업로드</strong>를 클릭합니다.</li>
-                                        <li>다운로드한 ZIP 파일을 업로드하고 <strong>지금 설치</strong>를 클릭합니다.</li>
-                                        <li>설치 완료 후 <strong>활성화</strong>합니다. 모든 데이터가 그대로 유지됩니다!</li>
+                                        <li><?php printf(__('위의 %s"📥 ZIP 다운로드"%s 버튼을 클릭하여 최신 버전 ZIP 파일을 다운로드합니다.', 'sb'), '<strong>', '</strong>'); ?>
+                                        </li>
+                                        <li><?php printf(__('%s플러그인 → 설치된 플러그인%s 메뉴로 이동합니다.', 'sb'), '<strong>', '</strong>'); ?>
+                                        </li>
+                                        <li><?php printf(__('%sWP Smart Bridge%s를 %s비활성화%s합니다. (데이터는 보존됩니다)', 'sb'), '<strong>', '</strong>', '<strong>', '</strong>'); ?>
+                                        </li>
+                                        <li><?php printf(__('%s삭제%s 버튼을 클릭합니다. (데이터는 보존됩니다)', 'sb'), '<strong>', '</strong>'); ?>
+                                        </li>
+                                        <li><?php printf(__('%s플러그인 → 새로 추가 → 플러그인 업로드%s를 클릭합니다.', 'sb'), '<strong>', '</strong>'); ?>
+                                        </li>
+                                        <li><?php printf(__('다운로드한 ZIP 파일을 업로드하고 %s지금 설치%s를 클릭합니다.', 'sb'), '<strong>', '</strong>'); ?>
+                                        </li>
+                                        <li><?php printf(__('설치 완료 후 %s활성화%s합니다. 모든 데이터가 그대로 유지됩니다!', 'sb'), '<strong>', '</strong>'); ?>
+                                        </li>
                                     </ol>
                                     <p
                                         style="margin: 10px 0 0; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107;">
-                                        ✅ <strong>데이터 안전 보장:</strong> 플러그인 삭제 시에도 모든 링크, 통계, API 키가 보존됩니다!
+                                        ✅ <strong><?php _e('데이터 안전 보장:', 'sb'); ?></strong>
+                                        <?php _e('플러그인 삭제 시에도 모든 링크, 통계, API 키가 보존됩니다!', 'sb'); ?>
                                     </p>
                                 </details>
                             </div>
@@ -526,7 +569,8 @@ if (!defined('ABSPATH')) {
                                 </td>
                                 <td><strong><?php echo number_format($link['clicks']); ?></strong></td>
                                 <td>
-                                    <a href="<?php echo get_edit_post_link($link['id']); ?>" class="button button-small">수정</a>
+                                    <a href="<?php echo get_edit_post_link($link['id']); ?>"
+                                        class="button button-small"><?php _e('수정', 'sb'); ?></a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -536,125 +580,20 @@ if (!defined('ABSPATH')) {
         </div>
     </div>
 
-    <script>
-        jQuery(document).ready(function ($) {
-            // 인기 링크 탭 전환
-            // 인기 링크 탭 전환 (하지만 이제 필터로 통합되었으므로, 탭 기능을 숨기고 '현재 조회 기준' 하나만 보여주는 것이 좋음)
-            $('.sb-top-links-tabs').hide();
-            $('.sb-top-links-header h3').text('📈 인기 링크 (현재 필터 기준)');
-
-            // ========================================
-            // Round 20: UX 개선 - JavaScript Handlers
-            // ========================================
-
-            // 1. Collapsible Section Toggle (섹션 접기/펼치기)
-            $('.sb-section-toggle').on('click', function () {
-                var targetId = $(this).data('target');
-                var $content = $('#' + targetId);
-                var $icon = $(this).find('.sb-toggle-icon');
-
-                if ($content.hasClass('collapsed')) {
-                    // 펼치기
-                    $content.removeClass('collapsed');
-                    $(this).removeClass('collapsed');
-                } else {
-                    // 접기
-                    $content.addClass('collapsed');
-                    $(this).addClass('collapsed');
-                }
-            });
-
-            // 2. Advanced Toggle for OS/Browser (상세 보기 토글)
-            $('#sb-toggle-advanced-device').on('click', function () {
-                var $content = $('#sb-advanced-device-content');
-                var $btn = $(this);
-
-                if ($content.is(':visible')) {
-                    $content.slideUp(200);
-                    $btn.removeClass('expanded');
-                    $btn.find('span:last').text('OS & 브라우저 상세 보기');
-                } else {
-                    $content.slideDown(200);
-                    $btn.addClass('expanded');
-                    $btn.find('span:last').text('상세 보기 접기');
-                }
-            });
-
-            // 3. Smooth Scroll for Smart CTA links
-            $('.sb-card-cta').on('click', function (e) {
-                var href = $(this).attr('href');
-                if (href.startsWith('#')) {
-                    e.preventDefault();
-                    var $target = $(href);
-                    if ($target.length) {
-                        // 만약 섹션이 접혀있으면 펼치기
-                        var $sectionContent = $target.find('.sb-section-content');
-                        if ($sectionContent.hasClass('collapsed')) {
-                            $sectionContent.removeClass('collapsed');
-                            $target.find('.sb-section-toggle').removeClass('collapsed');
-                        }
-                        // Smooth scroll
-                        $('html, body').animate({
-                            scrollTop: $target.offset().top - 50
-                        }, 400);
-                    }
-                }
-            });
-        });
-    </script>
-
-    <style>
-        .sb-top-links-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .sb-top-links-header h3 {
-            margin: 0;
-        }
-
-        .sb-top-links-tabs {
-            display: flex;
-            gap: 5px;
-        }
-
-        .sb-tab-btn {
-            padding: 8px 16px;
-            border: 1px solid #ddd;
-            background: #fff;
-            cursor: pointer;
-            border-radius: 4px;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-
-        .sb-tab-btn:hover {
-            background: #f0f0f0;
-        }
-
-        .sb-tab-btn.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: #fff;
-            border-color: #667eea;
-        }
-    </style>
-
     <!-- 하단 고정 가이드 섹션 -->
     <div class="sb-quick-guide">
-        <h3>📖 빠른 시작 가이드</h3>
+        <h3><?php _e('📖 빠른 시작 가이드', 'sb'); ?></h3>
         <div class="sb-guide-grid">
             <div class="sb-guide-item <?php echo $has_api_keys ? 'completed' : ''; ?>">
                 <div class="sb-guide-step">1</div>
                 <div class="sb-guide-content">
-                    <strong>API 키 발급</strong>
-                    <p><a href="<?php echo admin_url('admin.php?page=smart-bridge-settings'); ?>">설정 페이지</a>에서 API Key와
-                        Secret Key를 발급받으세요.</p>
+                    <strong><?php _e('API 키 발급', 'sb'); ?></strong>
+                    <p><?php printf(__('%s설정 페이지%s에서 API Key와 Secret Key를 발급받으세요.', 'sb'), '<a href="' . admin_url('admin.php?page=smart-bridge-settings') . '">', '</a>'); ?>
+                    </p>
                     <?php if ($has_api_keys): ?>
-                        <span class="sb-guide-status completed">✅ 완료</span>
+                        <span class="sb-guide-status completed"><?php _e('✅ 완료', 'sb'); ?></span>
                     <?php else: ?>
-                        <span class="sb-guide-status pending">⏳ 대기 중</span>
+                        <span class="sb-guide-status pending"><?php _e('⏳ 대기 중', 'sb'); ?></span>
                     <?php endif; ?>
                 </div>
             </div>
@@ -662,740 +601,164 @@ if (!defined('ABSPATH')) {
             <div class="sb-guide-item">
                 <div class="sb-guide-step">2</div>
                 <div class="sb-guide-content">
-                    <strong>퍼마링크 새로고침</strong>
-                    <p><a href="<?php echo admin_url('options-permalink.php'); ?>">설정 → 퍼마링크</a>에서 "변경사항 저장" 버튼을 클릭해
-                        주세요.</p>
-                    <span class="sb-guide-status info">💡 최초 1회 필수</span>
+                    <strong><?php _e('퍼마링크 새로고침', 'sb'); ?></strong>
+                    <p><?php printf(__('%s설정 → 퍼마링크%s에서 "변경사항 저장" 버튼을 클릭해 주세요.', 'sb'), '<a href="' . admin_url('options-permalink.php') . '">', '</a>'); ?>
+                    </p>
+                    <span class="sb-guide-status info"><?php _e('💡 최초 1회 필수', 'sb'); ?></span>
                 </div>
             </div>
 
             <div class="sb-guide-item">
                 <div class="sb-guide-step">3</div>
                 <div class="sb-guide-content">
-                    <strong>EXE 프로그램 설정</strong>
-                    <p>발급받은 API Key와 Secret Key를 EXE 프로그램에 입력하세요.</p>
-                    <span class="sb-guide-status info">💻 로컬 PC</span>
+                    <strong><?php _e('EXE 프로그램 설정', 'sb'); ?></strong>
+                    <p><?php _e('발급받은 API Key와 Secret Key를 EXE 프로그램에 입력하세요.', 'sb'); ?></p>
+                    <span class="sb-guide-status info"><?php _e('💻 로컬 PC', 'sb'); ?></span>
                 </div>
             </div>
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     </div>
 
-    <style>
-        .sb-quick-guide {
-            background: #f8f9fa;
-            border: 1px solid #e2e4e7;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 30px;
-        }
-
-        .sb-quick-guide h3 {
-            margin: 0 0 15px;
-            color: #1e1e1e;
-            font-size: 16px;
-        }
-
-        .sb-guide-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
-        }
-
-        .sb-guide-item {
-            display: flex;
-            gap: 12px;
-            background: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #e2e4e7;
-            transition: box-shadow 0.2s, border-color 0.2s;
-        }
-
-        .sb-guide-item:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border-color: #667eea;
-        }
-
-        .sb-guide-item.completed {
-            border-color: #00a32a;
-            background: #f0fff4;
-        }
-
-        .sb-guide-step {
-            width: 28px;
-            height: 28px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: #fff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        .sb-guide-item.completed .sb-guide-step {
-            background: #00a32a;
-        }
-
-        .sb-guide-content strong {
-            display: block;
-            margin-bottom: 4px;
-            color: #1e1e1e;
-        }
-
-        .sb-guide-content p {
-            margin: 0 0 8px;
-            font-size: 13px;
-            color: #646970;
-            line-height: 1.4;
-        }
-
-        .sb-guide-status {
-            display: inline-block;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-        .sb-guide-status.completed {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .sb-guide-status.pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .sb-guide-status.info {
-            background: #e0e7ff;
-            color: #3730a3;
-        }
-
-        /* 필터 도움말 아이콘 */
-        .sb-filter-help {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            margin-left: 5px;
-            background: #e5e7eb;
-            border-radius: 50%;
-            font-size: 11px;
-            cursor: help;
-            color: #6b7280;
-            vertical-align: middle;
-        }
-
-        .sb-filter-help:hover {
-            background: #667eea;
-            color: #fff;
-        }
-
-        /* ========================================
-           Phase 2-5: 새로운 분석 섹션 스타일
-           ======================================== */
-
-        .sb-analytics-section {
-            margin-top: 30px;
-            background: #fff;
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #e2e4e7;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-
-        .sb-section-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 0 0 20px;
-            font-size: 18px;
-            color: #1e1e1e;
-        }
-
-        .sb-section-title .dashicons {
-            font-size: 24px;
-            width: 24px;
-            height: 24px;
-            color: #667eea;
-        }
-
-        .sb-section-badge {
-            font-size: 11px;
-            padding: 3px 10px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: #fff;
-            font-weight: 500;
-        }
-
-        .sb-charts-3col {
-            grid-template-columns: repeat(3, 1fr) !important;
-        }
-
-        @media (max-width: 1200px) {
-            .sb-charts-3col {
-                grid-template-columns: repeat(2, 1fr) !important;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .sb-charts-3col {
-                grid-template-columns: 1fr !important;
-            }
-        }
-
-        /* 방문자 유형 카드 */
-        .sb-visitor-stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            padding: 20px 0;
-        }
-
-        @media (max-width: 900px) {
-            .sb-visitor-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        .sb-stat-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-            transition: all 0.2s;
-        }
-
-        .sb-stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .sb-stat-card.highlight {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: #fff;
-        }
-
-        .sb-stat-card.highlight .sb-stat-label {
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        .sb-stat-icon {
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-
-        .sb-stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .sb-stat-label {
-            font-size: 12px;
-            color: #666;
-        }
-
-        /* 이상치 섹션 */
-        .sb-anomaly-section {
-            margin-top: 20px;
-            padding: 20px;
-            background: #fef3c7;
-            border: 1px solid #fbbf24;
-            border-radius: 12px;
-        }
-
-        .sb-anomaly-section h3 {
-            margin: 0 0 15px;
-            color: #92400e;
-        }
-
-        .sb-anomaly-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 15px;
-            background: #fff;
-            border-radius: 8px;
-            margin-bottom: 8px;
-        }
-
-        .sb-anomaly-item.spike {
-            border-left: 4px solid #22c55e;
-        }
-
-        .sb-anomaly-item.drop {
-            border-left: 4px solid #ef4444;
-        }
-
-        /* 기간 비교 */
-        .sb-comparison-controls {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .sb-comparison-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .sb-comparison-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .sb-comparison-card h4 {
-            margin: 0 0 10px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .sb-comparison-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #1e1e1e;
-        }
-
-        .sb-comparison-card.highlight .sb-comparison-value.positive {
-            color: #22c55e;
-        }
-
-        .sb-comparison-card.highlight .sb-comparison-value.negative {
-            color: #ef4444;
-        }
-
-        /* 차트 레전드 */
-        .sb-chart-legend {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-
-        .sb-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .sb-legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 3px;
-        }
-
-        /* 링크 행 클릭 가능 */
-        #sb-today-links tbody tr {
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        #sb-today-links tbody tr:hover {
-            background: #f0f5ff !important;
-        }
-
-        /* ========================================
-           Round 20: UX 개선 스타일
-           ======================================== */
-
-        /* Smart CTA on Growth Card */
-        .sb-card-cta {
-            display: block;
-            margin-top: 8px;
-            font-size: 12px;
-            font-weight: 500;
-            text-decoration: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-
-        .sb-cta-positive {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .sb-cta-positive:hover {
-            background: #22c55e;
-            color: #fff;
-        }
-
-        .sb-cta-negative {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .sb-cta-negative:hover {
-            background: #f59e0b;
-            color: #fff;
-        }
-
-        /* Collapsible Section Toggle */
-        .sb-section-toggle {
-            cursor: pointer;
-            user-select: none;
-            transition: opacity 0.2s;
-        }
-
-        .sb-section-toggle:hover {
-            opacity: 0.8;
-        }
-
-        .sb-toggle-icon {
-            margin-left: auto;
-            transition: transform 0.3s ease;
-            color: #666;
-        }
-
-        .sb-section-toggle.collapsed .sb-toggle-icon {
-            transform: rotate(-90deg);
-        }
-
-        .sb-section-content {
-            transition: max-height 0.3s ease, opacity 0.3s ease;
-            overflow: hidden;
-        }
-
-        .sb-section-content.collapsed {
-            max-height: 0 !important;
-            opacity: 0;
-            padding: 0;
-            margin: 0;
-        }
-
-        /* Essential Badge */
-        .sb-chart-essential {
-            font-size: 10px;
-            padding: 2px 8px;
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            color: #fff;
-            border-radius: 10px;
-            margin-left: 8px;
-            font-weight: 500;
-        }
-
-        /* Advanced Toggle Button */
-        .sb-advanced-toggle {
-            text-align: center;
-            margin: 15px 0;
-        }
-
-        .sb-btn-advanced {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            background: #f3f4f6;
-            border: 1px dashed #d1d5db;
-            border-radius: 8px;
-            color: #6b7280;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .sb-btn-advanced:hover {
-            background: #e5e7eb;
-            border-color: #9ca3af;
-            color: #374151;
-        }
-
-        .sb-btn-advanced .dashicons {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
-            transition: transform 0.2s;
-        }
-
-        .sb-btn-advanced.expanded .dashicons {
-            transform: rotate(180deg);
-        }
-
-        .sb-advanced-content {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px dashed #e5e7eb;
-        }
-
-        /* Comparison Section Highlight */
-        .sb-comparison-section #sb-toggle-comparison {
-            animation: pulse-attention 2s ease-in-out 3;
-        }
-
-        @keyframes pulse-attention {
-
-            0%,
-            100% {
-                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4);
-            }
-
-            50% {
-                box-shadow: 0 0 0 8px rgba(102, 126, 234, 0);
-            }
-        }
-    </style>
-</div>
-
-<!-- 링크 상세 분석 모달 -->
-<div id="sb-link-detail-modal" class="sb-modal" style="display: none;">
-    <div class="sb-modal-overlay"></div>
-    <div class="sb-modal-content sb-modal-large">
-        <div class="sb-modal-header">
-            <h2 id="sb-link-modal-title">📊 링크 상세 분석</h2>
-            <button type="button" class="sb-modal-close">&times;</button>
-        </div>
-        <div class="sb-modal-body">
-            <div class="sb-link-info-bar" id="sb-link-info-bar">
-                <span><strong>Slug:</strong> <span id="sb-link-slug">-</span></span>
-                <span><strong>플랫폼:</strong> <span id="sb-link-platform">-</span></span>
-                <span><strong>생성일:</strong> <span id="sb-link-created">-</span></span>
+    <!-- 링크 상세 분석 모달 -->
+    <div id="sb-link-detail-modal" class="sb-modal" style="display: none;">
+        <div class="sb-modal-overlay"></div>
+        <div class="sb-modal-content sb-modal-large">
+            <div class="sb-modal-header">
+                <h2 id="sb-link-modal-title"><?php _e('📊 링크 상세 분석', 'sb'); ?></h2>
+                <button type="button" class="sb-modal-close"
+                    aria-label="<?php esc_attr_e('닫기', 'sb'); ?>">&times;</button>
             </div>
-
-            <div class="sb-link-stats-grid">
-                <div class="sb-link-stat">
-                    <div class="sb-link-stat-value" id="sb-link-total-clicks">-</div>
-                    <div class="sb-link-stat-label">총 클릭</div>
+            <div class="sb-modal-body">
+                <div class="sb-link-info-bar" id="sb-link-info-bar">
+                    <span><strong>Slug:</strong> <span id="sb-link-slug">-</span></span>
+                    <span><strong><?php _e('플랫폼:', 'sb'); ?></strong> <span id="sb-link-platform">-</span></span>
+                    <span><strong><?php _e('생성일:', 'sb'); ?></strong> <span id="sb-link-created">-</span></span>
                 </div>
-                <div class="sb-link-stat">
-                    <div class="sb-link-stat-value" id="sb-link-unique-visitors">-</div>
-                    <div class="sb-link-stat-label">고유 방문자</div>
-                </div>
-            </div>
 
-            <div class="sb-link-charts-grid">
-                <div class="sb-chart-box">
-                    <h4>🕐 시간대별 분포</h4>
-                    <div class="sb-chart-container">
-                        <canvas id="sb-link-hourly-chart"></canvas>
+                <div class="sb-link-stats-grid">
+                    <div class="sb-link-stat">
+                        <div class="sb-link-stat-value" id="sb-link-total-clicks">-</div>
+                        <div class="sb-link-stat-label"><?php _e('총 클릭', 'sb'); ?></div>
+                    </div>
+                    <div class="sb-link-stat">
+                        <div class="sb-link-stat-value" id="sb-link-unique-visitors">-</div>
+                        <div class="sb-link-stat-label"><?php _e('고유 방문자', 'sb'); ?></div>
                     </div>
                 </div>
-                <div class="sb-chart-box">
-                    <h4>🔗 유입 경로</h4>
-                    <div class="sb-link-referers" id="sb-link-referers">
+
+                <div class="sb-link-charts-grid">
+                    <div class="sb-chart-box">
+                        <h4><?php _e('🕐 시간대별 분포', 'sb'); ?></h4>
+                        <div class="sb-chart-container">
+                            <canvas id="sb-link-hourly-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="sb-chart-box">
+                        <h4><?php _e('🔗 유입 경로', 'sb'); ?></h4>
+                        <div class="sb-link-referers" id="sb-link-referers">
+                            <!-- JS로 채워짐 -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sb-link-device-info">
+                    <h4><?php _e('📱 디바이스 정보', 'sb'); ?></h4>
+                    <div class="sb-device-bars" id="sb-link-device-bars">
                         <!-- JS로 채워짐 -->
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div class="sb-link-device-info">
-                <h4>📱 디바이스 정보</h4>
-                <div class="sb-device-bars" id="sb-link-device-bars">
-                    <!-- JS로 채워짐 -->
+    <!-- Tier 4: Link Group Management Modal -->
+    <div id="sb-group-manager-modal" class="sb-modal" style="display: none;">
+        <div class="sb-modal-overlay"></div>
+        <div class="sb-modal-content">
+            <div class="sb-modal-header">
+                <h2><?php _e('📁 그룹 관리', 'sb'); ?></h2>
+                <button type="button" class="sb-modal-close"
+                    aria-label="<?php esc_attr_e('닫기', 'sb'); ?>">&times;</button>
+            </div>
+            <div class="sb-modal-body">
+                <div class="sb-group-form">
+                    <input type="text" id="sb-new-group-name" placeholder="<?php esc_attr_e('새 그룹 이름', 'sb'); ?>"
+                        class="sb-input">
+                    <input type="color" id="sb-new-group-color" value="#667eea"
+                        title="<?php esc_attr_e('그룹 색상', 'sb'); ?>">
+                    <button type="button" id="sb-add-group-btn"
+                        class="button button-primary"><?php _e('추가', 'sb'); ?></button>
                 </div>
+
+                <ul id="sb-group-list" class="sb-group-list">
+                    <!-- JS Populated -->
+                </ul>
             </div>
         </div>
     </div>
-</div>
 
-<style>
-    /* 링크 상세 모달 스타일 */
-    .sb-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 100000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
 
-    .sb-modal-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-    }
 
-    .sb-modal-content {
-        position: relative;
-        background: #fff;
-        border-radius: 16px;
-        max-width: 500px;
-        width: 90%;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    }
+    <!-- 차트 데이터 -->
+    <script>
+        var sbChartData = {
+            dailyTrend: <?php echo json_encode($daily_trend); ?>,
+            clicksByHour: <?php echo json_encode($clicks_by_hour); ?>,
+            platformShare: <?php echo json_encode($platform_share); ?>
+        };
+    </script>
 
-    .sb-modal-large {
-        max-width: 900px;
-    }
-
-    .sb-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px 25px;
-        border-bottom: 1px solid #e2e4e7;
-    }
-
-    .sb-modal-header h2 {
-        margin: 0;
-        font-size: 20px;
-    }
-
-    .sb-modal-close {
-        background: none;
-        border: none;
-        font-size: 28px;
-        cursor: pointer;
-        color: #999;
-        line-height: 1;
-    }
-
-    .sb-modal-close:hover {
-        color: #333;
-    }
-
-    .sb-modal-body {
-        padding: 25px;
-    }
-
-    .sb-link-info-bar {
-        display: flex;
-        gap: 25px;
-        padding: 15px 20px;
-        background: #f8f9fa;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-
-    .sb-link-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-        margin-bottom: 25px;
-    }
-
-    .sb-link-stat {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: #fff;
-        padding: 25px;
-        border-radius: 12px;
-        text-align: center;
-    }
-
-    .sb-link-stat-value {
-        font-size: 36px;
-        font-weight: 700;
-    }
-
-    .sb-link-stat-label {
-        font-size: 14px;
-        opacity: 0.9;
-        margin-top: 5px;
-    }
-
-    .sb-link-charts-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-
-    @media (max-width: 768px) {
-        .sb-link-charts-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .sb-link-referers {
-        max-height: 200px;
-        overflow-y: auto;
-    }
-
-    .sb-referer-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 12px;
-        background: #f8f9fa;
-        border-radius: 6px;
-        margin-bottom: 6px;
-    }
-
-    .sb-device-bars {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-
-    .sb-device-bar {
-        flex: 1;
-        min-width: 100px;
-        background: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-    }
-
-    .sb-device-bar-value {
-        font-size: 24px;
-        font-weight: 700;
-        color: #667eea;
-    }
-
-    .sb-device-bar-label {
-        font-size: 12px;
-        color: #666;
-        margin-top: 5px;
-    }
-</style>
-
-<!-- 차트 데이터 -->
-<script>
-    var sbChartData = {
-        dailyTrend: <?php echo json_encode($daily_trend); ?>,
-        clicksByHour: <?php echo json_encode($clicks_by_hour); ?>,
-        platformShare: <?php echo json_encode($platform_share); ?>
-    };
-</script>
-
-<!-- 
+    <!-- 
     ===========================================================================
     HTML Templates (Phase 9 Frontend Modernization)
     Strict separation of HTML structure from JavaScript logic.
     ===========================================================================
 -->
 
-<!-- Anomaly Item Template -->
-<template id="sb-tmpl-anomaly-item">
-    <div class="sb-anomaly-item">
-        <span class="sb-tmpl-date"></span>
-        <span class="sb-tmpl-info">
+    <!-- Anomaly Item Template -->
+    <template id="sb-tmpl-anomaly-item">
+        <div class="sb-anomaly-item">
+            <span class="sb-tmpl-date"></span>
+            <span class="sb-tmpl-info">
+                <strong class="sb-tmpl-clicks"></strong>
+                <span class="sb-tmpl-desc"></span>
+            </span>
+        </div>
+    </template>
+
+    <!-- Referer Item Template -->
+    <template id="sb-tmpl-referer-item">
+        <div class="sb-referer-item">
+            <span class="sb-tmpl-domain"></span>
             <strong class="sb-tmpl-clicks"></strong>
-            <span class="sb-tmpl-desc"></span>
-        </span>
-    </div>
-</template>
+        </div>
+    </template>
 
-<!-- Referer Item Template -->
-<template id="sb-tmpl-referer-item">
-    <div class="sb-referer-item">
-        <span class="sb-tmpl-domain"></span>
-        <strong class="sb-tmpl-clicks"></strong>
-    </div>
-</template>
-
-<!-- Device Bar Template -->
-<template id="sb-tmpl-device-bar">
-    <div class="sb-device-bar">
-        <div class="sb-device-bar-value sb-tmpl-value"></div>
-        <div class="sb-device-bar-label sb-tmpl-label"></div>
-    </div>
-</template>
+    <!-- Device Bar Template -->
+    <template id="sb-tmpl-device-bar">
+        <div class="sb-device-bar">
+            <div class="sb-device-bar-value sb-tmpl-value"></div>
+            <div class="sb-device-bar-label sb-tmpl-label"></div>
+        </div>
+    </template>

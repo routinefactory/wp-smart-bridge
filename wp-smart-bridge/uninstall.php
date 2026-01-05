@@ -56,9 +56,11 @@ global $wpdb;
 // 1. 커스텀 테이블 삭제
 $analytics_table = $wpdb->prefix . 'sb_analytics_logs';
 $api_keys_table = $wpdb->prefix . 'sb_api_keys';
+$groups_table = $wpdb->prefix . 'sb_link_groups';
 
 $wpdb->query("DROP TABLE IF EXISTS $analytics_table");
 $wpdb->query("DROP TABLE IF EXISTS $api_keys_table");
+$wpdb->query("DROP TABLE IF EXISTS $groups_table");
 
 // 2. sb_link 포스트 및 메타 삭제
 $posts = get_posts([

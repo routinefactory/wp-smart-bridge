@@ -78,11 +78,13 @@ class SB_Helpers
         global $wpdb;
 
         // v2.9.22 Fix: Check post_name (Unique Index) instead of post_title
+        // v3.0.0 Critical Fix: PHP constant must be passed as parameter, not embedded in SQL string
         $count = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->posts} 
-             WHERE post_type = 'sb_link' 
+             WHERE post_type = %s 
              AND post_name = %s 
              AND post_status != 'trash'",
+            SB_Post_Type::POST_TYPE,
             $slug
         ));
 
@@ -97,6 +99,10 @@ class SB_Helpers
      */
     public static function detect_platform($target_url)
     {
+        if (empty($target_url)) {
+            return 'Unknown';
+        }
+
         $host = parse_url($target_url, PHP_URL_HOST);
 
         if (empty($host)) {
@@ -105,32 +111,108 @@ class SB_Helpers
 
         $host = strtolower($host);
 
-        // www. 제거
-        if (strpos($host, 'www.') === 0) {
-            $host = substr($host, 4);
+        // 1. Specific Platform Mappings (Exact Match)
+        $map = [
+            // YouTube
+            'youtu.be' => 'YouTube',
+            'youtube.com' => 'YouTube',
+            'www.youtube.com' => 'YouTube',
+            'm.youtube.com' => 'YouTube',
+
+            // Naver Services
+            'blog.naver.com' => 'Naver Blog',
+            'm.blog.naver.com' => 'Naver Blog',
+            'cafe.naver.com' => 'Naver Cafe',
+            'm.cafe.naver.com' => 'Naver Cafe',
+            'smartstore.naver.com' => 'Naver Smart Store',
+            'm.smartstore.naver.com' => 'Naver Smart Store',
+            'shopping.naver.com' => 'Naver Shopping',
+            'm.shopping.naver.com' => 'Naver Shopping',
+            'post.naver.com' => 'Naver Post',
+            'm.post.naver.com' => 'Naver Post',
+            'tv.naver.com' => 'Naver TV',
+            'm.tv.naver.com' => 'Naver TV',
+
+            // Social Media
+            'instagram.com' => 'Instagram',
+            'www.instagram.com' => 'Instagram',
+            'facebook.com' => 'Facebook',
+            'www.facebook.com' => 'Facebook',
+            'twitter.com' => 'Twitter',
+            'x.com' => 'Twitter', // Rebrand
+            't.co' => 'Twitter',
+
+            // Commerce
+            'coupang.com' => 'Coupang',
+            'www.coupang.com' => 'Coupang',
+            'link.coupang.com' => 'Coupang', // Affiliate Links
+            'aliexpress.com' => 'AliExpress',
+            'www.aliexpress.com' => 'AliExpress',
+            'best.aliexpress.com' => 'AliExpress',
+            's.click.aliexpress.com' => 'AliExpress', // Affiliate Links
+
+            // ETC
+            'bit.ly' => 'Bitly',
+        ];
+
+        // v3.0.0 Architecture Improvement: Allow developers to extend platform mapping
+        $map = apply_filters('sb_platform_map', $map);
+
+        if (isset($map[$host])) {
+            return $map[$host];
         }
 
-        // 서브도메인 처리 - 주요 도메인만 추출
-        // 예: s.click.aliexpress.com → aliexpress.com
-        //     link.coupang.com → coupang.com
-        $parts = explode('.', $host);
+        // 2. Remove 'www.' prefix for generic handling
+        $clean_host = $host;
+        if (strpos($host, 'www.') === 0) {
+            $clean_host = substr($host, 4);
+        }
+
+        // Re-check map with clean host (e.g. if map has 'naver.com' but not 'www.naver.com')
+        if (isset($map[$clean_host])) {
+            return $map[$clean_host];
+        }
+
+        // 3. Generic Domain Extraction
+        $parts = explode('.', $clean_host);
         $count = count($parts);
 
         if ($count >= 2) {
-            // .co.kr, .com.cn 등 2단계 TLD 처리
-            $twoLevelTlds = ['co.kr', 'com.cn', 'co.jp', 'co.uk', 'com.au', 'com.br', 'org.uk'];
+            // Common Second Level TLDs
+            $twoLevelTlds = [
+                'co.kr',
+                'pe.kr',
+                'or.kr',
+                'ne.kr',
+                'go.kr',
+                'ac.kr', // Korea
+                'com.cn',
+                'net.cn',
+                'org.cn', // China
+                'co.jp',
+                'ne.jp', // Japan
+                'co.uk',
+                'org.uk',
+                'me.uk', // UK
+                'com.au',
+                'net.au',
+                'org.au', // Australia
+                'com.br', // Brazil
+                'com.sg', // Singapore
+            ];
+
             $lastTwo = $parts[$count - 2] . '.' . $parts[$count - 1];
 
             if (in_array($lastTwo, $twoLevelTlds) && $count >= 3) {
-                // 예: amazon.co.kr → amazon.co.kr
-                $host = $parts[$count - 3] . '.' . $lastTwo;
+                // e.g. amazon.co.kr
+                return $parts[$count - 3] . '.' . $lastTwo;
             } else {
-                // 예: s.click.aliexpress.com → aliexpress.com
-                $host = $parts[$count - 2] . '.' . $parts[$count - 1];
+                // e.g. google.com
+                return $parts[$count - 2] . '.' . $parts[$count - 1];
             }
         }
 
-        return $host;
+        return $clean_host;
     }
 
     /**
@@ -169,6 +251,34 @@ class SB_Helpers
     }
 
     /**
+     * 클라이언트 IP 주소 가져오기 (Proxy 지원)
+     * 
+     * @return string IP Address
+     */
+    public static function get_client_ip()
+    {
+        $ip = '';
+        if (isset($_SERVER['HTTP_CF_CONNECTING_IP']))
+            $ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
+        else if (isset($_SERVER['HTTP_X_REAL_IP']))
+            $ip = $_SERVER['HTTP_X_REAL_IP'];
+        else if (isset($_SERVER['HTTP_CLIENT_IP']))
+            $ip = $_SERVER['HTTP_CLIENT_IP'];
+        else if (isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+            $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        else if (isset($_SERVER['REMOTE_ADDR']))
+            $ip = $_SERVER['REMOTE_ADDR'];
+
+        // 여러 IP가 올 경우 첫 번째만 취하기 (X-Forwarded-For 등)
+        if (strpos($ip, ',') !== false) {
+            $ips = explode(',', $ip);
+            $ip = trim($ips[0]);
+        }
+
+        return filter_var($ip, FILTER_VALIDATE_IP) ?: '0.0.0.0';
+    }
+
+    /**
      * URL 유효성 검증
      * 
      * @param string $url 검증할 URL
@@ -181,7 +291,31 @@ class SB_Helpers
         }
 
         // http:// 또는 https:// 스키마 필수
-        if (!preg_match('/^https?:\/\//i', $url)) {
+        // v3.0.0 Security Fix: Allow protocol-relative URLs (//site.com) but validate stricter later
+        if (!preg_match('/^(https?:\/\/|\/\/)/i', $url)) {
+            return false;
+        }
+
+        // v3.0.0 Security Fix: Prevent Redirect Loop & Chaining
+        // 자신의 사이트 내의 단축 링크 경로('/go/')를 타겟으로 설정하는 것을 차단
+        $short_link_base = home_url('/go/');
+
+        // 1. Normalize Base (remove scheme)
+        $clean_base = preg_replace('/^(https?:\/\/|\/\/)/i', '', $short_link_base);
+
+        // 2. Normalize Target
+        // - Remove scheme
+        // - URL Decode (to prevent encoded attacks like /%67%6F/)
+        // - Lowercase (for case-insensitive comparison)
+        $clean_target = preg_replace('/^(https?:\/\/|\/\/)/i', '', $url);
+        $clean_target = urldecode($clean_target);
+        $clean_target = mb_strtolower($clean_target);
+
+        $clean_base = mb_strtolower($clean_base);
+
+        // 3. Check for Self-Reference
+        // startswith check
+        if (strpos($clean_target, $clean_base) === 0) {
             return false;
         }
 
@@ -208,7 +342,7 @@ class SB_Helpers
     public static function get_link_by_slug($slug)
     {
         $query = new WP_Query([
-            'post_type' => 'sb_link',
+            'post_type' => SB_Post_Type::POST_TYPE,
             'name' => $slug, // v2.9.22 Fix: Query by valid slug (post_name)
             'posts_per_page' => 1,
             'post_status' => 'publish',
@@ -335,228 +469,14 @@ class SB_Helpers
      */
     public static function get_default_redirect_template()
     {
-        return '<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <title>안전하게 연결 중...</title>
-    <style>
-        :root {
-            --primary: #0066FF;
-            --primary-glow: rgba(0, 102, 255, 0.3);
-            --bg: #05070A;
-            --card-bg: rgba(255, 255, 255, 0.03);
-            --text-main: #FFFFFF;
-            --text-dim: #94A3B8;
-            --border: rgba(255, 255, 255, 0.08);
+        $file = SB_PLUGIN_DIR . 'includes/defaults/default-redirect.tpl';
+
+        if (file_exists($file)) {
+            return file_get_contents($file);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text-main);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            background: radial-gradient(circle at 50% 50%, #111827 0%, #05070A 100%);
-        }
-
-        /* Animated background mesh */
-        .mesh {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            opacity: 0.4;
-            filter: blur(80px);
-        }
-
-        .mesh-circle {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(40px);
-            animation: move 20s infinite alternate;
-        }
-
-        @keyframes move {
-            from { transform: translate(-10%, -10%); }
-            to { transform: translate(10%, 10%); }
-        }
-
-        .card {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            padding: 48px 32px;
-            border-radius: 32px;
-            width: 100%;
-            max-width: 440px;
-            text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            animation: fadeInScale 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        @keyframes fadeInScale {
-            from { opacity: 0; transform: scale(0.95) translateY(10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-
-        .progress-wrapper {
-            position: relative;
-            width: 100px;
-            height: 100px;
-            margin: 0 auto 36px;
-        }
-
-        .progress-svg {
-            transform: rotate(-90deg);
-        }
-
-        .track {
-            fill: none;
-            stroke: var(--border);
-            stroke-width: 4;
-        }
-
-        .bar {
-            fill: none;
-            stroke: var(--primary);
-            stroke-width: 4;
-            stroke-linecap: round;
-            stroke-dasharray: 283;
-            stroke-dashoffset: 283;
-            filter: drop-shadow(0 0 8px var(--primary-glow));
-            transition: stroke-dashoffset 1s linear;
-        }
-
-        .timer-val {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--primary);
-            letter-spacing: -0.02em;
-        }
-
-        h1 {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            letter-spacing: -0.02em;
-        }
-
-        p.sub {
-            font-size: 15px;
-            color: var(--text-dim);
-            line-height: 1.6;
-            margin-bottom: 40px;
-        }
-
-        .action-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px 32px;
-            background: var(--primary);
-            color: white;
-            text-decoration: none;
-            border-radius: 16px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: none;
-            width: 100%;
-            box-shadow: 0 10px 20px -5px var(--primary-glow);
-        }
-
-        .action-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 15px 30px -5px var(--primary-glow);
-            filter: brightness(1.1);
-        }
-
-        .security-footer {
-            margin-top: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--text-dim);
-            padding-top: 24px;
-            border-top: 1px solid var(--border);
-        }
-
-        .shield-icon {
-            width: 16px;
-            height: 16px;
-            color: var(--primary);
-        }
-    </style>
-</head>
-<body>
-    <div class="mesh">
-        <div class="mesh-circle" style="width: 400px; height: 400px; background: #003366; top: 10%; left: 10%;"></div>
-        <div class="mesh-circle" style="width: 300px; height: 300px; background: #001a33; bottom: 10%; right: 10%; animation-delay: -5s;"></div>
-    </div>
-
-    <div class="card">
-        <div class="progress-wrapper">
-            <svg class="progress-svg" viewBox="0 0 100 100">
-                <circle class="track" cx="50" cy="50" r="45"></circle>
-                <circle id="progress-ring" class="bar" cx="50" cy="50" r="45"></circle>
-            </svg>
-            <div class="timer-val" id="{{COUNTDOWN_ID}}">{{DELAY_SECONDS}}</div>
-        </div>
-        
-        <h1>페이지로 이동 중입니다...</h1>
-        <p class="sub">보안 서버를 통해 안전하게 연결하고 있습니다.<br>잠시만 기다려 주세요.</p>
-        
-        <a href="{{TARGET_URL}}" class="action-btn">즉시 연결하기</a>
-        
-        <div class="security-footer">
-            <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            Verified Secure Connection
-        </div>
-    </div>
-
-    {{COUNTDOWN_SCRIPT}}
-    
-    <script>
-        (function() {
-            const total = {{DELAY_SECONDS}};
-            const ring = document.getElementById("progress-ring");
-            const circumference = 2 * Math.PI * 45;
-            
-            ring.style.strokeDasharray = circumference;
-            ring.style.strokeDashoffset = circumference;
-            
-            // Subtle entrance sync
-            setTimeout(() => {
-                ring.style.transition = `stroke-dashoffset ${total}s linear`;
-                ring.style.strokeDashoffset = 0;
-            }, 100);
-        })();
-    </script>
-</body>
-</html>';
+        // Fallback (minimal)
+        return '<!DOCTYPE html><html><body>Redirecting... <a href="{{TARGET_URL}}">Click here</a>{{COUNTDOWN_SCRIPT}}</body></html>';
     }
 
     /**
@@ -584,15 +504,15 @@ class SB_Helpers
     {
         // 필수 플레이스홀더 검사 (모든 플레이스홀더를 동일한 방식으로 검증)
         $required_placeholders = [
-            '{{DELAY_SECONDS}}' => '타이머 숫자',
-            '{{TARGET_URL}}' => '타겟 URL',
-            '{{COUNTDOWN_SCRIPT}}' => '카운트다운 스크립트',
-            '{{COUNTDOWN_ID}}' => '카운트다운 요소 ID',
+            '{{DELAY_SECONDS}}' => __('타이머 숫자', 'sb'),
+            '{{TARGET_URL}}' => __('타겟 URL', 'sb'),
+            '{{COUNTDOWN_SCRIPT}}' => __('카운트다운 스크립트', 'sb'),
+            '{{COUNTDOWN_ID}}' => __('카운트다운 요소 ID', 'sb'),
         ];
 
         foreach ($required_placeholders as $placeholder => $name) {
             if (strpos($template, $placeholder) === false) {
-                return "오류: 필수 Placeholder가 누락되었습니다: $placeholder ($name)";
+                return sprintf(__('오류: 필수 Placeholder가 누락되었습니다: %s (%s)', 'sb'), $placeholder, $name);
             }
         }
 
@@ -603,7 +523,7 @@ class SB_Helpers
             // COUNTDOWN_SCRIPT는 우리가 서버에서 생성해서 주입하므로, 
             // 템플릿 자체에 <script> 태그가 있는 것은 보안 정책상 차단 (또는 경고)
             if (!current_user_can('unfiltered_html')) {
-                return "오류: 보안 정책에 따라 템플릿 내에 직접적인 <script> 태그 삽입이 금지되어 있습니다.";
+                return __('오류: 보안 정책에 따라 템플릿 내에 직접적인 <script> 태그 삽입이 금지되어 있습니다.', 'sb');
             }
         }
 

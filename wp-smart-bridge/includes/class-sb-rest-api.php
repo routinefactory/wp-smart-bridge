@@ -101,6 +101,52 @@ class SB_Rest_API
         if (is_wp_error($auth_result)) {
             return $auth_result;
         }
+
+        // v3.0.0 Security: Rate Limiting
+        if (!self::check_rate_limit()) {
+            return new WP_Error(
+                'rate_limit_exceeded',
+                'Too many requests. Please try again later.',
+                ['status' => 429]
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Rate Limiting (Token Bucket / Sliding Window simplified)
+     * Limit: 60 requests per minute per IP
+     */
+    private static function check_rate_limit()
+    {
+        $ip = SB_Helpers::get_client_ip();
+        if (empty($ip)) {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        }
+
+        $transient_key = 'sb_rate_limit_' . md5($ip);
+        $data = get_transient($transient_key);
+
+        if ($data === false || !is_array($data)) {
+            // New Window
+            set_transient($transient_key, ['count' => 1, 'start_time' => time()], 60);
+            return true;
+        }
+
+        if ($data['count'] >= 60) {
+            return false;
+        }
+
+        // Increment count
+        $data['count']++;
+
+        // Preserve original window expiration
+        $elapsed = time() - $data['start_time'];
+        $remaining = max(1, 60 - $elapsed); // Minimum 1s to ensure it persists
+
+        set_transient($transient_key, $data, $remaining);
+
         return true;
     }
 
@@ -169,7 +215,7 @@ class SB_Rest_API
         // 6. 워드프레스 포스트로 저장
         $post_id = wp_insert_post([
             'post_title' => $slug,
-            'post_type' => 'sb_link',
+            'post_type' => SB_Post_Type::POST_TYPE,
             'post_status' => 'publish',
             'meta_input' => [
                 'target_url' => $target_url,
@@ -193,9 +239,17 @@ class SB_Rest_API
             }
         } else {
             // 자동 생성의 경우, 변경된 slug(post_name)를 최종 slug로 채택
-            $post_name = get_post_field('post_name', $post_id);
-            if ($post_name) {
-                $slug = $post_name;
+            // v3.0.0 Security Fix: Strict check for race conditions
+            $inserted_post_name = get_post_field('post_name', $post_id);
+            if ($inserted_post_name !== $slug) {
+                // 경합 발생 (예: sb_link_1234 -> sb_link_1234-2)
+                // 자동 생성된 슬러그는 유일해야 하므로, -2가 붙은 것은 의도와 다름 (재시도 유도)
+                wp_delete_post($post_id, true);
+                return new WP_Error(
+                    'conflict',
+                    'Slug collision detected during generation. Please try again.',
+                    ['status' => 409]
+                );
             }
         }
 
@@ -497,10 +551,10 @@ class SB_Rest_API
 
         // 링크 존재 확인
         $post = get_post($link_id);
-        if (!$post || $post->post_type !== 'sb_link') {
+        if (!$post || $post->post_type !== SB_Post_Type::POST_TYPE) {
             return new WP_Error(
                 'not_found',
-                '링크를 찾을 수 없습니다.',
+                __('링크를 찾을 수 없습니다.', 'sb'),
                 ['status' => 404]
             );
         }
@@ -558,7 +612,7 @@ class SB_Rest_API
         $per_page = min(intval($per_page), 100);
 
         $args = [
-            'post_type' => 'sb_link',
+            'post_type' => SB_Post_Type::POST_TYPE,
             'posts_per_page' => $per_page,
             'paged' => $page,
             'post_status' => 'publish',

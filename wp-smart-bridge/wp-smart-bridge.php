@@ -3,7 +3,7 @@
  * Plugin Name: WP Smart Bridge
  * Plugin URI: https://github.com/routinefactory/wp-smart-bridge
  * Description: 제휴 마케팅용 단축 링크 자동화 플러그인 - HMAC-SHA256 보안 인증, 분석 기능 포함
- * Version: 2.9.22
+ * Version: 3.0.0
  * Author: Routine Factory
  * Author URI: https://github.com/routinefactory
  * License: GPL v2 or later
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '2.9.22');
+define('SB_VERSION', '3.0.0');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -42,9 +42,14 @@ require_once SB_PLUGIN_DIR . 'includes/class-sb-analytics.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-updater.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-backup.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-admin-ajax.php';
+require_once SB_PLUGIN_DIR . 'includes/class-sb-groups.php';
+require_once SB_PLUGIN_DIR . 'includes/class-sb-realtime.php';
+require_once SB_PLUGIN_DIR . 'includes/class-sb-async-logger.php';
+require_once SB_PLUGIN_DIR . 'includes/class-sb-cron.php';
 
 // 관리자 페이지 로드
 if (is_admin()) {
+    require_once SB_PLUGIN_DIR . 'admin/class-sb-admin-view-model.php';
     require_once SB_PLUGIN_DIR . 'admin/class-sb-admin.php';
 }
 
@@ -203,6 +208,12 @@ class WP_Smart_Bridge
 
         // 리다이렉트 핸들러 초기화
         SB_Redirect::init();
+
+        // Cron 초기화
+        SB_Cron::init();
+
+        // 비동기 로거 초기화 (v3.0.0 Update)
+        SB_Async_Logger::init();
     }
 
     /**

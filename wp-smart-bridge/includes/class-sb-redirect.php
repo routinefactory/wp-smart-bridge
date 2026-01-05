@@ -87,58 +87,30 @@ class SB_Redirect
             return;
         }
 
-        // 클릭 로깅
-        self::log_click($link->ID);
+        // Settings - Redirect Delay
+        $settings = get_option('sb_settings');
+        $redirect_delay = isset($settings['redirect_delay']) ? (int) $settings['redirect_delay'] : 0;
 
-        // 클릭 수 증가
-        SB_Helpers::increment_click_count($link->ID);
-
-        // 설정 조회
-        $settings = get_option('sb_settings', []);
-        $redirect_delay = isset($settings['redirect_delay']) ? (float) $settings['redirect_delay'] : 0.0;
-
-        // v2.9.22 Feature: Query Parameter Passthrough
-        $query_params = $_GET;
-        unset($query_params['sb_slug']); // 내부 파라미터 제외
-
-        if (!empty($query_params)) {
-            $target_url = add_query_arg($query_params, $target_url);
-        }
-
-        // v2.9.24 Security: Defense in Depth (Protocol validation)
-        $allowed_protocols = ['http', 'https'];
-        $scheme = parse_url($target_url, PHP_URL_SCHEME);
-        if (!in_array($scheme, $allowed_protocols)) {
-            // 비정상적인 프로토콜 감지 시 403 Forbidden
-            wp_die('Invalid redirect target protocol.', 'Security Error', ['response' => 403]);
-        }
-
-        // v2.9.22 Security: Headers
-        header('X-Redirect-By: WP-Smart-Bridge');
-        header('Referrer-Policy: unsafe-url'); // 마케팅 기여도 추적을 위해 Referrer 전달
-
-        // 딜레이가 있으면 중간 페이지 표시
-        if ($redirect_delay > 0) {
-            self::show_redirect_page($link->ID, $target_url, $redirect_delay);
-            exit;
-        }
-
-        // 즉시 리다이렉트 (302 Temporary)
-        // v2.9.24 Fix: Ensure no caching for immediate redirects to maintain stats accuracy
-        nocache_headers();
-        wp_redirect($target_url, 302);
+        // v3.0.0 Async Logging Implementation
+        // Instead of logging first then redirecting, we hand off to the async logger.
+        // The logger will:
+        // 1. Capture context
+        // 2. Redirect user (fast_cgi_finish_request)
+        // 3. Log to DB
+        SB_Async_Logger::log_and_redirect($link->ID, $target_url, $redirect_delay);
         exit;
     }
 
     /**
-     * 클릭 로깅
+     * 클릭 로깅 (동기식 - Fallback or Delayed Redirect용)
      * 
      * @param int $link_id 링크 ID
      */
-    private static function log_click($link_id)
+    public static function log_click_sync($link_id)
     {
         // 방문자 정보 수집
-        $visitor_ip = self::get_visitor_ip();
+        // v3.0.0 Refactor: Use consolidated SB_Helpers::get_client_ip()
+        $visitor_ip = SB_Helpers::get_client_ip();
         $hashed_ip = SB_Helpers::hash_ip($visitor_ip);
         $platform = SB_Helpers::get_platform($link_id);
         $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : null;
@@ -155,33 +127,6 @@ class SB_Redirect
         SB_Database::log_click($link_id, $hashed_ip, $platform, $referer, $user_agent, $parsed_ua);
     }
 
-    /**
-     * 방문자 IP 주소 획득
-     * 
-     * @return string IP 주소
-     */
-    private static function get_visitor_ip()
-    {
-        $ip = '';
-
-        // 프록시 헤더 확인
-        $headers = [
-            'HTTP_CF_CONNECTING_IP', // Cloudflare
-            'HTTP_X_FORWARDED_FOR',
-            'HTTP_X_REAL_IP',
-            'REMOTE_ADDR',
-        ];
-
-        foreach ($headers as $header) {
-            if (!empty($_SERVER[$header])) {
-                $ips = explode(',', $_SERVER[$header]);
-                $ip = trim($ips[0]);
-                break;
-            }
-        }
-
-        return $ip;
-    }
 
     /**
      * 리다이렉트 중간 페이지 표시
@@ -190,7 +135,7 @@ class SB_Redirect
      * @param string $target_url 타겟 URL
      * @param int $delay 딜레이 (초)
      */
-    private static function show_redirect_page($link_id, $target_url, $delay)
+    public static function show_redirect_page($link_id, $target_url, $delay)
     {
         // v2.9.22 Security: No-Cache & No-Index for intermediate pages
         nocache_headers();
@@ -198,7 +143,7 @@ class SB_Redirect
 
         // 변수가 템플릿에서 사용 가능하도록 설정
         $target_url = esc_url($target_url);
-        $delay = intval($delay);
+        $delay = floatval($delay);
 
         // 리다이렉트 페이지 템플릿 로드
         include SB_PLUGIN_DIR . 'public/views/redirect.php';

@@ -1,9 +1,10 @@
 /**
  * Smart Bridge Main Admin Script
  * Orchestrates Chart and UI modules.
+ * Refactored for UX/A11y/Performance
  * 
  * @package WP_Smart_Bridge
- * @since 2.9.22
+ * @since 3.0.0
  */
 
 (function ($) {
@@ -17,7 +18,7 @@
     function initAnalytics() {
         if (typeof sbChartData === 'undefined') return;
 
-        // Init Charts via Module
+        // Init Charts via Module with initial PHP data
         SB_Chart.initTrafficTrend(sbChartData.dailyTrend);
         SB_Chart.initHourly(sbChartData.clicksByHour);
         SB_Chart.initPlatform(sbChartData.platformShare);
@@ -29,54 +30,136 @@
     }
 
     /**
-     * Data Loaders
+     * Refresh All Dashboard Stats (AJAX)
+     */
+    function refreshDashboard() {
+        var params = getFilterParams();
+        var promises = [];
+
+        // UI Feedback: Spin Apply Button
+        var $btn = $('#sb-apply-filters');
+        var originalText = $btn.html();
+        $btn.addClass('disabled').prop('disabled', true);
+        $btn.find('.dashicons').addClass('sb-spin');
+
+        // 1. Reload Main Charts
+        var mainReq = $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: $.extend({
+                action: 'sb_get_dashboard_stats',
+                nonce: sbAdmin.ajaxNonce
+            }, params),
+            beforeSend: function () {
+                // Show skeletons for main charts
+                $('#sb-trend-chart, #sb-hourly-chart, #sb-platform-chart').parent().addClass('sb-skeleton');
+            },
+            success: function (response) {
+                if (response.success) {
+                    SB_Chart.initTrafficTrend(response.data.dailyTrend);
+                    SB_Chart.initHourly(response.data.clicksByHour);
+                    SB_Chart.initPlatform(response.data.platformShare);
+                } else {
+                    SB_UI.showToast(response.data.message || sb_i18n.error_occurred, 'error');
+                }
+            },
+            complete: function () {
+                $('#sb-trend-chart, #sb-hourly-chart, #sb-platform-chart').parent().removeClass('sb-skeleton');
+            }
+        });
+        promises.push(mainReq);
+
+        // 2. Reload Sub-modules (collect promises)
+        promises.push(loadRefererAnalytics());
+        promises.push(loadDeviceAnalytics());
+        promises.push(loadPatternAnalytics());
+
+        // 3. When ALL finished (Success or Fail)
+        $.when.apply($, promises).always(function () {
+            // Setup minimum spinner time of 500ms to prevent jitter
+            setTimeout(function () {
+                $btn.removeClass('disabled').prop('disabled', false);
+                $btn.find('.dashicons').removeClass('sb-spin');
+            }, 500);
+        });
+    }
+
+    /**
+     * Data Loaders (Refactored to return Promise)
      */
     function loadRefererAnalytics() {
         var params = getFilterParams();
-        $.ajax({
+        return $.ajax({
             url: sbAdmin.restUrl + 'analytics/referers',
             method: 'GET',
             data: params,
-            beforeSend: function (xhr) { xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce); },
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+                $('#sb-referer-chart, #sb-referer-groups-chart').parent().addClass('sb-skeleton');
+            },
             success: function (response) {
                 if (response.success) {
                     SB_Chart.renderReferer(response.data.top_referers);
                     SB_Chart.renderRefererGroups(response.data.referer_groups);
                 }
+            },
+            error: function () {
+                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_data : 'Failed to load data', 'error');
+            },
+            complete: function () {
+                $('#sb-referer-chart, #sb-referer-groups-chart').parent().removeClass('sb-skeleton');
             }
         });
     }
 
     function loadDeviceAnalytics() {
         var params = getFilterParams();
-        $.ajax({
+        return $.ajax({
             url: sbAdmin.restUrl + 'analytics/devices',
             method: 'GET',
             data: params,
-            beforeSend: function (xhr) { xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce); },
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+                $('#sb-device-chart, #sb-os-chart, #sb-browser-chart').parent().addClass('sb-skeleton');
+            },
             success: function (response) {
                 if (response.success) {
                     SB_Chart.renderDevice(response.data.devices);
                     SB_Chart.renderOS(response.data.os);
                     SB_Chart.renderBrowser(response.data.browsers);
                 }
+            },
+            error: function () {
+                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_data : 'Failed to load data', 'error');
+            },
+            complete: function () {
+                $('#sb-device-chart, #sb-os-chart, #sb-browser-chart').parent().removeClass('sb-skeleton');
             }
         });
     }
 
     function loadPatternAnalytics() {
         var params = getFilterParams();
-        $.ajax({
+        return $.ajax({
             url: sbAdmin.restUrl + 'analytics/patterns',
             method: 'GET',
             data: params,
-            beforeSend: function (xhr) { xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce); },
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce);
+                $('#sb-weekday-chart').parent().addClass('sb-skeleton');
+            },
             success: function (response) {
                 if (response.success) {
                     SB_Chart.renderWeekday(response.data.weekday_stats);
                     renderVisitorStats(response.data.visitor_stats);
                     SB_UI.renderAnomalies(response.data.anomalies);
                 }
+            },
+            error: function () {
+                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_data : 'Failed to load data', 'error');
+            },
+            complete: function () {
+                $('#sb-weekday-chart').parent().removeClass('sb-skeleton');
             }
         });
     }
@@ -97,7 +180,7 @@
     }
 
     /**
-     * Visitor Stats Renderer (Simple enough to keep here or move to UI)
+     * Visitor Stats Renderer
      */
     function renderVisitorStats(data) {
         SB_UI.setText('#sb-new-visitors', data.new_visitors.toLocaleString());
@@ -111,14 +194,21 @@
      */
     $(document).ready(function () {
         initAnalytics();
+        initLinkGroups();
+        initRealtimeFeed();
+        initGlobalErrorHandling(); // v3.0.0 Resilience
 
-        // Filter events
+        // 1. Filter events (Now AJAX)
         $('#sb-apply-filters').on('click', function () {
-            var params = getFilterParams();
-            // TODO: Ideally reload all data. For now just re-init initial parts if needed or reload page
-            // The original code reloaded the page often for filters, or calls specific update functions.
-            // For this refactor, we keep existing behavior:
-            window.location.reload(); // Simplest way to refresh PHP-rendered stats
+            refreshDashboard();
+        });
+
+        // A11y: Keyboard support for Summary Cards (Enter/Space)
+        $('.sb-card[role="button"]').on('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 32) {
+                e.preventDefault();
+                $(this).click();
+            }
         });
 
         $('#sb-date-range').on('change', function () {
@@ -129,46 +219,269 @@
             }
         });
 
-        // Modal - Link Details
-        $(document).on('click', '#sb-today-links tbody tr', function () {
-            var linkId = $(this).find('a[href*="post="]').attr('href'); // Safer selector logic
-            if (!linkId) return;
-
-            var match = linkId.match(/post=(\d+)/);
-            if (match) openLinkDetailModal(match[1]);
-        });
-
-        // Comparison Logic
-        $('#sb-toggle-comparison').on('click', function () {
-            var $container = $('#sb-comparison-container');
-            if ($container.is(':visible')) {
-                $container.slideUp();
-                $(this).text('비교 모드 활성화');
-            } else {
-                $container.slideDown();
-                $(this).text('비교 모드 비활성화');
-            }
-        });
-
-        $('#sb-load-comparison').on('click', function () {
-            var params = getFilterParams();
-            params.type = $('#sb-comparison-type').val(); // Add type
+        // 2. Update Check Handler
+        $(document).on('click', '#sb-force-check-update', function (e) {
+            e.preventDefault();
+            var $btn = $(this);
+            var originalText = $btn.html();
+            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update sb-spin"></span> ' + sb_i18n.loading);
 
             $.ajax({
-                url: sbAdmin.restUrl + 'analytics/comparison',
-                method: 'GET',
-                data: params,
-                beforeSend: function (xhr) { xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce); },
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_force_check_update',
+                    nonce: sbAdmin.ajaxNonce
+                },
                 success: function (response) {
-                    if (response.success) {
-                        renderComparison(response.data);
+                    if (response.success && response.data.has_update) {
+                        var msg = sb_i18n.new_version.replace('{version}', response.data.latest_version);
+                        SB_UI.confirm({
+                            title: sb_i18n.title_alert || '업데이트 알림',
+                            message: msg,
+                            yesLabel: sb_i18n.download_link || '다운로드 이동',
+                            onYes: function () {
+                                window.open(response.data.download_url, '_blank');
+                            }
+                        });
+                    } else {
+                        SB_UI.showToast(response.data.message || sb_i18n.latest_version, 'info');
                     }
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).html(originalText);
                 }
             });
         });
+
     });
 
-    // Comparison Render Logic
+    // 3. Factory Reset Handler
+    $(document).on('click', '#sb-factory-reset', function () {
+        SB_UI.confirm({
+            title: sb_i18n.title_alert || '시스템 경고 (DANGER)',
+            message: sb_i18n.confirm_reset,
+            yesLabel: sb_i18n.yes,
+            noLabel: sb_i18n.no,
+            onYes: function () {
+                // Double Safety Layer
+                SB_UI.prompt({
+                    title: sb_i18n.title_prompt || '보안 확인',
+                    message: sb_i18n.prompt_reset,
+                    placeholder: 'RESET',
+                    onSubmit: function (val) {
+                        if (val !== 'RESET') {
+                            SB_UI.showToast(sb_i18n.cancelled || '취소되었습니다.', 'info');
+                            return;
+                        }
+                        performFactoryReset();
+                    }
+                });
+            }
+        });
+    });
+
+    // 3.1 Data Migration Handler (v2.9.27)
+    $(document).on('click', '#sb-migrate-stats', function () {
+        var $btn = $(this);
+        var $status = $('#sb-migrate-status');
+
+        $btn.prop('disabled', true);
+        $status.show().text(sb_i18n.loading || 'Starting...');
+
+        runMigrationBatch($btn, $status);
+    });
+
+    function runMigrationBatch($btn, $status) {
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_migrate_daily_stats',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function (response) {
+                if (response.success) {
+                    $status.text(response.data.message);
+
+                    if (response.data.completed === false) {
+                        // Continue Next Batch
+                        setTimeout(function () {
+                            runMigrationBatch($btn, $status);
+                        }, 500); // 0.5s delay
+                    } else {
+                        // Completed
+                        SB_UI.showToast('✅ Migration Completed!', 'success');
+                        $btn.prop('disabled', false).text('완료됨');
+                        setTimeout(function () { $status.fadeOut(); }, 3000);
+                    }
+                } else {
+                    SB_UI.showToast('❌ Error: ' + response.data.message, 'error');
+                    $btn.prop('disabled', false);
+                    $status.text('Error');
+                }
+            },
+            error: function () {
+                SB_UI.showToast('❌ Network Error', 'error');
+                $btn.prop('disabled', false);
+                $status.text('Network Error');
+            }
+        });
+    }
+
+    function performFactoryReset() {
+        var $btn = $('#sb-factory-reset');
+        $btn.prop('disabled', true).text(sb_i18n.loading);
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_factory_reset',
+                nonce: sbAdmin.ajaxNonce,
+                confirmation: 'reset'
+            },
+            success: function (response) {
+                if (response.success) {
+                    SB_UI.showToast(sb_i18n.reset_complete, 'success');
+                    setTimeout(function () { window.location.reload(); }, 1500);
+                } else {
+                    SB_UI.showToast(response.data.message, 'error');
+                    $btn.prop('disabled', false).text(sb_i18n.factory_reset || 'Factory Reset');
+                }
+            },
+            error: function () {
+                SB_UI.showToast(sb_i18n.error_occurred, 'error');
+                $btn.prop('disabled', false).text(sb_i18n.factory_reset || 'Factory Reset');
+            }
+        });
+    }
+
+    // 4. Backup Download
+    $(document).on('click', '#sb-download-backup', function () {
+        var url = sbAdmin.ajaxUrl + '?action=sb_download_backup&nonce=' + sbAdmin.ajaxNonce;
+        window.location.href = url;
+    });
+
+    // 5. Backup Restore (Batched - v3.0.0 Scalability)
+    $('#sb-restore-form').on('submit', function (e) {
+        e.preventDefault();
+        var form = this;
+        var fileInput = $(form).find('input[type="file"]')[0];
+
+        if (fileInput.files.length === 0) {
+            SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.select_file : 'Please select a file.', 'warning');
+            return;
+        }
+
+        SB_UI.confirm({
+            title: sb_i18n.title_confirm || '백업 복원',
+            message: sb_i18n.confirm_restore,
+            yesLabel: sb_i18n.yes,
+            onYes: function () {
+                var file = fileInput.files[0];
+                var reader = new FileReader();
+
+                var $btn = $(form).find('button[type="submit"]');
+                var $progress = $('#sb-restore-progress');
+
+                $btn.prop('disabled', true);
+                $progress.show().text(typeof sb_i18n !== 'undefined' ? sb_i18n.reading_file : 'Reading file...');
+
+                reader.onload = function (e) {
+                    try {
+                        var backupData = JSON.parse(e.target.result);
+                        if (!backupData.data) throw new Error('Invalid structure');
+                        startBatchRestore(backupData.data, $btn, $progress);
+                    } catch (err) {
+                        SB_UI.showToast('유효하지 않은 백업 파일입니다.', 'error');
+                        $btn.prop('disabled', false);
+                        $progress.hide();
+                    }
+                };
+
+                reader.onerror = function () {
+                    SB_UI.showToast('파일 읽기 실패', 'error');
+                    $btn.prop('disabled', false);
+                    $progress.hide();
+                };
+
+                reader.readAsText(file);
+            }
+        });
+    });
+
+    // 6. Settings Form
+    $('#sb-settings-form').on('submit', function (e) {
+        e.preventDefault();
+        var $btn = $(this).find('button[type="submit"]');
+        var originalText = $btn.text();
+        $btn.prop('disabled', true).text(sb_i18n.loading);
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_save_settings',
+                nonce: sbAdmin.ajaxNonce,
+                redirect_delay: $('#sb-redirect-delay').val()
+            },
+            success: function (response) {
+                SB_UI.showToast(response.data.message, response.success ? 'success' : 'error');
+            },
+            complete: function () {
+                $btn.prop('disabled', false).text(originalText);
+            }
+        });
+    });
+
+    // 7. Modal - Link Details
+    $(document).on('click', '#sb-today-links tbody tr', function () {
+        var href = $(this).find('a[href*="post="]').attr('href');
+        if (!href) return;
+        var match = href.match(/post=(\d+)/);
+        if (match) openLinkDetailModal(match[1]);
+    });
+
+    // 8. Comparison Logic
+    $('#sb-toggle-comparison').on('click', function () {
+        var $container = $('#sb-comparison-container');
+        if ($container.is(':visible')) {
+            $container.slideUp();
+            $(this).text(typeof sb_i18n !== 'undefined' ? sb_i18n.compare_mode_on : 'Enable Comparison');
+        } else {
+            $container.slideDown();
+            $(this).text(typeof sb_i18n !== 'undefined' ? sb_i18n.compare_mode_off : 'Disable Comparison');
+        }
+    });
+
+    $('#sb-load-comparison').on('click', function () {
+        var params = getFilterParams();
+        params.type = $('#sb-comparison-type').val();
+
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+
+        $.ajax({
+            url: sbAdmin.restUrl + 'analytics/comparison',
+            method: 'GET',
+            data: params,
+            beforeSend: function (xhr) { xhr.setRequestHeader('X-WP-Nonce', sbAdmin.nonce); },
+            success: function (response) {
+                if (response.success) {
+                    renderComparison(response.data);
+                }
+            },
+            complete: function () { $btn.prop('disabled', false); }
+        });
+    });
+
+    // ========================================
+    // v3.0.0 Refactor: All functions now inside IIFE for proper encapsulation
+    // Functions that need external access are exposed via window object
+    // ========================================
+
+    // Comparison Render
     function renderComparison(data) {
         SB_UI.setText('#sb-current-clicks', data.current.clicks.toLocaleString());
         SB_UI.setText('#sb-previous-clicks', data.previous.clicks.toLocaleString());
@@ -183,10 +496,20 @@
     }
 
     /**
-     * Link Detail Modal Logic
+     * Link Detail Modal
+     * v3.0.0 Fix: Inlined filter params to avoid scope issue with IIFE-enclosed getFilterParams
      */
     function openLinkDetailModal(linkId) {
-        var params = getFilterParams();
+        // Inline filter params (getFilterParams is inside IIFE, not accessible here)
+        var range = $('#sb-date-range').val() || '7d';
+        var platform = $('#sb-platform-filter').val() || '';
+        var params = { range: range, platform: platform };
+
+        if (range === 'custom') {
+            params.start_date = $('#sb-start-date').val();
+            params.end_date = $('#sb-end-date').val();
+        }
+
         $.ajax({
             url: sbAdmin.restUrl + 'links/' + linkId + '/analytics',
             method: 'GET',
@@ -197,27 +520,491 @@
                     renderLinkDetailModal(response.data);
                     SB_UI.openModal('#sb-link-detail-modal');
                 }
+            },
+            error: function () {
+                SB_UI.showToast(sb_i18n.ajax_error || 'Failed to load link details', 'error');
             }
         });
     }
 
     function renderLinkDetailModal(data) {
-        // Basic Info
         SB_UI.setText('#sb-link-slug', data.link_info.slug);
         SB_UI.setText('#sb-link-platform', data.link_info.platform);
         SB_UI.setText('#sb-link-created', data.link_info.created_at.substring(0, 10));
         SB_UI.setText('#sb-link-total-clicks', data.stats.total_clicks.toLocaleString());
         SB_UI.setText('#sb-link-unique-visitors', data.stats.unique_visitors.toLocaleString());
 
-        // Charts & Lists
         SB_Chart.renderLinkHourly(data.stats.clicks_by_hour);
         SB_UI.renderReferers(data.referers);
         SB_UI.renderDeviceBars(data.devices);
     }
 
-    // Close Modal Event Delegation
+    /**
+     * Link Group Logic
+     */
+    function initLinkGroups() {
+        loadGroups();
+
+        $('#sb-manage-groups-btn').on('click', function () {
+            SB_UI.openModal('#sb-group-manager-modal');
+        });
+
+        $('#sb-add-group-btn').on('click', function () {
+            var name = $('#sb-new-group-name').val();
+            var color = $('#sb-new-group-color').val();
+
+            if (!name) return SB_UI.showToast(sb_i18n.group_name_empty, 'warning');
+
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_create_group',
+                    nonce: sbAdmin.ajaxNonce,
+                    name: name,
+                    color: color
+                },
+                success: function (response) {
+                    if (response.success) {
+                        $('#sb-new-group-name').val('');
+                        loadGroups();
+                    } else {
+                        SB_UI.showToast(response.data.message, 'error');
+                    }
+                }
+            });
+        });
+
+        $(document).on('click', '.sb-delete-group', function () {
+            var id = $(this).data('id');
+            SB_UI.confirm({
+                title: typeof sb_i18n !== 'undefined' ? sb_i18n.group_delete : 'Delete Group',
+                message: sb_i18n.confirm_delete,
+                yesLabel: typeof sb_i18n !== 'undefined' ? sb_i18n.delete : 'Delete',
+                onYes: function () {
+                    $.ajax({
+                        url: sbAdmin.ajaxUrl,
+                        method: 'POST',
+                        data: { action: 'sb_delete_group', nonce: sbAdmin.ajaxNonce, id: id },
+                        success: function (response) {
+                            if (response.success) loadGroups();
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    function loadGroups() {
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: { action: 'sb_get_groups', nonce: sbAdmin.ajaxNonce },
+            success: function (response) {
+                if (response.success) {
+                    renderGroupsList(response.data.groups);
+                }
+            },
+            error: function () {
+                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_groups : 'Failed to load groups', 'error');
+            }
+        });
+    }
+
+    function renderGroupsList(groups) {
+        var $list = $('#sb-group-list');
+        $list.empty();
+        groups.forEach(function (group) {
+            // XSS Safe: Use jQuery DOM construction
+            var $li = $('<li></li>');
+            var $color = $('<span class="sb-group-color"></span>').css('background', group.color);
+            var $name = $('<span class="sb-group-name"></span>').text(group.name + ' (' + group.link_count + ')');
+            var $deleteBtn = $('<button type="button" class="sb-delete-group"></button>')
+                .attr('data-id', group.id)
+                .attr('aria-label', typeof sb_i18n !== 'undefined' ? sb_i18n.delete_group : 'Delete group')
+                .html('&times;');
+            $li.append($color).append($name).append($deleteBtn);
+            $list.append($li);
+        });
+    }
+
+    /**
+     * Realtime Click Feed with Reconnection Logic & A11y
+     */
+    var eventSource = null;
+    var reconnectAttempts = 0;
+    var maxReconnectAttempts = 5;
+    var lastLogId = 0; // v3.0.0 Fix: Deduplication
+
+    function initGlobalErrorHandling() {
+        $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
+            // Ignore if handled explicitly or cancelled
+            if (jqXHR.status === 0 || jqXHR.readyState === 0) return;
+
+            // Detect Session Expiry (403 or specific nonce message)
+            if (jqXHR.status === 403 || (jqXHR.responseJSON && jqXHR.responseJSON.data && jqXHR.responseJSON.data.message && jqXHR.responseJSON.data.message.indexOf('nonce') !== -1)) {
+
+                // Prevent duplicate modals
+                if ($('#sb-session-modal').length > 0) return;
+
+                SB_UI.confirm({
+                    id: 'sb-session-modal',
+                    title: sb_i18n.session_expired || 'Session Expired',
+                    message: sb_i18n.session_expired_msg || 'Please reload the page.',
+                    yesLabel: sb_i18n.reload || 'Reload',
+                    onYes: function () {
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+    }
+
+    function initRealtimeFeed() {
+        if (!window.EventSource) {
+            $('#sb-realtime-feed').html('<p class="sb-feed-error">' + (typeof sb_i18n !== 'undefined' ? sb_i18n.realtime_not_supported : 'Realtime feed not supported') + '</p>');
+            return;
+        }
+
+        // A11y: Make it a Live Region
+        $('#sb-realtime-feed').attr('aria-live', 'polite').attr('aria-atomic', 'false');
+
+        connectEventSource();
+    }
+
+    function connectEventSource() {
+        var feedUrl = sbAdmin.ajaxUrl + '?action=sb_realtime_feed&nonce=' + sbAdmin.ajaxNonce;
+        eventSource = new EventSource(feedUrl);
+
+        eventSource.onopen = function () {
+            $('#sb-realtime-status').removeClass('error').addClass('connected')
+                .attr('title', sb_i18n.realtime_connected || 'Connected');
+            reconnectAttempts = 0; // Reset on successful connection
+        };
+
+        // v3.0.0 Fix: Server sends 'event: click' individually, not 'clicks' array
+        // Listen for specific 'click' event type from SSE
+        eventSource.addEventListener('click', function (event) {
+            var click = JSON.parse(event.data);
+
+            if (parseInt(click.id) > lastLogId) {
+                renderFeedItem(click);
+                lastLogId = parseInt(click.id);
+            }
+        });
+
+        // Handle heartbeat events (keep-alive)
+        eventSource.addEventListener('heartbeat', function () {
+            // Heartbeat received, connection is alive - no action needed
+        });
+
+        // Fallback for any unnamed events (legacy compatibility)
+        eventSource.onmessage = function (event) {
+            var data = JSON.parse(event.data);
+            if (data.heartbeat) return;
+
+            // Legacy format: clicks array (if server changes in future)
+            if (data.clicks) {
+                var newClicks = data.clicks.filter(function (c) {
+                    return parseInt(c.id) > lastLogId;
+                }).sort(function (a, b) {
+                    return parseInt(a.id) - parseInt(b.id);
+                });
+
+                if (newClicks.length > 0) {
+                    newClicks.forEach(renderFeedItem);
+                    lastLogId = parseInt(newClicks[newClicks.length - 1].id);
+                }
+            }
+        };
+
+        eventSource.onerror = function () {
+            $('#sb-realtime-status').removeClass('connected').addClass('error')
+                .attr('title', sb_i18n.realtime_disconnected || 'Disconnected');
+            eventSource.close();
+
+            // Exponential backoff reconnection
+            if (reconnectAttempts < maxReconnectAttempts) {
+                var delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Max 30s
+                reconnectAttempts++;
+                setTimeout(connectEventSource, delay);
+            }
+        };
+    }
+
+    function renderFeedItem(click) {
+        var $feed = $('#sb-realtime-feed');
+        $('.sb-feed-placeholder').remove();
+
+        var time = click.visited_at.split(' ')[1].substring(0, 5);
+
+        // Safe HTML construction JQuery
+        var $item = $('<div class="sb-feed-item"></div>');
+        $item.append($('<div class="sb-feed-time"></div>').text(time));
+
+        var $content = $('<div class="sb-feed-content"></div>');
+        $content.append($('<div class="sb-feed-link"></div>').text(click.post_title));
+        $content.append($('<div class="sb-feed-meta"></div>').text(click.platform + ' | ' + click.device + ' | ' + click.visitor_ip));
+
+        $item.append($content);
+
+        $feed.prepend($item);
+
+        if ($feed.children().length > 20) {
+            $feed.children().last().remove();
+        }
+    }
+
+    // Modal Close Delegation
     $(document).on('click', '.sb-modal-close, .sb-modal-overlay', function () {
         SB_UI.closeModal(this);
     });
+
+    // =========================================================================
+    // 6. Settings Page Logic
+    // =========================================================================
+    if ($('#sb-template-form').length > 0) {
+
+        function validateTemplate(template, showSuccess) {
+            var required = [
+                '{{DELAY_SECONDS}}',
+                '{{TARGET_URL}}',
+                '{{COUNTDOWN_SCRIPT}}',
+                '{{COUNTDOWN_ID}}'
+            ];
+
+            var missing = [];
+            required.forEach(function (placeholder) {
+                if (template.indexOf(placeholder) === -1) {
+                    missing.push(placeholder);
+                }
+            });
+
+            var valid = missing.length === 0;
+
+            if (showSuccess || !valid) {
+                showValidation(valid, valid
+                    ? '✅ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.all_placeholders_ok : 'All placeholders present!')
+                    : '❌ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.missing_placeholders : 'Missing') + ': ' + missing.join(', '));
+            }
+
+            return { valid: valid, missing: missing };
+        }
+
+        function showValidation(isValid, message) {
+            var $box = $('#sb-template-validation');
+            $box.show()
+                .css({
+                    'background': isValid ? '#d1f2dd' : '#f8d7da',
+                    'border': '1px solid ' + (isValid ? '#00a32a' : '#d63638'),
+                    'color': isValid ? '#00664a' : '#721c24'
+                })
+                .html('<strong>' + message + '</strong>');
+
+            setTimeout(function () {
+                if (isValid) {
+                    $box.fadeOut();
+                }
+            }, 5000);
+        }
+
+        // 템플릿 검증 버튼
+        $('#sb-validate-template').on('click', function () {
+            var template = $('#sb-redirect-template').val();
+            validateTemplate(template, true);
+        });
+
+        // 템플릿 저장
+        $('#sb-template-form').on('submit', function (e) {
+            e.preventDefault();
+
+            var template = $('#sb-redirect-template').val();
+            var validation = validateTemplate(template, false);
+
+            if (!validation.valid) {
+                return;
+            }
+
+            var $btn = $('#sb-save-template');
+            $btn.prop('disabled', true).text(typeof sb_i18n !== 'undefined' ? sb_i18n.saving : 'Saving...');
+
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_save_redirect_template',
+                    nonce: sbAdmin.ajaxNonce,
+                    template: template
+                },
+                success: function (response) {
+                    if (response.success) {
+                        showValidation(true, '✅ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.success_saved : 'Saved!'));
+                    } else {
+                        showValidation(false, '❌ ' + (response.data.message || (typeof sb_i18n !== 'undefined' ? sb_i18n.save_failed : 'Save Failed')));
+                    }
+                },
+                error: function () {
+                    showValidation(false, '❌ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.network_error : 'Network Error'));
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).text(typeof sb_i18n !== 'undefined' ? sb_i18n.template_save : 'Save Template');
+                }
+            });
+        });
+
+        // 기본값 복원
+        $('#sb-reset-template').on('click', function () {
+            SB_UI.confirm({
+                title: typeof sb_i18n !== 'undefined' ? sb_i18n.template_reset : 'Reset Template',
+                message: typeof sb_i18n !== 'undefined' ? sb_i18n.template_reset_confirm : 'Reset template to default?',
+                yesLabel: typeof sb_i18n !== 'undefined' ? sb_i18n.reset : 'Reset',
+                onYes: function () {
+                    $.ajax({
+                        url: sbAdmin.ajaxUrl,
+                        method: 'POST',
+                        data: {
+                            action: 'sb_reset_redirect_template',
+                            nonce: sbAdmin.ajaxNonce
+                        },
+                        success: function (response) {
+                            if (response.success && response.data.template) {
+                                $('#sb-redirect-template').val(response.data.template);
+                                showValidation(true, '✅ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.template_restored : 'Template Restored!'));
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // =========================================================================
+    // 7. Post Type Edit Page Logic (sb_link)
+    // =========================================================================
+    if ($('body').hasClass('post-type-sb_link')) {
+
+        // 7.1 Copy Link Button
+        $('.sb-copy-link').on('click', function () {
+            var link = $(this).data('link');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(link).then(function () {
+                    SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.copied_to_clipboard : 'Copied!', 'success');
+                }).catch(function () {
+                    prompt(typeof sb_i18n !== 'undefined' ? sb_i18n.clipboard_fallback : 'Copy manually:', link);
+                });
+            } else {
+                prompt(typeof sb_i18n !== 'undefined' ? sb_i18n.clipboard_not_supported : 'Copy manually:', link);
+            }
+        });
+
+        // 7.2 Disable Title Field (Editing)
+        // If we are on edit screen (not just list), disable title
+        // WP sets #title element
+        if ($('#title').length > 0) {
+            $('#title').prop('disabled', true).prop('readonly', true);
+            $('#title-prompt-text').text(typeof sb_i18n !== 'undefined' ? sb_i18n.slug_cannot_change : 'Slug cannot be changed');
+
+            // Avoid duplicate description if re-run
+            if ($('.sb-title-warning').length === 0) {
+                $('#title').after('<p class="description sb-title-warning" style="color: #d63638; margin-top: 5px;">⚠️ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.slug_warning : 'Slug cannot be changed.') + '</p>');
+            }
+        }
+    }
+
+    // =========================================================================
+    // 8. Batch Restore Helper Functions (v3.0.0)
+    // =========================================================================
+    function startBatchRestore(data, $btn, $progress) {
+        var links = data.links || [];
+        var analytics = data.analytics || [];
+        var settings = data.settings || {};
+
+        // Chunk sizes
+        var LINK_CHUNK_SIZE = 50;
+        var LOG_CHUNK_SIZE = 100;
+
+        // Create batches
+        var batches = [];
+        var totalItems = links.length + analytics.length;
+
+        // 1. Links Batches
+        for (var i = 0; i < links.length; i += LINK_CHUNK_SIZE) {
+            batches.push({
+                type: 'links',
+                data: links.slice(i, i + LINK_CHUNK_SIZE),
+                settings: (i === 0) ? settings : null // Restore settings with first chunk
+            });
+        }
+
+        // 2. Logs Batches
+        for (var j = 0; j < analytics.length; j += LOG_CHUNK_SIZE) {
+            batches.push({
+                type: 'analytics',
+                data: analytics.slice(j, j + LOG_CHUNK_SIZE)
+            });
+        }
+
+        if (batches.length === 0 && Object.keys(settings).length > 0) {
+            // Only settings
+            batches.push({ type: 'settings', settings: settings, data: [] });
+        }
+
+        var sessionId = 'restore_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+        processNextBatch(batches, 0, sessionId, $btn, $progress, totalItems, 0);
+    }
+
+    function processNextBatch(batches, index, sessionId, $btn, $progress, totalItems, processedCount) {
+        if (index >= batches.length) {
+            // Done
+            SB_UI.showToast('✅ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.restore_complete : 'Restore Complete!'), 'success');
+            $progress.hide();
+            $btn.prop('disabled', false);
+            setTimeout(function () { window.location.reload(); }, 1500);
+            return;
+        }
+
+        var batch = batches[index];
+        var chunkData = {};
+
+        if (batch.type === 'links') chunkData.links = batch.data;
+        if (batch.type === 'analytics') chunkData.analytics = batch.data;
+        if (batch.settings) chunkData.settings = batch.settings;
+
+        var percent = totalItems > 0 ? Math.round((processedCount / totalItems) * 100) : 0;
+        // Update Progress Text
+        $progress.text((typeof sb_i18n !== 'undefined' ? sb_i18n.restoring : 'Restoring...') + ' ' + percent + '%');
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_restore_backup_chunk',
+                nonce: sbAdmin.ajaxNonce,
+                chunk_data: JSON.stringify(chunkData),
+                options: JSON.stringify({ session_id: sessionId })
+            },
+            success: function (response) {
+                if (response.success) {
+                    var itemsInChunk = (batch.data || []).length;
+                    processNextBatch(batches, index + 1, sessionId, $btn, $progress, totalItems, processedCount + itemsInChunk);
+                } else {
+                    SB_UI.showToast('Restore Error: ' + response.data.message, 'error');
+                    $btn.prop('disabled', false);
+                    $progress.hide();
+                }
+            },
+            error: function () {
+                SB_UI.showToast('Network Error', 'error');
+                $btn.prop('disabled', false);
+                $progress.hide();
+            }
+        });
+    }
+
+    // ========================================
+    // Expose functions that need external access (e.g., from HTML onclick)
+    // ========================================
+    window.openLinkDetailModal = openLinkDetailModal;
 
 })(jQuery);

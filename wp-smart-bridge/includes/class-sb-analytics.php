@@ -36,17 +36,54 @@ class SB_Analytics
             return (int) $cached;
         }
 
-        $table = $wpdb->prefix . 'sb_analytics_logs';
+        // v2.9.27 Optimization: Use Summary Table for "All Platforms"
+        if (empty($platform)) {
+            $stats_table = $wpdb->prefix . 'sb_daily_stats';
+            $log_table = $wpdb->prefix . 'sb_analytics_logs';
+            $today_date = current_time('Y-m-d');
 
-        $sql = "SELECT COUNT(*) FROM $table WHERE visited_at BETWEEN %s AND %s";
-        $params = [$start_date, $end_date];
+            // 1. Historical Data (Summary Table)
+            // Query for dates strictly BEFORE today (cutoff is 00:00:00 of today)
+            // Logic: Include dates in range that are < today
+            $hist_end = ($end_date >= $today_date) ? date('Y-m-d', strtotime('-1 day', strtotime($today_date))) : $end_date;
 
-        if ($platform) {
-            $sql .= " AND platform = %s";
-            $params[] = $platform;
+            $hist_clicks = 0;
+            if ($hist_end >= $start_date) {
+                $hist_clicks = (int) $wpdb->get_var($wpdb->prepare(
+                    "SELECT SUM(total_clicks) FROM $stats_table WHERE stats_date BETWEEN %s AND %s",
+                    $start_date,
+                    $hist_end
+                ));
+            }
+
+            // 2. Today's Data (Raw Logs) - IF requested range includes Today
+            $today_clicks = 0;
+            if ($end_date >= $today_date && $start_date <= $today_date) {
+                // Ensure we only count from Updated timestamp onwards? No, just raw count for the day.
+                // Note: This relies on Raw Logs having an index on visited_at
+                $today_clicks = (int) $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $log_table WHERE visited_at >= %s AND visited_at <= %s",
+                    $today_date . ' 00:00:00',
+                    $today_date . ' 23:59:59'
+                ));
+            }
+
+            $count = $hist_clicks + $today_clicks;
+
+        } else {
+            // Fallback for Platform Filtering (Still O(N))
+            $table = $wpdb->prefix . 'sb_analytics_logs';
+            $sql = "SELECT COUNT(*) FROM $table WHERE visited_at BETWEEN %s AND %s";
+            $params = [$start_date, $end_date];
+
+            if ($platform) {
+                $sql .= " AND platform = %s";
+                $params[] = $platform;
+            }
+
+            $count = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
         }
 
-        $count = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
         set_transient($cache_key, $count, self::CACHE_EXPIRATION);
 
         return $count;
@@ -103,7 +140,7 @@ class SB_Analytics
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $timezone = wp_timezone();
+        $timezone = wp_timezone(); // v3.0.0 Fix: Explicit Timezone Injection
 
         $today = new DateTime('now', $timezone);
         $yesterday = new DateTime('yesterday', $timezone);
@@ -254,33 +291,63 @@ class SB_Analytics
         $cache_key = 'sb_dt_' . md5($start_date . $end_date . serialize($platform));
         $cached = get_transient($cache_key);
         if (false !== $cached) {
-            // 날짜 객체 재구성이 필요한지 확인 (단순 배열 반환이므로 불필요)
             return $cached;
         }
 
-        $table = $wpdb->prefix . 'sb_analytics_logs';
-
-        $sql = "SELECT DATE(visited_at) as date, COUNT(*) as clicks 
-                FROM $table 
-                WHERE visited_at BETWEEN %s AND %s";
-        $params = [$start_date, $end_date];
-
-        if ($platform) {
-            $sql .= " AND platform = %s";
-            $params[] = $platform;
-        }
-
-        $sql .= " GROUP BY DATE(visited_at) ORDER BY date";
-
-        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
-
-        // 날짜별 데이터 맵 생성
         $date_map = [];
-        foreach ($results as $row) {
-            $date_map[$row['date']] = (int) $row['clicks'];
+
+        // v2.9.27 Optimization: Use Summary Table
+        if (empty($platform)) {
+            $stats_table = $wpdb->prefix . 'sb_daily_stats';
+            $log_table = $wpdb->prefix . 'sb_analytics_logs';
+            $today_date = current_time('Y-m-d');
+
+            // 1. Historical
+            $hist_end = ($end_date >= $today_date) ? date('Y-m-d', strtotime('-1 day', strtotime($today_date))) : $end_date;
+
+            if ($hist_end >= $start_date) {
+                $hist_results = $wpdb->get_results($wpdb->prepare(
+                    "SELECT stats_date as date, total_clicks as clicks FROM $stats_table WHERE stats_date BETWEEN %s AND %s",
+                    $start_date,
+                    $hist_end
+                ), ARRAY_A);
+
+                foreach ($hist_results as $row) {
+                    $date_map[$row['date']] = (int) $row['clicks'];
+                }
+            }
+
+            // 2. Today
+            if ($end_date >= $today_date && $start_date <= $today_date) {
+                $today_clicks = (int) $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $log_table WHERE visited_at >= %s AND visited_at <= %s",
+                    $today_date . ' 00:00:00',
+                    $today_date . ' 23:59:59'
+                ));
+                $date_map[$today_date] = $today_clicks;
+            }
+
+        } else {
+            // Legacy Logic
+            $table = $wpdb->prefix . 'sb_analytics_logs';
+            $sql = "SELECT DATE(visited_at) as date, COUNT(*) as clicks 
+                    FROM $table 
+                    WHERE visited_at BETWEEN %s AND %s";
+
+            $params = [$start_date, $end_date];
+            if ($platform) {
+                $sql .= " AND platform = %s";
+                $params[] = $platform;
+            }
+            $sql .= " GROUP BY DATE(visited_at) ORDER BY date";
+
+            $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+            foreach ($results as $row) {
+                $date_map[$row['date']] = (int) $row['clicks'];
+            }
         }
 
-        // 모든 날짜에 대해 데이터 생성 (없는 날짜는 0)
+        // Fill gaps
         $daily_trend = [];
         $start = new DateTime($start_date);
         $end = new DateTime($end_date);
@@ -296,7 +363,6 @@ class SB_Analytics
         }
 
         set_transient($cache_key, $daily_trend, self::CACHE_EXPIRATION);
-
         return $daily_trend;
     }
 
@@ -431,7 +497,7 @@ class SB_Analytics
 
         // 포스트 조회 (한 번에)
         $posts = get_posts([
-            'post_type' => 'sb_link',
+            'post_type' => SB_Post_Type::POST_TYPE,
             'include' => $link_ids,
             'posts_per_page' => -1,
         ]);
@@ -944,8 +1010,15 @@ class SB_Analytics
             'browser' => 'Unknown',
         ];
 
+        static $cache = [];
+
         if (empty($user_agent)) {
             return $result;
+        }
+
+        $ua_key = md5($user_agent);
+        if (isset($cache[$ua_key])) {
+            return $cache[$ua_key];
         }
 
         $ua_lower = strtolower($user_agent);
@@ -993,6 +1066,7 @@ class SB_Analytics
             $result['browser'] = 'Naver';
         }
 
+        $cache[$ua_key] = $result;
         return $result;
     }
 
@@ -1629,5 +1703,89 @@ class SB_Analytics
         }
 
         return $age_groups;
+    }
+    /**
+     * 📊 일별 통계 집계 및 저장 (Cron Job / Backfill 용)
+     * 
+     * @param string $date 집계할 날짜 (Y-m-d)
+     * @return bool 성공 여부
+     */
+    public function aggregate_daily_stats($date)
+    {
+        global $wpdb;
+
+        $log_table = $wpdb->prefix . 'sb_analytics_logs';
+        $stats_table = $wpdb->prefix . 'sb_daily_stats';
+
+        // 1. 기본 통계 (Total Clicks, UV)
+        $sql_basic = "SELECT 
+                        COUNT(*) as total_clicks,
+                        COUNT(DISTINCT visitor_ip) as unique_visitors
+                      FROM $log_table 
+                      WHERE visited_at BETWEEN %s AND %s";
+
+        $start_ts = $date . ' 00:00:00';
+        $end_ts = $date . ' 23:59:59';
+
+        $basic_stats = $wpdb->get_row($wpdb->prepare($sql_basic, $start_ts, $end_ts));
+
+        if (!$basic_stats) {
+            return false;
+        }
+
+        // 2. 플랫폼 점유율 (JSON)
+        $sql_platform = "SELECT platform, COUNT(*) as count 
+                         FROM $log_table 
+                         WHERE visited_at BETWEEN %s AND %s 
+                         GROUP BY platform";
+
+        $platform_results = $wpdb->get_results($wpdb->prepare($sql_platform, $start_ts, $end_ts), ARRAY_A);
+        $platform_share = [];
+        foreach ($platform_results as $row) {
+            $platform_share[$row['platform']] = (int) $row['count'];
+        }
+
+        // 3. 리퍼러 Top 50 (JSON)
+        // 도메인 추출 로직 포함
+        $sql_referers = "SELECT 
+                            CASE 
+                                WHEN referer IS NULL OR referer = '' THEN 'Direct'
+                                ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(referer, 'https://', ''), 'http://', ''), '/', 1), '?', 1)
+                            END as domain,
+                            COUNT(*) as count
+                         FROM $log_table 
+                         WHERE visited_at BETWEEN %s AND %s
+                         GROUP BY domain
+                         ORDER BY count DESC
+                         LIMIT 50";
+
+        $referer_results = $wpdb->get_results($wpdb->prepare($sql_referers, $start_ts, $end_ts), ARRAY_A);
+        $referers = [];
+        foreach ($referer_results as $row) {
+            $referers[$row['domain']] = (int) $row['count'];
+        }
+
+        // 4. Upsert into Stats Table
+        // ON DUPLICATE KEY UPDATE를 사용하여 재집계 가능하게 함
+        $sql_insert = "INSERT INTO $stats_table 
+                       (stats_date, total_clicks, unique_visitors, platform_share, referers, updated_at)
+                       VALUES (%s, %d, %d, %s, %s, NOW())
+                       ON DUPLICATE KEY UPDATE
+                       total_clicks = VALUES(total_clicks),
+                       unique_visitors = VALUES(unique_visitors),
+                       platform_share = VALUES(platform_share),
+                       referers = VALUES(referers),
+                       updated_at = NOW()";
+
+        $result = $wpdb->query($wpdb->prepare(
+            $sql_insert,
+            $date,
+            $basic_stats->total_clicks,
+            $basic_stats->unique_visitors,
+            json_encode($platform_share, JSON_UNESCAPED_UNICODE),
+            json_encode($referers, JSON_UNESCAPED_UNICODE)
+        ));
+
+        return $result !== false;
     }
 }

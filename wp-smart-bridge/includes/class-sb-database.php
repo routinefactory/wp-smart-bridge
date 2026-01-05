@@ -62,15 +62,16 @@ class SB_Database
             referer VARCHAR(500) DEFAULT NULL COMMENT '유입 경로',
             user_agent VARCHAR(500) DEFAULT NULL COMMENT '브라우저 정보',
             visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '클릭 시간',
-            PRIMARY KEY (id),
-            INDEX idx_link_id (link_id),
-            INDEX idx_visited_at (visited_at),
-            INDEX idx_platform (platform),
-            INDEX idx_device (device),
-            INDEX idx_os (os),
-            INDEX idx_browser (browser),
-            INDEX idx_visitor_ip (visitor_ip),
-            INDEX idx_link_visited (link_id, visited_at)
+            PRIMARY KEY  (id),
+            KEY idx_link_id (link_id),
+            KEY idx_visited_at (visited_at),
+            KEY idx_platform (platform),
+            KEY idx_device (device),
+            KEY idx_os (os),
+            KEY idx_browser (browser),
+            KEY idx_visitor_ip (visitor_ip),
+            KEY idx_link_visited (link_id, visited_at),
+            KEY idx_ip_date (visitor_ip, visited_at)
         ) $charset_collate;";
 
         /**
@@ -91,10 +92,48 @@ class SB_Database
             status ENUM('active', 'inactive') DEFAULT 'active',
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_used_at DATETIME NULL,
-            PRIMARY KEY (id),
+            PRIMARY KEY  (id),
             UNIQUE KEY idx_api_key (api_key),
-            INDEX idx_user_id (user_id),
-            INDEX idx_status (status)
+            KEY idx_user_id (user_id),
+            KEY idx_status (status)
+        ) $charset_collate;";
+
+        /**
+         * 📂 링크 그룹 테이블 (wp_sb_link_groups)
+         * 
+         * 용도: 링크를 캠페인/폴더별로 분류
+         */
+        $groups_table = $wpdb->prefix . 'sb_link_groups';
+        $sql_groups = "CREATE TABLE $groups_table (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(100) NOT NULL COMMENT '그룹명',
+            color VARCHAR(20) DEFAULT '#667eea' COMMENT '그룹 색상',
+            description TEXT NULL COMMENT '설명',
+            user_id BIGINT(20) UNSIGNED NOT NULL COMMENT '생성자 ID',
+            sort_order INT(11) DEFAULT 0 COMMENT '정렬 순서',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY idx_user_id (user_id),
+            KEY idx_sort_order (sort_order)
+        ) $charset_collate;";
+
+        /**
+         * 📈 일별 요약 통계 테이블 (wp_sb_daily_stats)
+         * 
+         * 용도: 대시보드 성능 최적화를 위한 일별 집계 데이터
+         * 특징: O(N) 쿼리를 O(1)로 변경
+         */
+        $stats_table = $wpdb->prefix . 'sb_daily_stats';
+        $sql_stats = "CREATE TABLE $stats_table (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            stats_date DATE NOT NULL,
+            total_clicks INT UNSIGNED DEFAULT 0,
+            unique_visitors INT UNSIGNED DEFAULT 0,
+            platform_share TEXT COMMENT 'JSON Encoded',
+            referers TEXT COMMENT 'JSON Encoded',
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY idx_stats_date (stats_date)
         ) $charset_collate;";
 
         /**
@@ -113,6 +152,8 @@ class SB_Database
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql_analytics);
         dbDelta($sql_api_keys);
+        dbDelta($sql_groups);
+        dbDelta($sql_stats);
     }
 
     /**
@@ -124,9 +165,12 @@ class SB_Database
 
         $analytics_table = $wpdb->prefix . 'sb_analytics_logs';
         $api_keys_table = $wpdb->prefix . 'sb_api_keys';
+        $groups_table = $wpdb->prefix . 'sb_link_groups';
 
         $wpdb->query("DROP TABLE IF EXISTS $analytics_table");
         $wpdb->query("DROP TABLE IF EXISTS $api_keys_table");
+        $wpdb->query("DROP TABLE IF EXISTS $groups_table");
+        $wpdb->query("DROP TABLE IF EXISTS " . $wpdb->prefix . "sb_daily_stats");
     }
 
     /**
@@ -301,5 +345,38 @@ class SB_Database
             "SELECT user_id FROM $table WHERE id = %d",
             $id
         ));
+    }
+
+    /**
+     * 트랜잭션 시작 (v3.0.0 Update: Data Integrity)
+     * 
+     * @return bool 성공 여부
+     */
+    public static function start_transaction()
+    {
+        global $wpdb;
+        return $wpdb->query('START TRANSACTION') !== false;
+    }
+
+    /**
+     * 트랜잭션 커밋
+     * 
+     * @return bool 성공 여부
+     */
+    public static function commit()
+    {
+        global $wpdb;
+        return $wpdb->query('COMMIT') !== false;
+    }
+
+    /**
+     * 트랜잭션 롤백
+     * 
+     * @return bool 성공 여부
+     */
+    public static function rollback()
+    {
+        global $wpdb;
+        return $wpdb->query('ROLLBACK') !== false;
     }
 }

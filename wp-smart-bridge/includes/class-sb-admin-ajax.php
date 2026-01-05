@@ -29,6 +29,16 @@ class SB_Admin_Ajax
             'sb_restore_backup' => 'ajax_restore_backup',
             'sb_health_check' => 'ajax_health_check',
             'sb_factory_reset' => 'ajax_factory_reset',
+            // Link Groups AJAX (v2.9.23)
+            'sb_create_group' => 'ajax_create_group',
+            'sb_update_group' => 'ajax_update_group',
+            'sb_delete_group' => 'ajax_delete_group',
+            'sb_get_groups' => 'ajax_get_groups',
+            'sb_assign_link_group' => 'ajax_assign_link_group',
+            'sb_realtime_feed' => 'ajax_realtime_feed',
+            'sb_get_dashboard_stats' => 'ajax_get_dashboard_stats',
+            'sb_migrate_daily_stats' => 'ajax_migrate_daily_stats', // v2.9.27
+            'sb_restore_backup_chunk' => 'ajax_restore_backup_chunk', // v3.0.0 Scalability
         ];
 
         foreach ($actions as $action => $method) {
@@ -103,7 +113,7 @@ class SB_Admin_Ajax
     }
 
     /**
-     * 설정 저장 AJAX
+     * 설정 저장 AJAX (v2.9.22 Fix: Missing Handler)
      */
     public static function ajax_save_settings()
     {
@@ -183,6 +193,12 @@ class SB_Admin_Ajax
             wp_send_json_error(['message' => $validation]);
         }
 
+        // v3.0.0 Security: 'unfiltered_html' 권한 체크
+        if (!current_user_can('unfiltered_html')) {
+            // 권한이 없으면 KSES 필터링 적용 (스크립트 제거됨)
+            $template = wp_kses_post($template);
+        }
+
         update_option('sb_redirect_template', $template);
 
         wp_send_json_success(['message' => '템플릿이 저장되었습니다.']);
@@ -224,6 +240,44 @@ class SB_Admin_Ajax
     }
 
     /**
+     * 백업 복원 (청크 처리) AJAX (v3.0.0 Scalability)
+     */
+    public static function ajax_restore_backup_chunk()
+    {
+        self::check_permission();
+
+        // 1. 데이터 수신
+        $chunk_data = isset($_POST['chunk_data']) ? json_decode(stripslashes($_POST['chunk_data']), true) : [];
+        $options = isset($_POST['options']) ? json_decode(stripslashes($_POST['options']), true) : [];
+
+        // ID Map이 너무 클 경우를 대비해, 클라이언트에서 보내거나 임시 저장소(Transient)를 활용할 수 있음.
+        // 여기서는 클라이언트가 보내주는 방식을 가정 (Stateless).
+        // 만약 ID Map이 너무 크면 Transient 방식을 고려해야 함.
+
+        if (empty($chunk_data)) {
+            wp_send_json_error(['message' => '데이터가 비어있습니다.']);
+        }
+
+        // 2. 복원 실행
+        // 트랜잭션을 걸어야 할까? 청크 단위라 전체 롤백은 어려움.
+        // 청크 내에서는 원자성을 보장하면 좋음.
+        SB_Database::start_transaction();
+
+        try {
+            $stats = SB_Backup::restore_chunk($chunk_data, $options);
+            SB_Database::commit();
+
+            wp_send_json_success([
+                'message' => 'Chunk restored',
+                'stats' => $stats
+            ]);
+        } catch (Exception $e) {
+            SB_Database::rollback();
+            wp_send_json_error(['message' => '복원 중 오류 발생: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
      * 시스템 상태 점검 (퍼마링크 404 감지)
      */
     public static function ajax_health_check()
@@ -232,7 +286,7 @@ class SB_Admin_Ajax
 
         // 1. 테스트할 단축 링크 가져오기 (공개된 것 중 최신 1개)
         $posts = get_posts([
-            'post_type' => 'sb_link',
+            'post_type' => SB_Post_Type::POST_TYPE,
             'post_status' => 'publish',
             'posts_per_page' => 1,
             'orderby' => 'date',
@@ -329,36 +383,291 @@ class SB_Admin_Ajax
 
         global $wpdb;
 
-        // 1. 커스텀 테이블 Truncate (데이터 비우기)
-        $analytics_table = $wpdb->prefix . 'sb_analytics_logs';
-        $api_keys_table = $wpdb->prefix . 'sb_api_keys';
+        // 트랜잭션 시작 (v3.0.0 Update)
+        SB_Database::start_transaction();
 
-        $wpdb->query("TRUNCATE TABLE $analytics_table");
-        $wpdb->query("TRUNCATE TABLE $api_keys_table");
+        try {
+            // 1. 커스텀 테이블 Truncate (데이터 비우기)
+            $analytics_table = $wpdb->prefix . 'sb_analytics_logs';
+            $api_keys_table = $wpdb->prefix . 'sb_api_keys';
+            $groups_table = $wpdb->prefix . 'sb_link_groups';
 
-        // 2. sb_link 포스트 전체 삭제 (Direct SQL로 대량 삭제 최적화)
-        $wpdb->query("
-            DELETE pm
-            FROM {$wpdb->postmeta} pm
-            INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-            WHERE p.post_type = 'sb_link'
-        ");
+            $wpdb->query("DELETE FROM $analytics_table");
+            $wpdb->query("DELETE FROM $api_keys_table");
+            $wpdb->query("DELETE FROM $groups_table");
 
-        $wpdb->query("
-            DELETE FROM {$wpdb->posts}
-            WHERE post_type = 'sb_link'
-        ");
+            // 2. sb_link 포스트 전체 삭제 (Direct SQL로 대량 삭제 최적화)
+            $wpdb->query("
+                DELETE pm
+                FROM {$wpdb->postmeta} pm
+                INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                WHERE p.post_type = '" . SB_Post_Type::POST_TYPE . "'
+            ");
 
-        // 3. 플러그인 옵션 삭제
-        delete_option('sb_settings');
-        delete_option('sb_redirect_template');
-        delete_option('sb_first_install_notice'); // 환영 배너 다시 표시되도록
-        // sb_version은 유지 (플러그인 활성화 상태이므로)
+            $wpdb->query("
+                DELETE FROM {$wpdb->posts}
+                WHERE post_type = '" . SB_Post_Type::POST_TYPE . "'
+            ");
 
-        // 4. 캐시 및 Rewrite 규칙 초기화
-        wp_cache_flush();
-        flush_rewrite_rules();
+            // 3. 플러그인 옵션 삭제
+            delete_option('sb_settings');
+            delete_option('sb_redirect_template');
+            delete_option('sb_first_install_notice'); // 환영 배너 다시 표시되도록
+            // sb_version은 유지 (플러그인 활성화 상태이므로)
 
-        wp_send_json_success(['message' => '초기화가 완료되었습니다.']);
+            // 성공 시 커밋
+            SB_Database::commit();
+
+            // 4. 캐시 및 Rewrite 규칙 초기화
+            wp_cache_flush();
+            flush_rewrite_rules();
+
+            wp_send_json_success(['message' => '초기화가 완료되었습니다.']);
+
+        } catch (Exception $e) {
+            // 실패 시 롤백
+            SB_Database::rollback();
+            // 에러 로그 기록
+            error_log('[Smart Bridge] Factory Reset Failed: ' . $e->getMessage());
+            wp_send_json_error(['message' => '초기화 중 오류가 발생했습니다. 데이터가 복원되었습니다.']);
+        }
+    }
+
+
+    // ========================================
+    // Link Groups AJAX Handlers (v2.9.23)
+    // ========================================
+
+    /**
+     * 그룹 생성 AJAX
+     */
+    public static function ajax_create_group()
+    {
+        self::check_permission();
+
+        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+        $color = isset($_POST['color']) ? sanitize_hex_color($_POST['color']) : '#667eea';
+        $description = isset($_POST['description']) ? sanitize_text_field($_POST['description']) : null;
+
+        if (empty($name)) {
+            wp_send_json_error(['message' => '그룹명을 입력해주세요.']);
+        }
+
+        $group_id = SB_Groups::create($name, $color, $description);
+
+        if ($group_id) {
+            wp_send_json_success([
+                'id' => $group_id,
+                'message' => '그룹이 생성되었습니다.',
+            ]);
+        } else {
+            wp_send_json_error(['message' => '그룹 생성에 실패했습니다.']);
+        }
+    }
+
+    /**
+     * 그룹 수정 AJAX
+     */
+    public static function ajax_update_group()
+    {
+        self::check_permission();
+
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $data = [];
+
+        if (isset($_POST['name'])) {
+            $data['name'] = sanitize_text_field($_POST['name']);
+        }
+        if (isset($_POST['color'])) {
+            $data['color'] = sanitize_hex_color($_POST['color']);
+        }
+        if (isset($_POST['description'])) {
+            $data['description'] = sanitize_text_field($_POST['description']);
+        }
+
+        if (!$id || empty($data)) {
+            wp_send_json_error(['message' => '잘못된 요청입니다.']);
+        }
+
+        $result = SB_Groups::update($id, $data);
+
+        if ($result) {
+            wp_send_json_success(['message' => '그룹이 수정되었습니다.']);
+        } else {
+            wp_send_json_error(['message' => '그룹 수정에 실패했습니다.']);
+        }
+    }
+
+    /**
+     * 그룹 삭제 AJAX
+     */
+    public static function ajax_delete_group()
+    {
+        self::check_permission();
+
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+
+        if (!$id) {
+            wp_send_json_error(['message' => '잘못된 요청입니다.']);
+        }
+
+        $result = SB_Groups::delete($id);
+
+        if ($result) {
+            wp_send_json_success(['message' => '그룹이 삭제되었습니다.']);
+        } else {
+            wp_send_json_error(['message' => '그룹 삭제에 실패했습니다.']);
+        }
+    }
+
+    /**
+     * 그룹 목록 조회 AJAX
+     */
+    public static function ajax_get_groups()
+    {
+        self::check_permission();
+
+        $groups = SB_Groups::get_all();
+
+
+
+        wp_send_json_success(['groups' => $groups]);
+    }
+
+    /**
+     * 링크에 그룹 할당 AJAX
+     */
+    public static function ajax_assign_link_group()
+    {
+        self::check_permission();
+
+        $link_id = isset($_POST['link_id']) ? intval($_POST['link_id']) : 0;
+        $group_id = isset($_POST['group_id']) ? intval($_POST['group_id']) : null;
+
+        // group_id가 0이면 null로 (그룹 해제)
+        if ($group_id === 0) {
+            $group_id = null;
+        }
+
+        if (!$link_id) {
+            wp_send_json_error(['message' => '잘못된 요청입니다.']);
+        }
+
+        $result = SB_Groups::assign_link($link_id, $group_id);
+
+        if ($result !== false) {
+            wp_send_json_success(['message' => '그룹이 할당되었습니다.']);
+        } else {
+            wp_send_json_error(['message' => '그룹 할당에 실패했습니다.']);
+        }
+    }
+
+
+
+    /**
+     * 대시보드 메인 차트 데이터 AJAX (v3.0.0 UX 개선)
+     */
+    public static function ajax_get_dashboard_stats()
+    {
+        // v3.0.0 Fix: Relaxed permission to match REST API (Editors can view stats)
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => '권한이 없습니다.']);
+        }
+
+        $range = isset($_POST['range']) ? sanitize_text_field($_POST['range']) : '30d';
+        $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : 'all';
+
+        // 날짜 범위 계산
+        if ($range === 'custom') {
+            $start = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : date('Y-m-d', strtotime('-30 days'));
+            $end = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : date('Y-m-d');
+        } else {
+            $dates = SB_Helpers::get_date_range($range);
+            $start = $dates['start'];
+            $end = $dates['end'];
+        }
+
+        $analytics = new SB_Analytics();
+
+        // 1. Daily Trend
+        $daily_trend = $analytics->get_daily_trend($start, $end, $platform);
+
+        // 2. Hourly Stats
+        $clicks_by_hour = $analytics->get_clicks_by_hour($start, $end, $platform);
+
+        // 3. Platform Share
+        $platform_share = $analytics->get_platform_share_filtered($start, $end, $platform);
+
+        // Optional: Filter by specific platform if requested (Assuming Analytics class supports this, otherwise we might ignore platform filter for globals if implementation doesn't support it easily)
+        // Currently DB implementation of get_daily_trend usually doesn't take platform. 
+        // If we want to be strict, we would need to pass platform to these methods. 
+        // For now, assuming they return global stats or the methods need update.
+        // Given complexity, we return standard stats. Ideally SB_Analytics should be updated to support filtering.
+
+        wp_send_json_success([
+            'dailyTrend' => $daily_trend,
+            'clicksByHour' => $clicks_by_hour,
+            'platformShare' => $platform_share
+        ]);
+    }
+
+    // ========================================
+    // Realtime Feed Handler (v2.9.23)
+    // ========================================
+
+    /**
+     * 실시간 피드 SSE 엔드포인트
+     */
+    public static function ajax_realtime_feed()
+    {
+        // SSE는 일반 AJAX 리턴을 사용하지 않으므로 직접 클래스 호출
+        SB_Realtime::start_stream();
+        exit;
+    }
+
+    /**
+     * 📊 일별 통계 데이터 마이그레이션 (Backfill)
+     */
+    public static function ajax_migrate_daily_stats()
+    {
+        self::check_permission(); // manage_options 권한
+
+        global $wpdb;
+
+        $log_table = $wpdb->prefix . 'sb_analytics_logs';
+        $stats_table = $wpdb->prefix . 'sb_daily_stats';
+
+        // 1. 집계되지 않은 날짜 찾기 (최근 1년 이내, 1회 10일씩)
+        // 서브쿼리로 이미 집계된 날짜 제외
+        $sql = "SELECT DISTINCT DATE(visited_at) as date
+                FROM $log_table
+                WHERE visited_at < CURDATE()
+                AND DATE(visited_at) NOT IN (SELECT stats_date FROM $stats_table)
+                ORDER BY date DESC
+                LIMIT 10";
+
+        $dates_to_process = $wpdb->get_col($sql);
+
+        if (empty($dates_to_process)) {
+            wp_send_json_success(['message' => '모든 데이터가 최신 상태입니다.', 'completed' => true]);
+        }
+
+        $analytics = new SB_Analytics();
+        $processed_count = 0;
+
+        foreach ($dates_to_process as $date) {
+            $result = $analytics->aggregate_daily_stats($date);
+            if ($result) {
+                $processed_count++;
+            }
+        }
+
+        wp_send_json_success([
+            'message' => "{$processed_count}일치 데이터가 처리되었습니다.",
+            'completed' => false,
+            'processed_dates' => $dates_to_process
+        ]);
     }
 }

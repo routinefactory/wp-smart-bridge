@@ -1,0 +1,558 @@
+# WP Smart Bridge Translation Template
+# Copyright (C) 2026
+# This file is distributed under the same license as the WP Smart Bridge plugin.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: WP Smart Bridge 3.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-05 21:57+0900\n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Manual Extraction\n"
+"X-Domain: sb\n"
+
+#: admin/class-sb-admin.php
+msgid "정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "정말 초기화하시겠습니까? 모든 데이터가 삭제됩니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "정말 복원하시겠습니까? 현재 데이터가 덮어씌워집니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "초기화하려면 \"RESET\"이라고 입력하세요."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "저장되었습니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "삭제되었습니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "오류가 발생했습니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "로딩 중..."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "데이터 없음"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "새 버전({version})이 있습니다! 다운로드 페이지로 이동하시겠습니까?"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "새 그룹 이름"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "그룹 이름을 입력해주세요."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "클릭"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "방문자"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "닫기"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "재시도"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "예"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "아니오"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "확인"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "알림"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "입력"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "초기화 완료. 페이지를 새로고침합니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "최신 버전을 사용 중입니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "다운로드 이동"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "취소되었습니다."
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "Factory Reset"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "일별 트래픽 추세 차트"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "시간대별 클릭 통계 차트"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "플랫폼별 점유율 차트"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "상위 유입 경로 차트"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "기기 유형별 통계"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "운영체제별 통계"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "브라우저별 통계"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "요일별 클릭 패턴"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "📈 인기 링크 (현재 필터 기준)"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "OS & 브라우저 상세 보기"
+msgstr ""
+
+#: admin/class-sb-admin.php
+msgid "상세 보기 접기"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "Smart Bridge 설정"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "🔑 API 키 관리"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "EXE 프로그램에서 사용할 API 키를 관리합니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "Secret Key는 절대 외부에 노출하지 마세요."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "새 API 키 발급"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "API Key (공개 키)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "Secret Key (비밀 키)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "상태"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "마지막 사용"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "액션"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "발급된 API 키가 없습니다. 위의 버튼을 클릭하여 새 키를 발급하세요."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "활성"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "비활성"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "사용 기록 없음"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "삭제"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "⚙️ 일반 설정"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "리다이렉션 딜레이"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "초"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "로딩 메시지를 표시할 시간입니다. 0초면 바로 리다이렉션됩니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "0.5초, 1.5초"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "같은 소수점 단위도 입력 가능합니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "설정 저장"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "🎨 커스텀 리다이렉션 템플릿"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "리다이렉션 대기 페이지의 전체 HTML/CSS를 자유롭게 커스터마이징할 수 있습니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "필수 Placeholder를 반드시 포함해야 합니다!"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "📝 필수 Placeholder 목록"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "초기 딜레이 초가 표시될 위치"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "타겟 URL (href 속성 등에 사용)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "카운트다운 JavaScript 코드"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "카운트다운 요소의 ID (예: id=\"{{COUNTDOWN_ID}}\")"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "로딩 메시지"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "는 placeholder 없이 HTML에 직접 입력하세요!"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "🤖 AI로 디자인 변경하기"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "ChatGPT, Claude 등 AI에게 아래 프롬프트를 복사해서 붙여넣으면 안전하게 디자인을 변경할 수 있습니다:"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "사용 방법"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "위 프롬프트를 복사 → 아래 \"현재 템플릿\" 복사해서 AI에게 함께 전달 → AI가 생성한 HTML을 아래 편집기에 붙여넣기"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "리다이렉션 페이지 HTML 템플릿"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "전체 HTML을 자유롭게 편집할 수 있습니다. CSS, JavaScript 포함 가능합니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "템플릿 검증"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "템플릿 저장"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "기본값으로 복원"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "📖 EXE 프로그램 연동 방법"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "1. API 키 발급"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "위의 \"새 API 키 발급\" 버튼을 클릭하여 API Key와 Secret Key를 발급받습니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "2. EXE 프로그램 설정"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "EXE 프로그램의 설정에서 다음 정보를 입력합니다:"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "발급받은 공개 키 (sb_live_xxx)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "발급받은 비밀 키 (sk_secret_xxx)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "3. 링크 생성"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "EXE 프로그램에서 제휴 링크가 생성될 때 자동으로 단축 링크로 생성됩니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "⚠️ 주의사항"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "워드프레스 관리자 페이지에서는 링크를 생성할 수 없습니다. 반드시 EXE 프로그램을 사용해야 합니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "💾 백업 및 복원"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "플러그인의 모든 데이터(링크, 통계, 설정)를 JSON 파일로 백업하거나 복원할 수 있습니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "주기적으로 백업하는 것을 권장합니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "데이터 백업"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "백업 파일 다운로드 (.json)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "데이터 복원"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "주의: 복원 시 기존 설정과 데이터가 백업 파일의 내용으로 덮어씌워질 수 있습니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "복원 시작"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "데이터 복원 중입니다... 페이지를 닫지 마세요."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "Danger Zone (위험 구역)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "이 작업은 플러그인의 <strong>모든 데이터(링크, 통계 로그, API 키, 설정)</strong>를 영구적으로 삭제하고 초기 상태로 되돌립니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "삭제된 데이터는 복구할 수 없습니다. 신중하게 진행해주세요."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "Factory Reset (공장 초기화)"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "🎉 새 API 키가 발급되었습니다!"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "아래 정보를 안전한 곳에 저장하세요. Secret Key는 다시 확인할 수 없습니다."
+msgstr ""
+
+#: admin/views/settings.php
+msgid "복사"
+msgstr ""
+
+#: admin/views/settings.php
+msgid "Secret Key (비밀 키) - ⚠️ 다시 확인 불가!"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "단축 링크"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "새 링크 추가"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "새 단축 링크 추가"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "단축 링크 수정"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "새 단축 링크"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "단축 링크 보기"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "단축 링크 검색"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "단축 링크가 없습니다"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "휴지통에 단축 링크가 없습니다"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "링크 상세 정보"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "클릭 통계"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "오늘 클릭 (PV)"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "오늘 방문자 (UV)"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "누적 클릭 (PV)"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "누적 방문자 (UV)"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "단축 URL"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "타겟 URL"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "리다이렉션될 최종 목적지 URL입니다. (http:// 또는 https:// 필수)"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "플랫폼"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "타겟 URL의 도메인을 기반으로 자동 분류됩니다."
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "타겟 URL 변경 시 플랫폼도 자동으로 업데이트됩니다. 단, 기존 클릭 로그는 변경 전 플랫폼으로 유지됩니다."
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "총 클릭 수"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "생성일"
+msgstr ""
+
+#: includes/class-sb-post-type.php
+msgid "클릭 수"
+msgstr ""
+
+#: public/views/redirect.php
+msgid "페이지로 이동 중입니다..."
+msgstr ""
+
+#: public/views/redirect.php
+msgid "보안 서버를 통해 안전하게 연결하고 있습니다."
+msgstr ""
+
+#: public/views/redirect.php
+msgid "잠시만 기다려 주세요."
+msgstr ""
+
+#: public/views/redirect.php
+msgid "즉시 연결하기"
+msgstr ""
+
+#: public/views/redirect.php
+msgid "Verified Secure Connection"
+msgstr ""

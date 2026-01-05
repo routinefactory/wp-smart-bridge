@@ -17,13 +17,18 @@ class SB_Updater
      * 
      * @return array|null ['version' => '2.7.0', 'download_url' => '...'] 또는 null
      */
-    public static function check_github_release()
+    public static function check_github_release($only_cache = false)
     {
         $cache_key = 'sb_github_release_check';
         $cached = get_transient($cache_key);
 
         if ($cached !== false) {
             return $cached;
+        }
+
+        // v3.0.0 Performance Fix: Non-blocking dashboard
+        if ($only_cache) {
+            return null;
         }
 
         $api_url = 'https://api.github.com/repos/routinefactory/wp-smart-bridge/releases/latest';

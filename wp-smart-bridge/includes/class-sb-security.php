@@ -19,9 +19,9 @@ class SB_Security
     const ALLOWED_USER_AGENT = 'SB-Client/Win64-v2.0';
 
     /**
-     * Timestamp 허용 범위 (초)
+     * Timestamp 허용 범위 (초) - v3.0.0 Tightened to 30s
      */
-    const TIMESTAMP_TOLERANCE = 60;
+    const TIMESTAMP_TOLERANCE = 30;
 
     /**
      * User-Agent 검증
@@ -60,7 +60,8 @@ class SB_Security
         if ($time_diff > self::TIMESTAMP_TOLERANCE) {
             return new WP_Error(
                 'expired',
-                'Request expired. Timestamp difference exceeds ' . self::TIMESTAMP_TOLERANCE . ' seconds.',
+                // v3.0.0 UX Fix: Helpful error for Time Drift
+                'Request expired. Timestamp difference exceeds ' . self::TIMESTAMP_TOLERANCE . ' seconds. Server Time: ' . date('c', $current_time) . '. Check client clock.',
                 ['status' => 401]
             );
         }
