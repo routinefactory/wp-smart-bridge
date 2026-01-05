@@ -10,55 +10,16 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// API 키 발급 여부 확인
-$user_api_keys = SB_Database::get_user_api_keys(get_current_user_id());
-$has_api_keys = !empty($user_api_keys);
+// -------------------------------------------------------------------------
+// View Logic Moved to DB_Admin::render_dashboard()
+// -------------------------------------------------------------------------
 
-// 분석 데이터 조회
-$analytics = new SB_Analytics();
-$date_range = SB_Helpers::get_date_range('30d');
-
-// 일일 통계 (오늘)
-$today_total_clicks = $analytics->get_today_total_clicks();
-$today_unique_visitors = $analytics->get_today_unique_visitors();
-
-// 누적 통계 (전체 기간)
-$cumulative_total_clicks = $analytics->get_cumulative_total_clicks();
-$cumulative_unique_visitors = $analytics->get_cumulative_unique_visitors();
-
-// 기존 통계 (호환성 유지)
-$total_clicks = $analytics->get_total_clicks($date_range['start'], $date_range['end']);
-$unique_visitors = $analytics->get_unique_visitors($date_range['start'], $date_range['end']);
-$growth_rate = $analytics->get_growth_rate();
-$active_links = $analytics->get_active_links_count();
-$clicks_by_hour = $analytics->get_clicks_by_hour($date_range['start'], $date_range['end']);
-$platform_share = $analytics->get_platform_share($date_range['start'], $date_range['end']);
-$daily_trend = $analytics->get_daily_trend($date_range['start'], $date_range['end']);
-
-// 실제 데이터 기반 플랫폼 목록
-$available_platforms = $analytics->get_available_platforms();
-
-// 인기 링크 (현재 필터 적용)
-$top_links = $analytics->get_top_links(
-    $date_range['start'],
-    $date_range['end'],
-    null
-);
-
-// 전체 기간 인기 링크
-$alltime_top_links = $analytics->get_all_time_top_links(20);
-
-// 업데이트 확인 (수동 안내용)
-$update_info = SB_Updater::check_github_release();
-$has_update = false;
-$latest_version = SB_VERSION;
-$download_url = '';
-
-if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
-    $has_update = true;
-    $latest_version = $update_info['version'];
-    $download_url = $update_info['download_url'];
-}
+// Data is passed from Controller:
+// $today_total_clicks, $today_unique_visitors
+// $cumulative_total_clicks, $cumulative_unique_visitors
+// $growth_rate, $active_links, $clicks_by_hour, $platform_share, $daily_trend
+// $available_platforms, $top_links, $alltime_top_links
+// $has_api_keys, $has_update, $update_info
 ?>
 
 <div class="wrap sb-dashboard">
@@ -81,7 +42,7 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
             <p>
                 <strong>⚠️ API 키가 발급되지 않았습니다.</strong>
                 EXE 프로그램을 사용하려면 먼저
-                <a href="<?php echo admin_url('admin.php?page=smart-bridge-settings'); ?>">설정 페이지</a>에서
+                <a href="<?php echo esc_url(admin_url('admin.php?page=smart-bridge-settings')); ?>">설정 페이지</a>에서
                 API 키를 발급받으세요.
             </p>
         </div>
@@ -201,6 +162,11 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
                 </span>
                 <span class="sb-card-label">전일 대비 증감률</span>
                 <span class="sb-card-sublabel">📈 Growth Rate</span>
+                <?php if ($growth_rate >= 0): ?>
+                    <a href="#sb-today-links" class="sb-card-cta sb-cta-positive">🎉 오늘 효과 있는 링크 보기 →</a>
+                <?php else: ?>
+                    <a href="#sb-analytics-referer" class="sb-card-cta sb-cta-negative">📉 유입 경로 분석하기 →</a>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -249,62 +215,80 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
     <!-- 📊 새로운 분석 섹션들 -->
 
     <!-- 유입 경로 분석 -->
-    <div class="sb-analytics-section">
-        <h2 class="sb-section-title">
+    <div class="sb-analytics-section sb-collapsible" id="sb-analytics-referer">
+        <h2 class="sb-section-title sb-section-toggle" data-target="sb-referer-content">
             <span class="dashicons dashicons-migrate"></span>
             유입 경로 분석
             <span class="sb-section-badge">Phase 2</span>
+            <span class="sb-toggle-icon dashicons dashicons-arrow-down-alt2"></span>
         </h2>
-        <div class="sb-charts-grid">
-            <div class="sb-chart-box">
-                <h3>🔗 유입 경로 TOP 10</h3>
-                <div class="sb-chart-container">
-                    <canvas id="sb-referer-chart"></canvas>
+        <div class="sb-section-content" id="sb-referer-content">
+            <div class="sb-charts-grid">
+                <div class="sb-chart-box">
+                    <h3>🔗 유입 경로 TOP 10</h3>
+                    <div class="sb-chart-container">
+                        <canvas id="sb-referer-chart"></canvas>
+                    </div>
                 </div>
-            </div>
-            <div class="sb-chart-box">
-                <h3>📊 유입 그룹 분포</h3>
-                <div class="sb-chart-container">
-                    <canvas id="sb-referer-groups-chart"></canvas>
-                </div>
-                <div class="sb-chart-legend" id="sb-referer-groups-legend">
-                    <span class="sb-legend-item"><span class="sb-legend-color"
-                            style="background:#3b82f6"></span>Direct</span>
-                    <span class="sb-legend-item"><span class="sb-legend-color"
-                            style="background:#ec4899"></span>SNS</span>
-                    <span class="sb-legend-item"><span class="sb-legend-color"
-                            style="background:#22c55e"></span>Search</span>
-                    <span class="sb-legend-item"><span class="sb-legend-color"
-                            style="background:#f59e0b"></span>Other</span>
+                <div class="sb-chart-box">
+                    <h3>📊 유입 그룹 분포</h3>
+                    <div class="sb-chart-container">
+                        <canvas id="sb-referer-groups-chart"></canvas>
+                    </div>
+                    <div class="sb-chart-legend" id="sb-referer-groups-legend">
+                        <span class="sb-legend-item"><span class="sb-legend-color"
+                                style="background:#3b82f6"></span>Direct</span>
+                        <span class="sb-legend-item"><span class="sb-legend-color"
+                                style="background:#ec4899"></span>SNS</span>
+                        <span class="sb-legend-item"><span class="sb-legend-color"
+                                style="background:#22c55e"></span>Search</span>
+                        <span class="sb-legend-item"><span class="sb-legend-color"
+                                style="background:#f59e0b"></span>Other</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- 디바이스/브라우저 분석 -->
-    <div class="sb-analytics-section">
-        <h2 class="sb-section-title">
+    <div class="sb-analytics-section sb-collapsible">
+        <h2 class="sb-section-title sb-section-toggle" data-target="sb-device-content">
             <span class="dashicons dashicons-smartphone"></span>
             디바이스 & 브라우저 분석
             <span class="sb-section-badge">Phase 3</span>
+            <span class="sb-toggle-icon dashicons dashicons-arrow-down-alt2"></span>
         </h2>
-        <div class="sb-charts-grid sb-charts-3col">
-            <div class="sb-chart-box">
-                <h3>📱 디바이스 분포</h3>
-                <div class="sb-chart-container">
-                    <canvas id="sb-device-chart"></canvas>
+        <div class="sb-section-content" id="sb-device-content">
+            <!-- 핵심: 디바이스 분포 (항상 표시) -->
+            <div class="sb-charts-grid">
+                <div class="sb-chart-box sb-chart-wide">
+                    <h3>📱 디바이스 분포 <span class="sb-chart-essential">핵심 지표</span></h3>
+                    <div class="sb-chart-container">
+                        <canvas id="sb-device-chart"></canvas>
+                    </div>
                 </div>
             </div>
-            <div class="sb-chart-box">
-                <h3>💻 OS 분포</h3>
-                <div class="sb-chart-container">
-                    <canvas id="sb-os-chart"></canvas>
-                </div>
+            <!-- 상세: OS/브라우저 (토글로 숨김) -->
+            <div class="sb-advanced-toggle">
+                <button type="button" class="sb-btn-advanced" id="sb-toggle-advanced-device">
+                    <span class="dashicons dashicons-arrow-down-alt2"></span>
+                    OS & 브라우저 상세 보기
+                </button>
             </div>
-            <div class="sb-chart-box">
-                <h3>🌐 브라우저 분포</h3>
-                <div class="sb-chart-container">
-                    <canvas id="sb-browser-chart"></canvas>
+            <div class="sb-advanced-content" id="sb-advanced-device-content" style="display: none;">
+                <div class="sb-charts-grid">
+                    <div class="sb-chart-box">
+                        <h3>💻 OS 분포</h3>
+                        <div class="sb-chart-container">
+                            <canvas id="sb-os-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="sb-chart-box">
+                        <h3>🌐 브라우저 분포</h3>
+                        <div class="sb-chart-container">
+                            <canvas id="sb-browser-chart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -361,12 +345,12 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
     </div>
 
     <!-- 기간 비교 섹션 -->
-    <div class="sb-analytics-section">
+    <div class="sb-analytics-section sb-comparison-section">
         <h2 class="sb-section-title">
             <span class="dashicons dashicons-chart-line"></span>
             기간 비교 분석
-            <button type="button" id="sb-toggle-comparison" class="button button-small" style="margin-left: 10px;">
-                비교 모드 활성화
+            <button type="button" id="sb-toggle-comparison" class="button button-primary" style="margin-left: 10px;">
+                📊 지난주와 비교하기
             </button>
         </h2>
         <div id="sb-comparison-container" style="display: none;">
@@ -502,10 +486,6 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
                                     <button type="button" id="sb-force-check-update" class="button" style="margin-right: 10px;">
                                         🔄 지금 바로 확인
                                     </button>
-                                    <a href="<?php echo esc_url($update_info['release_url']); ?>" class="button"
-                                        target="_blank">
-                                        📄 릴리스 노트
-                                    </a>
                                 </p>
                                 <details style="margin-top: 15px;">
                                     <summary style="cursor: pointer; font-weight: 600;">📖 수동 업데이트 방법 (7단계)</summary>
@@ -562,6 +542,64 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
             // 인기 링크 탭 전환 (하지만 이제 필터로 통합되었으므로, 탭 기능을 숨기고 '현재 조회 기준' 하나만 보여주는 것이 좋음)
             $('.sb-top-links-tabs').hide();
             $('.sb-top-links-header h3').text('📈 인기 링크 (현재 필터 기준)');
+
+            // ========================================
+            // Round 20: UX 개선 - JavaScript Handlers
+            // ========================================
+
+            // 1. Collapsible Section Toggle (섹션 접기/펼치기)
+            $('.sb-section-toggle').on('click', function () {
+                var targetId = $(this).data('target');
+                var $content = $('#' + targetId);
+                var $icon = $(this).find('.sb-toggle-icon');
+
+                if ($content.hasClass('collapsed')) {
+                    // 펼치기
+                    $content.removeClass('collapsed');
+                    $(this).removeClass('collapsed');
+                } else {
+                    // 접기
+                    $content.addClass('collapsed');
+                    $(this).addClass('collapsed');
+                }
+            });
+
+            // 2. Advanced Toggle for OS/Browser (상세 보기 토글)
+            $('#sb-toggle-advanced-device').on('click', function () {
+                var $content = $('#sb-advanced-device-content');
+                var $btn = $(this);
+
+                if ($content.is(':visible')) {
+                    $content.slideUp(200);
+                    $btn.removeClass('expanded');
+                    $btn.find('span:last').text('OS & 브라우저 상세 보기');
+                } else {
+                    $content.slideDown(200);
+                    $btn.addClass('expanded');
+                    $btn.find('span:last').text('상세 보기 접기');
+                }
+            });
+
+            // 3. Smooth Scroll for Smart CTA links
+            $('.sb-card-cta').on('click', function (e) {
+                var href = $(this).attr('href');
+                if (href.startsWith('#')) {
+                    e.preventDefault();
+                    var $target = $(href);
+                    if ($target.length) {
+                        // 만약 섹션이 접혀있으면 펼치기
+                        var $sectionContent = $target.find('.sb-section-content');
+                        if ($sectionContent.hasClass('collapsed')) {
+                            $sectionContent.removeClass('collapsed');
+                            $target.find('.sb-section-toggle').removeClass('collapsed');
+                        }
+                        // Smooth scroll
+                        $('html, body').animate({
+                            scrollTop: $target.offset().top - 50
+                        }, 400);
+                    }
+                }
+            });
         });
     </script>
 
@@ -966,6 +1004,146 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
         #sb-today-links tbody tr:hover {
             background: #f0f5ff !important;
         }
+
+        /* ========================================
+           Round 20: UX 개선 스타일
+           ======================================== */
+
+        /* Smart CTA on Growth Card */
+        .sb-card-cta {
+            display: block;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .sb-cta-positive {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .sb-cta-positive:hover {
+            background: #22c55e;
+            color: #fff;
+        }
+
+        .sb-cta-negative {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .sb-cta-negative:hover {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        /* Collapsible Section Toggle */
+        .sb-section-toggle {
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+
+        .sb-section-toggle:hover {
+            opacity: 0.8;
+        }
+
+        .sb-toggle-icon {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            color: #666;
+        }
+
+        .sb-section-toggle.collapsed .sb-toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .sb-section-content {
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+        }
+
+        .sb-section-content.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Essential Badge */
+        .sb-chart-essential {
+            font-size: 10px;
+            padding: 2px 8px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+            border-radius: 10px;
+            margin-left: 8px;
+            font-weight: 500;
+        }
+
+        /* Advanced Toggle Button */
+        .sb-advanced-toggle {
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .sb-btn-advanced {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: #f3f4f6;
+            border: 1px dashed #d1d5db;
+            border-radius: 8px;
+            color: #6b7280;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sb-btn-advanced:hover {
+            background: #e5e7eb;
+            border-color: #9ca3af;
+            color: #374151;
+        }
+
+        .sb-btn-advanced .dashicons {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s;
+        }
+
+        .sb-btn-advanced.expanded .dashicons {
+            transform: rotate(180deg);
+        }
+
+        .sb-advanced-content {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed #e5e7eb;
+        }
+
+        /* Comparison Section Highlight */
+        .sb-comparison-section #sb-toggle-comparison {
+            animation: pulse-attention 2s ease-in-out 3;
+        }
+
+        @keyframes pulse-attention {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(102, 126, 234, 0);
+            }
+        }
     </style>
 </div>
 
@@ -1187,3 +1365,37 @@ if ($update_info && version_compare($update_info['version'], SB_VERSION, '>')) {
         platformShare: <?php echo json_encode($platform_share); ?>
     };
 </script>
+
+<!-- 
+    ===========================================================================
+    HTML Templates (Phase 9 Frontend Modernization)
+    Strict separation of HTML structure from JavaScript logic.
+    ===========================================================================
+-->
+
+<!-- Anomaly Item Template -->
+<template id="sb-tmpl-anomaly-item">
+    <div class="sb-anomaly-item">
+        <span class="sb-tmpl-date"></span>
+        <span class="sb-tmpl-info">
+            <strong class="sb-tmpl-clicks"></strong>
+            <span class="sb-tmpl-desc"></span>
+        </span>
+    </div>
+</template>
+
+<!-- Referer Item Template -->
+<template id="sb-tmpl-referer-item">
+    <div class="sb-referer-item">
+        <span class="sb-tmpl-domain"></span>
+        <strong class="sb-tmpl-clicks"></strong>
+    </div>
+</template>
+
+<!-- Device Bar Template -->
+<template id="sb-tmpl-device-bar">
+    <div class="sb-device-bar">
+        <div class="sb-device-bar-value sb-tmpl-value"></div>
+        <div class="sb-device-bar-label sb-tmpl-label"></div>
+    </div>
+</template>

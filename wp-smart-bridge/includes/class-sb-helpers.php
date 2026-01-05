@@ -12,6 +12,16 @@ if (!defined('ABSPATH')) {
 
 class SB_Helpers
 {
+    /**
+     * 기본 슬러그 길이
+     */
+    const DEFAULT_SLUG_LENGTH = 6;
+
+    /**
+     * 슬러그 생성 최대 재시도 횟수
+     */
+    const MAX_SLUG_RETRIES = 3;
+
 
     /**
      * Base62 문자셋
@@ -21,11 +31,11 @@ class SB_Helpers
     /**
      * Base62 고유 Slug 생성
      * 
-     * @param int $length Slug 길이 (기본 6)
-     * @param int $max_retries 최대 재시도 횟수 (기본 3)
+     * @param int $length Slug 길이 (기본값: self::DEFAULT_SLUG_LENGTH)
+     * @param int $max_retries 최대 재시도 횟수 (기본값: self::MAX_SLUG_RETRIES)
      * @return string|false 생성된 Slug 또는 false
      */
-    public static function generate_unique_slug($length = 6, $max_retries = 3)
+    public static function generate_unique_slug($length = self::DEFAULT_SLUG_LENGTH, $max_retries = self::MAX_SLUG_RETRIES)
     {
         for ($i = 0; $i < $max_retries; $i++) {
             $slug = self::generate_random_string($length);
@@ -67,11 +77,11 @@ class SB_Helpers
     {
         global $wpdb;
 
-        // 정확한 post_title 매칭을 위해 직접 쿼리 사용
+        // v2.9.22 Fix: Check post_name (Unique Index) instead of post_title
         $count = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->posts} 
              WHERE post_type = 'sb_link' 
-             AND post_title = %s 
+             AND post_name = %s 
              AND post_status != 'trash'",
             $slug
         ));
@@ -108,7 +118,7 @@ class SB_Helpers
 
         if ($count >= 2) {
             // .co.kr, .com.cn 등 2단계 TLD 처리
-            $twoLevelTlds = ['co.kr', 'com.cn', 'co.jp', 'co.uk', 'com.au'];
+            $twoLevelTlds = ['co.kr', 'com.cn', 'co.jp', 'co.uk', 'com.au', 'com.br', 'org.uk'];
             $lastTwo = $parts[$count - 2] . '.' . $parts[$count - 1];
 
             if (in_array($lastTwo, $twoLevelTlds) && $count >= 3) {
@@ -151,8 +161,9 @@ class SB_Helpers
      */
     public static function hash_ip($ip)
     {
-        $settings = get_option('sb_settings', []);
-        $salt = isset($settings['ip_hash_salt']) ? $settings['ip_hash_salt'] : 'default-salt';
+        // v2.9.22 보안 패치: DB에 저장된 Salt 대신 wp-config.php의 Salt 사용
+        // Salt가 없으면 자동으로 생성된 키 사용
+        $salt = wp_salt('auth');
 
         return hash('sha256', $ip . $salt);
     }
@@ -198,7 +209,7 @@ class SB_Helpers
     {
         $query = new WP_Query([
             'post_type' => 'sb_link',
-            'title' => $slug,
+            'name' => $slug, // v2.9.22 Fix: Query by valid slug (post_name)
             'posts_per_page' => 1,
             'post_status' => 'publish',
             'no_found_rows' => true,
@@ -586,10 +597,14 @@ class SB_Helpers
         }
 
 
-        // 자바스크립트 보안 검사 (간단한 XSS 방지)
+        // 자바스크립트 보안 검사 (v2.9.22 Security Hardening)
+        // 관리자라 하더라도 악성 스크립트 삽입 가능성 차단 (필요시 wp_kses 활용 권장)
         if (preg_match('/<script\b[^>]*>(.*?)<\/script>/is', $template)) {
-            // 허용된 안전한 스크립트 외에 악성 패턴 검사 가능
-            // 현재는 관리자만 템플릿 수정 가능하므로 기본 필터링만 적용
+            // COUNTDOWN_SCRIPT는 우리가 서버에서 생성해서 주입하므로, 
+            // 템플릿 자체에 <script> 태그가 있는 것은 보안 정책상 차단 (또는 경고)
+            if (!current_user_can('unfiltered_html')) {
+                return "오류: 보안 정책에 따라 템플릿 내에 직접적인 <script> 태그 삽입이 금지되어 있습니다.";
+            }
         }
 
         return true;

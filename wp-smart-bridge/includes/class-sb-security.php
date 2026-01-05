@@ -33,7 +33,9 @@ class SB_Security
     {
         $user_agent = $request->get_header('User-Agent');
 
-        if ($user_agent !== self::ALLOWED_USER_AGENT) {
+        // v2.9.22 개선: 버전 결합도 완화 (Prefix Check)
+        // 클라이언트 버전이 업데이트되어도 'SB-Client/'로 시작하면 허용
+        if (empty($user_agent) || strpos($user_agent, 'SB-Client/') !== 0) {
             return new WP_Error(
                 'forbidden',
                 'Unauthorized client. Invalid User-Agent.',
@@ -89,8 +91,10 @@ class SB_Security
         }
 
         // 서버측 서명 생성
-        // 서명 공식: HMAC_SHA256(Body + Timestamp, SecretKey)
-        $payload = $body . $timestamp;
+        // 서명 공식: HMAC_SHA256(Body + Timestamp + Nonce, SecretKey)
+        // v2.9.22: Added nonce to payload for better entropy
+        $nonce = $_SERVER['HTTP_X_SB_NONCE'] ?? '';
+        $payload = $body . $timestamp . $nonce;
         $expected_signature = hash_hmac('sha256', $payload, $secret_key);
 
         // 타이밍 공격 방지를 위한 안전한 비교
@@ -126,12 +130,13 @@ class SB_Security
         $api_key = $request->get_header('X-SB-API-KEY');
         $timestamp = $request->get_header('X-SB-TIMESTAMP');
         $signature = $request->get_header('X-SB-SIGNATURE');
+        $nonce = $request->get_header('X-SB-NONCE'); // v2.9.22 Added nonce
 
         // 필수 헤더 확인
-        if (empty($api_key) || empty($timestamp) || empty($signature)) {
+        if (empty($api_key) || empty($timestamp) || empty($signature) || empty($nonce)) {
             return new WP_Error(
                 'missing_headers',
-                'Required authentication headers are missing.',
+                'Required authentication headers are missing (API Key, Timestamp, Signature, Nonce).',
                 ['status' => 400]
             );
         }
@@ -142,6 +147,19 @@ class SB_Security
         if (is_wp_error($ts_check)) {
             return $ts_check;
         }
+
+        // 3-1. Nonce 검증 (Replay Attack 방지)
+        // Nonce + API Key 조합으로 유니크하게 관리
+        $nonce_key = 'sb_nonce_' . md5($api_key . $nonce);
+        if (get_transient($nonce_key)) {
+            return new WP_Error(
+                'nonce_used',
+                'Nonce already used. Replay attack detected.',
+                ['status' => 401]
+            );
+        }
+        // Nonce 유효 시간은 Timestamp 허용 범위와 동일하게 설정
+        set_transient($nonce_key, true, self::TIMESTAMP_TOLERANCE);
 
         // 4. 서명 검증
         $body = $request->get_body();

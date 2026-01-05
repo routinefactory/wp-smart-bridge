@@ -56,6 +56,9 @@ class SB_Database
             link_id BIGINT(20) UNSIGNED NOT NULL COMMENT 'wp_posts.ID 참조',
             visitor_ip VARCHAR(64) NOT NULL COMMENT 'IP 주소 (SHA256 해싱)',
             platform VARCHAR(50) DEFAULT 'Etc' COMMENT '플랫폼 태그',
+            device VARCHAR(20) DEFAULT 'Unknown' COMMENT '디바이스 (Desktop/Mobile/Tablet)',
+            os VARCHAR(30) DEFAULT 'Unknown' COMMENT '운영체제',
+            browser VARCHAR(30) DEFAULT 'Unknown' COMMENT '브라우저',
             referer VARCHAR(500) DEFAULT NULL COMMENT '유입 경로',
             user_agent VARCHAR(500) DEFAULT NULL COMMENT '브라우저 정보',
             visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '클릭 시간',
@@ -63,6 +66,9 @@ class SB_Database
             INDEX idx_link_id (link_id),
             INDEX idx_visited_at (visited_at),
             INDEX idx_platform (platform),
+            INDEX idx_device (device),
+            INDEX idx_os (os),
+            INDEX idx_browser (browser),
             INDEX idx_visitor_ip (visitor_ip),
             INDEX idx_link_visited (link_id, visited_at)
         ) $charset_collate;";
@@ -133,7 +139,7 @@ class SB_Database
      * @param string $user_agent User-Agent
      * @return int|false 삽입된 ID 또는 false
      */
-    public static function log_click($link_id, $visitor_ip, $platform, $referer = null, $user_agent = null)
+    public static function log_click($link_id, $visitor_ip, $platform, $referer = null, $user_agent = null, $parsed_ua = [])
     {
         global $wpdb;
 
@@ -145,11 +151,14 @@ class SB_Database
                 'link_id' => $link_id,
                 'visitor_ip' => $visitor_ip,
                 'platform' => $platform,
+                'device' => $parsed_ua['device'] ?? 'Unknown',
+                'os' => $parsed_ua['os'] ?? 'Unknown',
+                'browser' => $parsed_ua['browser'] ?? 'Unknown',
                 'referer' => $referer ? substr($referer, 0, 500) : null,
                 'user_agent' => $user_agent ? substr($user_agent, 0, 500) : null,
                 'visited_at' => current_time('mysql'),
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         return $result ? $wpdb->insert_id : false;
@@ -275,5 +284,22 @@ class SB_Database
         $table = $wpdb->prefix . 'sb_api_keys';
 
         return $wpdb->delete($table, ['id' => $id], ['%d']) !== false;
+    }
+    /**
+     * API 키 소유자 ID 조회
+     * 
+     * @param int $id API 키 ID
+     * @return int|null 소유자 ID 또는 null
+     */
+    public static function get_api_key_owner($id)
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_api_keys';
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT user_id FROM $table WHERE id = %d",
+            $id
+        ));
     }
 }

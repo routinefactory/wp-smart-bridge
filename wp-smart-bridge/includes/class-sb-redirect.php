@@ -97,13 +97,35 @@ class SB_Redirect
         $settings = get_option('sb_settings', []);
         $redirect_delay = isset($settings['redirect_delay']) ? (float) $settings['redirect_delay'] : 0.0;
 
+        // v2.9.22 Feature: Query Parameter Passthrough
+        $query_params = $_GET;
+        unset($query_params['sb_slug']); // 내부 파라미터 제외
+
+        if (!empty($query_params)) {
+            $target_url = add_query_arg($query_params, $target_url);
+        }
+
+        // v2.9.24 Security: Defense in Depth (Protocol validation)
+        $allowed_protocols = ['http', 'https'];
+        $scheme = parse_url($target_url, PHP_URL_SCHEME);
+        if (!in_array($scheme, $allowed_protocols)) {
+            // 비정상적인 프로토콜 감지 시 403 Forbidden
+            wp_die('Invalid redirect target protocol.', 'Security Error', ['response' => 403]);
+        }
+
+        // v2.9.22 Security: Headers
+        header('X-Redirect-By: WP-Smart-Bridge');
+        header('Referrer-Policy: unsafe-url'); // 마케팅 기여도 추적을 위해 Referrer 전달
+
         // 딜레이가 있으면 중간 페이지 표시
         if ($redirect_delay > 0) {
             self::show_redirect_page($link->ID, $target_url, $redirect_delay);
             exit;
         }
 
-        // 즉시 리다이렉트 (302 Temporary - Target URL 수정 가능하도록)
+        // 즉시 리다이렉트 (302 Temporary)
+        // v2.9.24 Fix: Ensure no caching for immediate redirects to maintain stats accuracy
+        nocache_headers();
         wp_redirect($target_url, 302);
         exit;
     }
@@ -122,8 +144,15 @@ class SB_Redirect
         $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : null;
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : null;
 
+        // v2.9.22: Log-time UA Parsing (Scalability Fix)
+        // v2.9.24 Optimization: Static call to reduce memory overhead
+        $parsed_ua = [];
+        if ($user_agent) {
+            $parsed_ua = SB_Analytics::parse_user_agent($user_agent); // User-Agent 파싱
+        }
+
         // 로그 저장
-        SB_Database::log_click($link_id, $hashed_ip, $platform, $referer, $user_agent);
+        SB_Database::log_click($link_id, $hashed_ip, $platform, $referer, $user_agent, $parsed_ua);
     }
 
     /**
@@ -163,6 +192,10 @@ class SB_Redirect
      */
     private static function show_redirect_page($link_id, $target_url, $delay)
     {
+        // v2.9.22 Security: No-Cache & No-Index for intermediate pages
+        nocache_headers();
+        header('X-Robots-Tag: noindex, nofollow');
+
         // 변수가 템플릿에서 사용 가능하도록 설정
         $target_url = esc_url($target_url);
         $delay = intval($delay);

@@ -10,12 +10,12 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// 현재 사용자의 API 키 목록
-$user_id = get_current_user_id();
-$api_keys = SB_Database::get_user_api_keys($user_id);
-$settings = get_option('sb_settings', []);
+// -------------------------------------------------------------------------
+// View Logic Moved to DB_Admin::render_settings()
+// -------------------------------------------------------------------------
 
-$redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay'] : 0;
+// Data is passed from Controller:
+// $api_keys, $settings, $redirect_delay
 ?>
 
 <div class="wrap sb-settings">
@@ -69,8 +69,8 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
                                 <code class="sb-secret-key sb-revealed" style="display: none;">
-                                                                                                                                                            <?php echo esc_html($key['secret_key']); ?>
-                                                                                                                                                        </code>
+                                                                                                                                                                                    <?php echo esc_html($key['secret_key']); ?>
+                                                                                                                                                                                </code>
                                 <button type="button" class="button button-small sb-toggle-secret">
                                     👁️
                                 </button>
@@ -330,7 +330,7 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
             <h4>2. EXE 프로그램 설정</h4>
             <p>EXE 프로그램의 설정에서 다음 정보를 입력합니다:</p>
             <ul>
-                <li><strong>Base URL:</strong> <code><?php echo home_url(); ?></code></li>
+                <li><strong>Base URL:</strong> <code><?php echo esc_url(home_url()); ?></code></li>
                 <li><strong>API Key:</strong> 발급받은 공개 키 (sb_live_xxx)</li>
                 <li><strong>Secret Key:</strong> 발급받은 비밀 키 (sk_secret_xxx)</li>
             </ul>
@@ -345,6 +345,23 @@ $redirect_delay = isset($settings['redirect_delay']) ? $settings['redirect_delay
             </div>
         </div>
     </div>
+</div>
+
+
+<!-- Danger Zone (공장 초기화) -->
+<div style="margin-top: 50px; border: 1px solid #d63638; border-radius: 4px; padding: 20px; background: #fff;">
+    <h3 style="margin-top: 0; color: #d63638; display: flex; align-items: center;">
+        <span class="dashicons dashicons-warning" style="margin-right: 10px;"></span>
+        Danger Zone (위험 구역)
+    </h3>
+    <p style="margin-bottom: 20px;">
+        이 작업은 플러그인의 <strong>모든 데이터(링크, 통계 로그, API 키, 설정)</strong>를 영구적으로 삭제하고 초기 상태로 되돌립니다.<br>
+        <span style="color: #d63638;">삭제된 데이터는 복구할 수 없습니다. 신중하게 진행해주세요.</span>
+    </p>
+    <button type="button" id="sb-factory-reset" class="button button-primary"
+        style="background: #d63638; border-color: #d63638;">
+        Factory Reset (공장 초기화)
+    </button>
 </div>
 
 <!-- 새 키 발급 모달 -->

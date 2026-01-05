@@ -21,6 +21,14 @@ class SB_Backup
     {
         global $wpdb;
 
+        // v2.9.22 Scalability Fix: Increase limits for large datasets
+        if (function_exists('set_time_limit')) {
+            set_time_limit(300); // 5 mins
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M'); // Suppress warning if disabled
+        }
+
         $backup = [
             'version' => SB_VERSION,
             'created_at' => current_time('mysql'),
@@ -28,47 +36,81 @@ class SB_Backup
             'data' => []
         ];
 
-        // 링크 데이터
-        $links = get_posts([
-            'post_type' => 'sb_link',
-            'posts_per_page' => -1,
-            'post_status' => 'any',
-        ]);
-
+        // 1. 링크 데이터 (Batching)
         $backup['data']['links'] = [];
-        foreach ($links as $link) {
-            $backup['data']['links'][] = [
-                'slug' => $link->post_title,
-                'target_url' => get_post_meta($link->ID, 'target_url', true),
-                'platform' => get_post_meta($link->ID, 'platform', true),
-                'created_at' => $link->post_date,
-                'status' => $link->post_status,
-            ];
+        $paged = 1;
+        $posts_per_page = 500;
+
+        while (true) {
+            $links = get_posts([
+                'post_type' => 'sb_link',
+                'posts_per_page' => $posts_per_page,
+                'paged' => $paged,
+                'post_status' => 'any',
+                'orderby' => 'ID',
+                'order' => 'ASC',
+            ]);
+
+            if (empty($links)) {
+                break;
+            }
+
+            foreach ($links as $link) {
+                $backup['data']['links'][] = [
+                    'id' => $link->ID,
+                    'slug' => $link->post_title,
+                    'target_url' => get_post_meta($link->ID, 'target_url', true),
+                    'platform' => get_post_meta($link->ID, 'platform', true),
+                    'created_at' => $link->post_date,
+                    'status' => $link->post_status,
+                ];
+            }
+            $paged++;
+
+            // Safety break for very large sites (prevent infinite loop)
+            if ($paged > 200)
+                break; // 100k links limit
         }
 
-        // 분석 로그 (필요한 컬럼만 선택 - 성능 최적화)
+        // 2. 분석 로그 (Batching using OFFSET for memory safety)
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $logs = $wpdb->get_results(
-            "SELECT link_id, visitor_ip, platform, visited_at 
-             FROM $table 
-             ORDER BY visited_at DESC"
-        );
-
         $backup['data']['analytics'] = [];
-        foreach ($logs as $log) {
-            $backup['data']['analytics'][] = [
-                'link_id' => (int) $log->link_id,
-                'visitor_ip' => $log->visitor_ip,
-                'platform' => $log->platform,
-                'visited_at' => $log->visited_at,
-            ];
+
+        $offset = 0;
+        $limit = 1000;
+
+        while (true) {
+            $logs = $wpdb->get_results($wpdb->prepare(
+                "SELECT link_id, visitor_ip, platform, visited_at 
+                 FROM $table 
+                 ORDER BY id ASC 
+                 LIMIT %d OFFSET %d",
+                $limit,
+                $offset
+            ));
+
+            if (empty($logs)) {
+                break;
+            }
+
+            foreach ($logs as $log) {
+                $backup['data']['analytics'][] = [
+                    'link_id' => (int) $log->link_id,
+                    'visitor_ip' => $log->visitor_ip,
+                    'platform' => $log->platform,
+                    'visited_at' => $log->visited_at,
+                ];
+            }
+            $offset += $limit;
+
+            // Safety limit (e.g., 200k logs for JSON backup to stay somewhat portable)
+            // Beyond this, JSON might not be the right format.
+            if ($offset >= 200000)
+                break;
         }
 
-        // 설정
+        // 3. 설정
         $backup['data']['settings'] = get_option('sb_settings', []);
-
-        // API 키 (선택적 - 보안상 제외 가능)
-        // $backup['data']['api_keys'] = SB_Database::get_all_api_keys();
 
         return $backup;
     }
@@ -112,6 +154,8 @@ class SB_Backup
             'analytics' => 0,
         ];
 
+        $id_map = []; // v2.9.22: Old ID -> New ID 매핑 배열
+
         // 링크 복원
         if (isset($backup['data']['links'])) {
             foreach ($backup['data']['links'] as $link_data) {
@@ -136,6 +180,12 @@ class SB_Backup
                 // 메타 데이터 저장
                 update_post_meta($post_id, 'target_url', $link_data['target_url']);
                 update_post_meta($post_id, 'platform', $link_data['platform']);
+
+                // ID 매핑 기록 (구버전 백업 호환성 고려)
+                if (isset($link_data['id'])) {
+                    $id_map[$link_data['id']] = $post_id;
+                }
+
                 $stats['links']++;
             }
         }
@@ -144,16 +194,27 @@ class SB_Backup
         if (isset($backup['data']['analytics'])) {
             $table = $wpdb->prefix . 'sb_analytics_logs';
             foreach ($backup['data']['analytics'] as $log) {
+
+                // ID 매핑 적용 (복원된 새 ID 사용)
+                $original_link_id = (int) $log['link_id'];
+                $new_link_id = isset($id_map[$original_link_id]) ? $id_map[$original_link_id] : $original_link_id;
+
+                // 유효성 체크: 해당 포스트가 존재해야 함 (고아 데이터 방지)
+                // get_post는 캐시를 사용하므로 성능 영향 적음
+                if (!get_post($new_link_id)) {
+                    continue;
+                }
+
                 // 중복 방지: link_id + visited_at 조합으로 체크
                 $exists = $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(*) FROM $table WHERE link_id = %d AND visited_at = %s",
-                    $log['link_id'],
+                    $new_link_id,
                     $log['visited_at']
                 ));
 
                 if ($exists == 0) {
                     $wpdb->insert($table, [
-                        'link_id' => $log['link_id'],
+                        'link_id' => $new_link_id,
                         'visitor_ip' => $log['visitor_ip'],
                         'platform' => $log['platform'],
                         'visited_at' => $log['visited_at'],

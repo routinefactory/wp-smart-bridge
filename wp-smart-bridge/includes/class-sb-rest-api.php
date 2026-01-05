@@ -27,7 +27,7 @@ class SB_Rest_API
         register_rest_route(self::NAMESPACE , '/links', [
             'methods' => 'POST',
             'callback' => [__CLASS__, 'create_link'],
-            'permission_callback' => '__return_true', // 커스텀 인증 사용
+            'permission_callback' => [__CLASS__, 'check_create_permission'], // v2.9.22 Security Fix
         ]);
 
         // GET /stats - 통계 조회 (Dashboard용)
@@ -93,23 +93,32 @@ class SB_Rest_API
     }
 
     /**
+     * 링크 생성 권한 확인 (HMAC 인증)
+     */
+    public static function check_create_permission(WP_REST_Request $request)
+    {
+        $auth_result = SB_Security::authenticate_request($request);
+        if (is_wp_error($auth_result)) {
+            return $auth_result;
+        }
+        return true;
+    }
+
+    /**
      * 링크 생성 API (EXE 전용)
      * 
      * @param WP_REST_Request $request REST 요청
      * @return WP_REST_Response|WP_Error 응답
      */
-    public static function create_link($request)
+    public static function create_link(WP_REST_Request $request)
     {
-        // 1. 인증 수행
-        $auth_result = SB_Security::authenticate_request($request);
-        if (is_wp_error($auth_result)) {
-            return $auth_result;
-        }
+        // 1. 인증은 permission_callback에서 처리됨
 
         // 2. 요청 파라미터 추출
         $params = $request->get_json_params();
-        $target_url = isset($params['target_url']) ? $params['target_url'] : '';
-        $custom_slug = isset($params['slug']) ? $params['slug'] : null;
+        // v2.9.22 보안 강화: 입력값 명시적 Sanitize
+        $target_url = isset($params['target_url']) ? esc_url_raw($params['target_url']) : '';
+        $custom_slug = isset($params['slug']) ? sanitize_text_field($params['slug']) : null;
 
         // 3. URL 유효성 검증
         if (!SB_Helpers::validate_url($target_url)) {
@@ -143,7 +152,7 @@ class SB_Rest_API
             $slug = $custom_slug;
         } else {
             // 자동 생성 (Base62, 6자리)
-            $slug = SB_Helpers::generate_unique_slug(6, 3);
+            $slug = SB_Helpers::generate_unique_slug(SB_Helpers::DEFAULT_SLUG_LENGTH, SB_Helpers::MAX_SLUG_RETRIES);
 
             if (!$slug) {
                 return new WP_Error(
@@ -168,6 +177,27 @@ class SB_Rest_API
                 'click_count' => 0,
             ],
         ]);
+
+        // v2.9.22 Security: Verify proper slug assignment (Race Condition Check)
+        // 만약 커스텀 슬러그 요청이었는데, WP가 중복으로 인해 'slug-2'로 변경했다면 실패 처리
+        if ($custom_slug) {
+            $inserted_post = get_post($post_id);
+            if ($inserted_post->post_name !== $custom_slug) {
+                // 중복 발생 (Race Condition caught)
+                wp_delete_post($post_id, true);
+                return new WP_Error(
+                    'conflict',
+                    'Slug collision detected. Please try again.',
+                    ['status' => 409]
+                );
+            }
+        } else {
+            // 자동 생성의 경우, 변경된 slug(post_name)를 최종 slug로 채택
+            $post_name = get_post_field('post_name', $post_id);
+            if ($post_name) {
+                $slug = $post_name;
+            }
+        }
 
         // 에러 체크: WP_Error 또는 0 반환
         if (is_wp_error($post_id)) {
@@ -200,7 +230,7 @@ class SB_Rest_API
     /**
      * 날짜 범위 파라미터 파싱 헬퍼
      */
-    private static function parse_date_params($request)
+    private static function parse_date_params(WP_REST_Request $request)
     {
         $range = $request->get_param('range') ?: '30d';
         $start_date = $request->get_param('start_date');
@@ -229,7 +259,7 @@ class SB_Rest_API
      * @param WP_REST_Request $request REST 요청
      * @return WP_REST_Response 응답
      */
-    public static function get_stats($request)
+    public static function get_stats(WP_REST_Request $request)
     {
         $params = self::parse_date_params($request);
         $date_range = $params['date_range'];
@@ -301,7 +331,7 @@ class SB_Rest_API
     /**
      * 유입 경로 분석 API
      */
-    public static function get_referer_analytics($request)
+    public static function get_referer_analytics(WP_REST_Request $request)
     {
         $params = self::parse_date_params($request);
         $date_range = $params['date_range'];
@@ -332,7 +362,7 @@ class SB_Rest_API
     /**
      * 디바이스 분석 API
      */
-    public static function get_device_analytics($request)
+    public static function get_device_analytics(WP_REST_Request $request)
     {
         $params = self::parse_date_params($request);
         $date_range = $params['date_range'];
@@ -376,7 +406,7 @@ class SB_Rest_API
     /**
      * 기간 비교 API
      */
-    public static function get_period_comparison($request)
+    public static function get_period_comparison(WP_REST_Request $request)
     {
         $params = self::parse_date_params($request);
         $platform_filter = $params['platform'];
@@ -420,7 +450,7 @@ class SB_Rest_API
     /**
      * 패턴 분석 API (요일, 재방문, 이상치)
      */
-    public static function get_pattern_analytics($request)
+    public static function get_pattern_analytics(WP_REST_Request $request)
     {
         $params = self::parse_date_params($request);
         $date_range = $params['date_range'];
@@ -459,7 +489,7 @@ class SB_Rest_API
     /**
      * 개별 링크 상세 분석 API
      */
-    public static function get_link_analytics($request)
+    public static function get_link_analytics(WP_REST_Request $request)
     {
         $link_id = (int) $request->get_param('id');
         $params = self::parse_date_params($request);
@@ -515,7 +545,7 @@ class SB_Rest_API
      * @param WP_REST_Request $request REST 요청
      * @return WP_REST_Response 응답
      */
-    public static function get_links($request)
+    public static function get_links(WP_REST_Request $request)
     {
         $page = $request->get_param('page') ?: 1;
         $per_page = $request->get_param('per_page') ?: 20;
@@ -523,6 +553,9 @@ class SB_Rest_API
         $order = $request->get_param('order') ?: 'desc';
         $platform = $request->get_param('platform');
         $search = $request->get_param('search');
+
+        // v2.9.22 Security: Enforce upper bound to prevent DoS (OOM)
+        $per_page = min(intval($per_page), 100);
 
         $args = [
             'post_type' => 'sb_link',

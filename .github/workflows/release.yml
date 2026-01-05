@@ -35,6 +35,15 @@ jobs:
           echo "📌 Building version: $VERSION"
       
       # ===============================================================
+      # Step 2.5: PHP 문법 검사 (Lint)
+      # ===============================================================
+      - name: Check PHP Syntax
+        run: |
+          echo "🔍 Checking PHP syntax..."
+          find wp-smart-bridge -name "*.php" -print0 | xargs -0 -n1 php -l
+          echo "✅ PHP syntax check passed."
+
+      # ===============================================================
       # Step 3: ZIP 아카이브 생성 (WordPress 플러그인 표준)
       # ===============================================================
       - name: Create WordPress Plugin ZIP

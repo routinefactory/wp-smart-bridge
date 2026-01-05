@@ -12,6 +12,11 @@ if (!defined('ABSPATH')) {
 
 class SB_Analytics
 {
+    /**
+     * 통계 캐시 만료 시간 (10분)
+     */
+    const CACHE_EXPIRATION = 600;
+
 
     /**
      * 총 클릭 수 조회
@@ -21,9 +26,15 @@ class SB_Analytics
      * @param string|null $platform 플랫폼 필터
      * @return int 클릭 수
      */
-    public function get_total_clicks($start_date, $end_date, $platform = null)
+    public function get_total_clicks(string $start_date, string $end_date, ?string $platform = null): int
     {
         global $wpdb;
+
+        $cache_key = 'sb_tc_' . md5($start_date . $end_date . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return (int) $cached;
+        }
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
@@ -35,7 +46,10 @@ class SB_Analytics
             $params[] = $platform;
         }
 
-        return (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+        $count = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+        set_transient($cache_key, $count, self::CACHE_EXPIRATION);
+
+        return $count;
     }
 
     /**
@@ -46,9 +60,15 @@ class SB_Analytics
      * @param string|null $platform 플랫폼 필터
      * @return int 고유 방문자 수
      */
-    public function get_unique_visitors($start_date, $end_date, $platform = null)
+    public function get_unique_visitors(string $start_date, string $end_date, ?string $platform = null): int
     {
         global $wpdb;
+
+        $cache_key = 'sb_uv_' . md5($start_date . $end_date . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return (int) $cached;
+        }
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
@@ -60,7 +80,10 @@ class SB_Analytics
             $params[] = $platform;
         }
 
-        return (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+        $count = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+        set_transient($cache_key, $count, self::CACHE_EXPIRATION);
+
+        return $count;
     }
 
     /**
@@ -68,8 +91,15 @@ class SB_Analytics
      * 
      * @return float 증감률 (%)
      */
-    public function get_growth_rate($platform = null)
+    public function get_growth_rate(?string $platform = null): float
     {
+        // 캐싱 적용 (1시간 - 오늘 날짜가 바뀌지 않는 한 유효)
+        $cache_key = 'sb_gr_' . md5(date('Y-m-d') . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return (float) $cached;
+        }
+
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
@@ -78,11 +108,18 @@ class SB_Analytics
         $today = new DateTime('now', $timezone);
         $yesterday = new DateTime('yesterday', $timezone);
 
-        $sql_today = "SELECT COUNT(*) FROM $table WHERE DATE(visited_at) = %s";
-        $params_today = [$today->format('Y-m-d')];
+        // v2.9.22 성능 최적화: DATE() 함수 제거하고 인덱스 활용 (Range Scan)
+        $sql_today = "SELECT COUNT(*) FROM $table WHERE visited_at >= %s AND visited_at <= %s";
+        $params_today = [
+            $today->format('Y-m-d 00:00:00'),
+            $today->format('Y-m-d 23:59:59')
+        ];
 
-        $sql_yesterday = "SELECT COUNT(*) FROM $table WHERE DATE(visited_at) = %s";
-        $params_yesterday = [$yesterday->format('Y-m-d')];
+        $sql_yesterday = "SELECT COUNT(*) FROM $table WHERE visited_at >= %s AND visited_at <= %s";
+        $params_yesterday = [
+            $yesterday->format('Y-m-d 00:00:00'),
+            $yesterday->format('Y-m-d 23:59:59')
+        ];
 
         if ($platform) {
             $sql_today .= " AND platform = %s";
@@ -99,10 +136,13 @@ class SB_Analytics
 
         // 증감률 계산
         if ($yesterday_clicks === 0) {
-            return $today_clicks > 0 ? 100.0 : 0.0;
+            $rate = $today_clicks > 0 ? 100.0 : 0.0;
+        } else {
+            $rate = round((($today_clicks - $yesterday_clicks) / $yesterday_clicks) * 100, 1);
         }
 
-        return round((($today_clicks - $yesterday_clicks) / $yesterday_clicks) * 100, 1);
+        set_transient($cache_key, $rate, self::CACHE_EXPIRATION);
+        return $rate;
     }
 
     /**
@@ -110,17 +150,10 @@ class SB_Analytics
      * 
      * @return int 링크 수
      */
-    public function get_active_links_count()
+    public function get_active_links_count(): int
     {
-        $query = new WP_Query([
-            'post_type' => 'sb_link',
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'fields' => 'ids',
-            'no_found_rows' => false,
-        ]);
-
-        return $query->found_posts;
+        $counts = wp_count_posts('sb_link');
+        return (int) ($counts->publish ?? 0);
     }
 
     /**
@@ -130,9 +163,15 @@ class SB_Analytics
      * @param string $end_date 종료 날짜
      * @return array 24개 요소 배열
      */
-    public function get_clicks_by_hour($start_date, $end_date, $platform = null)
+    public function get_clicks_by_hour(string $start_date, string $end_date, ?string $platform = null): array
     {
         global $wpdb;
+
+        $cache_key = 'sb_cbh_' . md5($start_date . $end_date . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
@@ -157,6 +196,8 @@ class SB_Analytics
             $clicks_by_hour[(int) $row['hour']] = (int) $row['clicks'];
         }
 
+        set_transient($cache_key, $clicks_by_hour, self::CACHE_EXPIRATION);
+
         return $clicks_by_hour;
     }
 
@@ -167,9 +208,15 @@ class SB_Analytics
      * @param string $end_date 종료 날짜
      * @return array 플랫폼 => 클릭 수
      */
-    public function get_platform_share($start_date, $end_date)
+    public function get_platform_share(string $start_date, string $end_date): array
     {
         global $wpdb;
+
+        $cache_key = 'sb_ps_' . md5($start_date . $end_date);
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
@@ -189,6 +236,8 @@ class SB_Analytics
             $platform_share[$row['platform']] = (int) $row['clicks'];
         }
 
+        set_transient($cache_key, $platform_share, self::CACHE_EXPIRATION);
+
         return $platform_share;
     }
 
@@ -198,9 +247,16 @@ class SB_Analytics
      * @param int $days 일수
      * @return array 날짜별 클릭 수 배열
      */
-    public function get_daily_trend($start_date, $end_date, $platform = null)
+    public function get_daily_trend(string $start_date, string $end_date, ?string $platform = null): array
     {
         global $wpdb;
+
+        $cache_key = 'sb_dt_' . md5($start_date . $end_date . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            // 날짜 객체 재구성이 필요한지 확인 (단순 배열 반환이므로 불필요)
+            return $cached;
+        }
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
@@ -239,6 +295,8 @@ class SB_Analytics
             $current->modify('+1 day');
         }
 
+        set_transient($cache_key, $daily_trend, self::CACHE_EXPIRATION);
+
         return $daily_trend;
     }
 
@@ -249,7 +307,7 @@ class SB_Analytics
      * @param int $days 일수
      * @return array 통계 데이터
      */
-    public function get_link_stats($link_id, $days = 30)
+    public function get_link_stats(int $link_id, int $days = 30): array
     {
         global $wpdb;
 
@@ -304,8 +362,14 @@ class SB_Analytics
      * 
      * @return array 플랫폼 목록
      */
-    public function get_available_platforms()
+    public function get_available_platforms(): array
     {
+        $cache_key = 'sb_platforms';
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
+
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
@@ -314,7 +378,9 @@ class SB_Analytics
             "SELECT DISTINCT platform FROM $table WHERE platform IS NOT NULL AND platform != '' ORDER BY platform ASC"
         );
 
-        return $platforms ?: [];
+        $result = $platforms ?: [];
+        set_transient($cache_key, $result, self::CACHE_EXPIRATION);
+        return $result;
     }
 
     /**
@@ -326,8 +392,14 @@ class SB_Analytics
      * @param int $limit 개수
      * @return array 링크 목록
      */
-    public function get_top_links($start_date, $end_date, $platform = null, $limit = 20)
+    public function get_top_links(string $start_date, string $end_date, ?string $platform = null, int $limit = 20): array
     {
+        $cache_key = 'sb_top_' . md5($start_date . $end_date . serialize($platform) . $limit);
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
+
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
@@ -392,6 +464,8 @@ class SB_Analytics
             ];
         }
 
+        set_transient($cache_key, $links, self::CACHE_EXPIRATION);
+
         return $links;
     }
 
@@ -402,8 +476,14 @@ class SB_Analytics
      * @param string|null $platform 플랫폼 필터
      * @return array 링크 목록
      */
-    public function get_all_time_top_links($limit = 100, $platform = null)
+    public function get_all_time_top_links(int $limit = 100, ?string $platform = null): array
     {
+        $cache_key = 'sb_all_top_' . md5((string) $limit . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
+
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
@@ -451,6 +531,8 @@ class SB_Analytics
             }
         }
 
+        set_transient($cache_key, $top_links, self::CACHE_EXPIRATION);
+
         return $top_links;
     }
 
@@ -460,7 +542,7 @@ class SB_Analytics
      * @param int $link_id 링크 ID
      * @return int 오늘 UV
      */
-    public function get_link_today_uv($link_id)
+    public function get_link_today_uv(int $link_id): int
     {
         global $wpdb;
 
@@ -483,7 +565,7 @@ class SB_Analytics
      * @param int $link_id 링크 ID
      * @return int 누적 UV
      */
-    public function get_link_total_uv($link_id)
+    public function get_link_total_uv(int $link_id): int
     {
         global $wpdb;
 
@@ -501,7 +583,7 @@ class SB_Analytics
      * @param int $link_id 링크 ID
      * @return int 오늘 클릭수
      */
-    public function get_link_today_clicks($link_id)
+    public function get_link_today_clicks(int $link_id): int
     {
         global $wpdb;
 
@@ -523,7 +605,7 @@ class SB_Analytics
      * 
      * @return int 오늘 총 클릭수
      */
-    public function get_today_total_clicks()
+    public function get_today_total_clicks(): int
     {
         global $wpdb;
 
@@ -543,7 +625,7 @@ class SB_Analytics
      * 
      * @return int 오늘 UV
      */
-    public function get_today_unique_visitors()
+    public function get_today_unique_visitors(): int
     {
         global $wpdb;
 
@@ -563,7 +645,7 @@ class SB_Analytics
      * 
      * @return int 누적 총 클릭수
      */
-    public function get_cumulative_total_clicks()
+    public function get_cumulative_total_clicks(): int
     {
         global $wpdb;
 
@@ -577,7 +659,7 @@ class SB_Analytics
      * 
      * @return int 누적 UV
      */
-    public function get_cumulative_unique_visitors()
+    public function get_cumulative_unique_visitors(): int
     {
         global $wpdb;
 
@@ -592,7 +674,7 @@ class SB_Analytics
      * @param int $link_id 링크 ID
      * @return int 누적 클릭수
      */
-    public function get_link_cumulative_clicks($link_id)
+    public function get_link_cumulative_clicks(int $link_id): int
     {
         global $wpdb;
 
@@ -777,7 +859,8 @@ class SB_Analytics
         // 검색 도메인 목록
         $search_domains = ['google.com', 'google.co.kr', 'bing.com', 'yahoo.com', 'naver.com', 'daum.net', 'zum.com', 'duckduckgo.com', 'baidu.com'];
 
-        $sql = "SELECT referer FROM $table WHERE visited_at BETWEEN %s AND %s";
+        // v2.9.23 Performance Fix: Use GROUP BY in SQL to prevent OOM
+        $sql = "SELECT referer, COUNT(*) as count FROM $table WHERE visited_at BETWEEN %s AND %s";
         $params = [$start_date, $end_date];
 
         if ($platform) {
@@ -785,7 +868,9 @@ class SB_Analytics
             $params[] = $platform;
         }
 
-        $results = $wpdb->get_col($wpdb->prepare($sql, $params));
+        $sql .= " GROUP BY referer";
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
         $groups = [
             'Direct' => 0,
@@ -794,9 +879,12 @@ class SB_Analytics
             'Other' => 0,
         ];
 
-        foreach ($results as $referer) {
+        foreach ($results as $row) {
+            $referer = $row['referer'];
+            $count = (int) $row['count'];
+
             if (empty($referer)) {
-                $groups['Direct']++;
+                $groups['Direct'] += $count;
                 continue;
             }
 
@@ -806,25 +894,26 @@ class SB_Analytics
             // SNS 체크
             foreach ($sns_domains as $domain) {
                 if (strpos($referer_lower, $domain) !== false) {
-                    $groups['SNS']++;
+                    $groups['SNS'] += $count;
+                    $found = true;
+                    break;
+                }
+            }
+
+            if ($found)
+                continue;
+
+            // Search 체크
+            foreach ($search_domains as $domain) {
+                if (strpos($referer_lower, $domain) !== false) {
+                    $groups['Search'] += $count;
                     $found = true;
                     break;
                 }
             }
 
             if (!$found) {
-                // 검색 체크
-                foreach ($search_domains as $domain) {
-                    if (strpos($referer_lower, $domain) !== false) {
-                        $groups['Search']++;
-                        $found = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!$found) {
-                $groups['Other']++;
+                $groups['Other'] += $count;
             }
         }
 
@@ -841,7 +930,13 @@ class SB_Analytics
      * @param string $user_agent User-Agent 문자열
      * @return array ['device' => string, 'os' => string, 'browser' => string]
      */
-    private function parse_user_agent($user_agent)
+    /**
+     * User-Agent 파싱하여 디바이스 정보 추출
+     * 
+     * @param string $user_agent User-Agent 문자열
+     * @return array ['device' => string, 'os' => string, 'browser' => string]
+     */
+    public static function parse_user_agent($user_agent)
     {
         $result = [
             'device' => 'Unknown',
@@ -954,7 +1049,9 @@ class SB_Analytics
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $sql = "SELECT user_agent FROM $table WHERE visited_at BETWEEN %s AND %s";
+        $sql = "SELECT os, COUNT(*) as count 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
         $params = [$start_date, $end_date];
 
         if ($platform) {
@@ -962,20 +1059,16 @@ class SB_Analytics
             $params[] = $platform;
         }
 
-        $results = $wpdb->get_col($wpdb->prepare($sql, $params));
+        $sql .= " GROUP BY os ORDER BY count DESC LIMIT 10";
 
-        $os_stats = [];
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
-        foreach ($results as $ua) {
-            $parsed = $this->parse_user_agent($ua);
-            if (!isset($os_stats[$parsed['os']])) {
-                $os_stats[$parsed['os']] = 0;
-            }
-            $os_stats[$parsed['os']]++;
+        $stats = [];
+        foreach ($results as $row) {
+            $stats[$row['os']] = (int) $row['count'];
         }
 
-        arsort($os_stats);
-        return $os_stats;
+        return $stats;
     }
 
     /**
@@ -992,7 +1085,9 @@ class SB_Analytics
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $sql = "SELECT user_agent FROM $table WHERE visited_at BETWEEN %s AND %s";
+        $sql = "SELECT browser, COUNT(*) as count 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
         $params = [$start_date, $end_date];
 
         if ($platform) {
@@ -1000,20 +1095,16 @@ class SB_Analytics
             $params[] = $platform;
         }
 
-        $results = $wpdb->get_col($wpdb->prepare($sql, $params));
+        $sql .= " GROUP BY browser ORDER BY count DESC LIMIT 10";
 
-        $browser_stats = [];
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
-        foreach ($results as $ua) {
-            $parsed = $this->parse_user_agent($ua);
-            if (!isset($browser_stats[$parsed['browser']])) {
-                $browser_stats[$parsed['browser']] = 0;
-            }
-            $browser_stats[$parsed['browser']]++;
+        $stats = [];
+        foreach ($results as $row) {
+            $stats[$row['browser']] = (int) $row['count'];
         }
 
-        arsort($browser_stats);
-        return $browser_stats;
+        return $stats;
     }
 
     /**
@@ -1030,7 +1121,11 @@ class SB_Analytics
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $sql = "SELECT DATE(visited_at) as date, user_agent 
+        // v2.9.22 Optimized: Use SQL grouping (OOM Prevention)
+        $sql = "SELECT 
+                    DATE(visited_at) as date, 
+                    SUM(CASE WHEN device = 'Mobile' THEN 1 ELSE 0 END) as mobile,
+                    COUNT(*) as total
                 FROM $table 
                 WHERE visited_at BETWEEN %s AND %s";
         $params = [$start_date, $end_date];
@@ -1040,24 +1135,16 @@ class SB_Analytics
             $params[] = $platform;
         }
 
-        $sql .= " ORDER BY date";
+        $sql .= " GROUP BY DATE(visited_at) ORDER BY date";
 
         $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
         $daily_data = [];
-
         foreach ($results as $row) {
-            $date = $row['date'];
-            $parsed = $this->parse_user_agent($row['user_agent']);
-
-            if (!isset($daily_data[$date])) {
-                $daily_data[$date] = ['mobile' => 0, 'total' => 0];
-            }
-
-            $daily_data[$date]['total']++;
-            if ($parsed['device'] === 'Mobile') {
-                $daily_data[$date]['mobile']++;
-            }
+            $daily_data[$row['date']] = [
+                'mobile' => (int) $row['mobile'],
+                'total' => (int) $row['total']
+            ];
         }
 
         $trend = [];
@@ -1433,34 +1520,44 @@ class SB_Analytics
     public function get_link_device_breakdown($link_id, $start_date, $end_date)
     {
         global $wpdb;
-
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $sql = "SELECT user_agent FROM $table WHERE link_id = %d AND visited_at BETWEEN %s AND %s";
-        $results = $wpdb->get_col($wpdb->prepare($sql, $link_id, $start_date, $end_date));
-
+        // v2.9.22 SQL Aggregation (OOM Prevention)
+        $device_sql = $wpdb->prepare(
+            "SELECT device, COUNT(*) as count FROM $table WHERE link_id = %d AND visited_at BETWEEN %s AND %s GROUP BY device",
+            $link_id,
+            $start_date,
+            $end_date
+        );
+        $device_results = $wpdb->get_results($device_sql, ARRAY_A);
         $devices = ['Desktop' => 0, 'Mobile' => 0, 'Tablet' => 0];
-        $browsers = [];
-        $os_list = [];
-
-        foreach ($results as $ua) {
-            $parsed = $this->parse_user_agent($ua);
-
-            $devices[$parsed['device']]++;
-
-            if (!isset($browsers[$parsed['browser']])) {
-                $browsers[$parsed['browser']] = 0;
-            }
-            $browsers[$parsed['browser']]++;
-
-            if (!isset($os_list[$parsed['os']])) {
-                $os_list[$parsed['os']] = 0;
-            }
-            $os_list[$parsed['os']]++;
+        foreach ($device_results as $row) {
+            $devices[$row['device']] = (int) $row['count'];
         }
 
-        arsort($browsers);
-        arsort($os_list);
+        $os_sql = $wpdb->prepare(
+            "SELECT os, COUNT(*) as count FROM $table WHERE link_id = %d AND visited_at BETWEEN %s AND %s GROUP BY os ORDER BY count DESC LIMIT 10",
+            $link_id,
+            $start_date,
+            $end_date
+        );
+        $os_results = $wpdb->get_results($os_sql, ARRAY_A);
+        $os_list = [];
+        foreach ($os_results as $row) {
+            $os_list[$row['os']] = (int) $row['count'];
+        }
+
+        $browser_sql = $wpdb->prepare(
+            "SELECT browser, COUNT(*) as count FROM $table WHERE link_id = %d AND visited_at BETWEEN %s AND %s GROUP BY browser ORDER BY count DESC LIMIT 10",
+            $link_id,
+            $start_date,
+            $end_date
+        );
+        $browser_results = $wpdb->get_results($browser_sql, ARRAY_A);
+        $browsers = [];
+        foreach ($browser_results as $row) {
+            $browsers[$row['browser']] = (int) $row['count'];
+        }
 
         return [
             'devices' => $devices,
