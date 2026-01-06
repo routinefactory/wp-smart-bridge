@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.0.5');
+define('SB_VERSION', '3.0.6');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -329,6 +329,23 @@ class WP_Smart_Bridge
              * 업그레이드 로직이 실행되지 않습니다.
              */
             update_option('sb_version', SB_VERSION);
+
+            /**
+             * v3.0.5 CRITICAL FIX: Flush Rewrite Rules on Upgrade
+             * 
+             * PROBLEM: After plugin update, WordPress 404s on /go/xxx/ URLs
+             * because rewrite rules haven't been refreshed.
+             * 
+             * ROOT CAUSE: Plugin updates don't trigger activation hook,
+             * so flush_rewrite_rules() was never called after update.
+             * 
+             * SOLUTION: Explicitly register and flush rewrite rules
+             * during version upgrade process.
+             * 
+             * @see class-sb-redirect.php Line 39 for rewrite rule pattern
+             */
+            SB_Redirect::add_rewrite_rules();
+            flush_rewrite_rules();
 
             /**
              * 🔔 업그레이드 완료 알림 (관리자 전용)

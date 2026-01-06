@@ -332,16 +332,81 @@ class SB_Admin_Ajax
         // 404 코드 또는 응답 본문에 "페이지를 찾을 수 없" 포함 시 실패로 판단
         $is_404 = ($response_code === 404);
 
-        // 일부 테마는 404를 200으로 반환하므로 본문도 체크
+        /**
+         * v3.0.5: Enhanced 404 Detection Patterns
+         * 
+         * Different WordPress themes and languages return different 404 messages.
+         * We need to detect common patterns across:
+         * - Korean, English, Japanese, Chinese, German, French, Spanish sites
+         * - Popular themes (GeneratePress, Astra, Divi, etc.)
+         * 
+         * STRATEGY: 
+         * 1. Check for common 404 text patterns (negative match)
+         * 2. Check for ABSENCE of our bridge page signature (positive match)
+         */
         if (!$is_404 && $response_code === 200) {
             $body_lower = mb_strtolower($response_body);
-            if (
-                strpos($body_lower, '찾을 수 없') !== false ||
-                strpos($body_lower, 'not found') !== false ||
-                strpos($body_lower, 'page not found') !== false ||
-                strpos($body_lower, '404') !== false
-            ) {
-                $is_404 = true;
+
+            // Common 404 page indicators across languages/themes
+            $error_patterns = [
+                // Korean
+                '찾을 수 없',     // "찾을 수 없음" / "찾을 수 없습니다"
+                '존재하지 않',   // "존재하지 않습니다"
+                '페이지가 없',   // "페이지가 없습니다"
+                '오류가 발생',   // "오류가 발생했습니다"
+
+                // English
+                'not found',
+                'page not found',
+                'doesn\'t exist',
+                'does not exist',
+                'no longer available',
+                'couldn\'t find',
+                'could not find',
+
+                // Japanese
+                'ページが見つかりません',
+                '見つかりません',
+
+                // German
+                'nicht gefunden',
+                'seite nicht gefunden',
+
+                // French  
+                'page introuvable',
+                'n\'existe pas',
+
+                // Spanish
+                'página no encontrada',
+                'no encontrado',
+
+                // Generic
+                'error 404',
+                '404 error',
+                'oops!',
+            ];
+
+            foreach ($error_patterns as $pattern) {
+                if (strpos($body_lower, $pattern) !== false) {
+                    $is_404 = true;
+                    break;
+                }
+            }
+
+            // Positive check: If our bridge page signature is missing, it's likely 404
+            // Our bridge page always contains these unique identifiers
+            if (!$is_404) {
+                $has_bridge_signature = (
+                    strpos($body_lower, 'countdown') !== false ||
+                    strpos($body_lower, '즉시 연결') !== false ||
+                    strpos($body_lower, 'action-btn') !== false ||
+                    strpos($body_lower, 'progress-ring') !== false
+                );
+
+                // If none of our bridge page markers found, probably 404
+                if (!$has_bridge_signature) {
+                    $is_404 = true;
+                }
             }
         }
 
@@ -594,22 +659,38 @@ class SB_Admin_Ajax
         // 1. Daily Trend
         $daily_trend = $analytics->get_daily_trend($start, $end, $platform);
 
+        // v3.0.4: Weekly & Monthly Trends
+        $weekly_trend = $analytics->get_weekly_trend(30, $platform); // Note: Weekly/Monthly usually fixed range, but passing platform if supported
+        $monthly_trend = $analytics->get_monthly_trend(30, $platform);
+
         // 2. Hourly Stats
         $clicks_by_hour = $analytics->get_clicks_by_hour($start, $end, $platform);
 
         // 3. Platform Share
         $platform_share = $analytics->get_platform_share_filtered($start, $end, $platform);
 
-        // Optional: Filter by specific platform if requested (Assuming Analytics class supports this, otherwise we might ignore platform filter for globals if implementation doesn't support it easily)
-        // Currently DB implementation of get_daily_trend usually doesn't take platform. 
-        // If we want to be strict, we would need to pass platform to these methods. 
-        // For now, assuming they return global stats or the methods need update.
-        // Given complexity, we return standard stats. Ideally SB_Analytics should be updated to support filtering.
+        // 4. Summary Stats (Total, Today, Growth) - Filtered
+        // Note: For 'today' stats, we might need separate logic if range is not 'today'
+        // But dashboard usually shows "Total Clicks (in range)" or "Total Clicks (All Time)"?
+        // User wants filters to apply to EVERYTHING.
+        // Let's get "Total Clicks in Period" and "Unique Visitors in Period"
+        $period_stats = $analytics->get_period_stats($start, $end, $platform); // Need to check if this method exists or create it
+
+        // 5. Top Links (Filtered)
+        $top_links = $analytics->get_top_links($start, $end, 5, $platform);
 
         wp_send_json_success([
             'dailyTrend' => $daily_trend,
+            'weeklyTrend' => $weekly_trend,
+            'monthlyTrend' => $monthly_trend,
             'clicksByHour' => $clicks_by_hour,
-            'platformShare' => $platform_share
+            'platformShare' => $platform_share,
+            'summary' => [
+                'total_clicks' => $period_stats['total_clicks'] ?? 0,
+                'unique_visitors' => $period_stats['unique_visitors'] ?? 0,
+                // Add more summary stats if needed
+            ],
+            'topLinks' => $top_links
         ]);
     }
 

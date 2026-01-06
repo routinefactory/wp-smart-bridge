@@ -17,6 +17,33 @@ class SB_Analytics
      */
     const CACHE_EXPIRATION = 600;
 
+    /**
+     * 기간별 요약 통계 조회 (필터 지원)
+     * v3.0.4: Dashboard Summary Cards Refresh
+     */
+    public function get_period_stats(string $start_date, string $end_date, ?string $platform = null): array
+    {
+        // 1. Total Clicks in Period
+        $total_clicks = $this->get_total_clicks($start_date, $end_date, $platform);
+
+        // 2. Unique Visitors in Period
+        $unique_visitors = $this->get_unique_visitors($start_date, $end_date, $platform);
+
+        // 3. Growth Rate (Today vs Yesterday)
+        // Note: Growth rate logic in dashboard usually compares "Today vs Yesterday"
+        // regardless of the selected date range, OR compares "Current Period vs Previous Period".
+        // The dashboard currently shows "vs Yesterday".
+        // If we want to support period comparison, we need complex logic.
+        // For now, let's keep "vs Yesterday" but respect platform filter.
+        $growth_rate = $this->get_growth_rate($platform);
+
+        return [
+            'total_clicks' => $total_clicks,
+            'unique_visitors' => $unique_visitors,
+            'growth_rate' => $growth_rate
+        ];
+    }
+
 
     /**
      * 총 클릭 수 조회
@@ -705,7 +732,8 @@ class SB_Analytics
                 'slug' => $slug,
                 'short_link' => SB_Helpers::get_short_link_url($slug), // ✅ 실제 단축 URL 생성
                 'target_url' => get_post_meta($post->ID, 'target_url', true),
-                'platform' => get_post_meta($post->ID, 'platform', true),
+                // v3.0.5: If filtered by platform, reflect that in the badge even if meta is empty
+                'platform' => get_post_meta($post->ID, 'platform', true) ?: ($platform ?: ''),
                 'clicks' => (int) $result->clicks,
             ];
         }

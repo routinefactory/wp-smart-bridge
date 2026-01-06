@@ -91,8 +91,17 @@
             success: function (response) {
                 if (response.success) {
                     SB_Chart.initTrafficTrend(response.data.dailyTrend);
+
+                    // v3.0.4: Refresh Multi-Period Trend Charts
+                    if (response.data.weeklyTrend) SB_Chart.initWeeklyTrend(response.data.weeklyTrend);
+                    if (response.data.monthlyTrend) SB_Chart.initMonthlyTrend(response.data.monthlyTrend);
+
                     SB_Chart.initHourly(response.data.clicksByHour);
                     SB_Chart.initPlatform(response.data.platformShare);
+
+                    // v3.0.4: Update Summary & Top Links (Filter Consistency)
+                    if (response.data.summary) updateSummaryStats(response.data.summary);
+                    if (response.data.topLinks) updateTopLinksTable(response.data.topLinks);
                 } else {
                     SB_UI.showToast(response.data.message || __('error_occurred', 'Error occurred'), 'error');
                 }
@@ -110,7 +119,9 @@
         // Ensure functions return the ajax promise object
         requests.push(loadRefererAnalytics());
         requests.push(loadDeviceAnalytics());
-        // v3.0.4: Removed - requests.push(loadPatternAnalytics()); // Pattern Analytics feature removed
+
+        // v3.0.5: Reload Realtime Feed with new filters
+        initRealtimeFeed();
 
         // 3. Synchronize Completion (Wait for ALL requests)
         // Using Promise.allSettled-like behavior via jQuery.when or Promise.all
@@ -320,7 +331,6 @@
                             '<h3>⚠️ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.permalink_error_title || '단축 링크가 작동하지 않습니다!' : 'Short links are not working!') + '</h3>' +
                             '<p>' + (typeof sb_i18n !== 'undefined' ? sb_i18n.permalink_error_msg || '퍼마링크 설정이 필요합니다. 아래 버튼을 클릭하여 설정 페이지로 이동한 후, "변경사항 저장" 버튼을 클릭해주세요.' : 'Permalinks need to be flushed.') + '</p>' +
                             '<p><a href="' + sbAdmin.adminUrl + 'options-permalink.php" class="button button-primary">' +
-                            (typeof sb_i18n !== 'undefined' ? sb_i18n.go_to_permalinks || '퍼마링크 설정으로 이동' : 'Go to Permalinks') + ' →</a></p>' +
                             (typeof sb_i18n !== 'undefined' ? sb_i18n.go_to_permalinks || '퍼마링크 설정으로 이동' : 'Go to Permalinks') + ' →</a></p>' +
                             '<p class="sb-health-details"><small>테스트 URL: ' + response.data.test_url + ' (응답 코드: ' + response.data.code + ')</small></p>' +
                             '<button type="button" class="notice-dismiss"><span class="screen-reader-text">' + (typeof sb_i18n !== 'undefined' ? sb_i18n.dismiss || 'Dismiss' : 'Dismiss') + '</span></button>' +
@@ -840,7 +850,17 @@
             eventSource = null;
         }
 
-        var feedUrl = sbAdmin.ajaxUrl + '?action=sb_realtime_feed&nonce=' + sbAdmin.ajaxNonce;
+        // v3.0.5: Filtered Realtime Feed
+        var params = getFilterParams();
+        var platformParam = params.platform ? '&platform=' + encodeURIComponent(params.platform) : '';
+
+        var feedUrl = sbAdmin.ajaxUrl + '?action=sb_realtime_feed&nonce=' + sbAdmin.ajaxNonce + platformParam;
+
+        // Clear feed on filter change to avoid mixing data
+        if (reconnectAttempts === 0) {
+            $('#sb-realtime-feed').empty();
+        }
+
         eventSource = new EventSource(feedUrl);
 
         eventSource.onopen = function () {
@@ -1440,5 +1460,105 @@
     // Expose functions that need external access (e.g., from HTML onclick)
     // ========================================
     window.openLinkDetailModal = openLinkDetailModal;
+
+    /**
+     * Update Summary Cards (v3.0.4)
+     */
+    function updateSummaryStats(summary) {
+        if (!summary) return;
+
+        // 1. Update Values
+        $('#sb-today-total').text(new Intl.NumberFormat().format(summary.total_clicks));
+        $('#sb-today-unique').text(new Intl.NumberFormat().format(summary.unique_visitors));
+
+        // Growth Rate
+        var $growthElem = $('#sb-growth-rate');
+        var rate = parseFloat(summary.growth_rate);
+        var rateText = (rate >= 0 ? '+' : '') + rate + '%';
+        $growthElem.text(rateText);
+        $growthElem.removeClass('positive negative').addClass(rate >= 0 ? 'positive' : 'negative');
+
+        // Icon update
+        $('.sb-icon-growth .dashicons').removeClass('dashicons-arrow-up-alt dashicons-arrow-down-alt')
+            .addClass(rate >= 0 ? 'dashicons-arrow-up-alt' : 'dashicons-arrow-down-alt');
+        $('.sb-icon-growth').removeClass('positive negative').addClass(rate >= 0 ? 'positive' : 'negative');
+
+        // 2. Update Labels based on Range
+        var range = $('#sb-date-range').val();
+        var labelTotal = __('today_total_clicks', '오늘 전체 클릭');
+        var labelUnique = __('today_unique_visitors', '오늘 고유 클릭 (UV)');
+        var subLabel = __('today', '📅 Today');
+
+        if (range === 'yesterday') {
+            labelTotal = __('yesterday_total_clicks', '어제 전체 클릭');
+            labelUnique = __('yesterday_unique_visitors', '어제 고유 클릭 (UV)');
+            subLabel = __('yesterday', '📅 Yesterday');
+        } else if (range !== 'today') {
+            labelTotal = __('period_total_clicks', '선택 기간 전체 클릭');
+            labelUnique = __('period_unique_visitors', '선택 기간 고유 클릭 (UV)');
+            subLabel = __('selected_period', '📅 Selected Period');
+        }
+
+        // Update Label Text (Traversing DOM relative to value ID)
+        $('#sb-today-total').closest('.sb-card-content').find('.sb-card-label').text(labelTotal);
+        $('#sb-today-total').closest('.sb-card-content').find('.sb-card-sublabel').text(subLabel);
+
+        $('#sb-today-unique').closest('.sb-card-content').find('.sb-card-label').text(labelUnique);
+        $('#sb-today-unique').closest('.sb-card-content').find('.sb-card-sublabel').text(subLabel);
+    }
+
+    /**
+     * Update Top Links Table (v3.0.4)
+     */
+    function updateTopLinksTable(links) {
+        var $tbody = $('.sb-top-links tbody');
+        $tbody.empty();
+
+        if (!links || links.length === 0) {
+            $tbody.append('<tr><td colspan="4" class="sb-empty-state">' + __('no_data', '데이터가 없습니다.') + '</td></tr>');
+            return;
+        }
+
+        links.forEach(function (link) {
+            var row = '<tr>';
+
+            // Title / Slug
+            row += '<td>';
+            row += '<strong><a href="#" class="sb-link-detail-trigger" data-slug="' + link.slug + '">' + link.title + '</a></strong>';
+            if (link.group_name) {
+                row += ' <span class="sb-group-badge" style="background-color:' + link.group_color + '">' + link.group_name + '</span>';
+            }
+            row += '<br><small class="sb-slug-copy" data-url="' + link.short_url + '">/go/' + link.slug + '</small>';
+            row += '</td>';
+
+            // Target URL
+            row += '<td><a href="' + link.target_url + '" target="_blank" class="sb-target-url" title="' + link.target_url + '">';
+            row += (link.target_url.length > 40 ? link.target_url.substring(0, 40) + '...' : link.target_url);
+            row += '</a></td>';
+
+            // Platform
+            // Note: get_top_links returns platform? It seems SB_Analytics::get_top_links joins with posts table effectively?
+            // Actually get_top_links in PHP returns array with [title, slug, clicks, target_url, etc.]
+            // We need to make sure we have platform data if we want to show it, but standard top links might not show platform column in dashboard.php?
+            // Checking dashboard.php again... Line 486 shows platform column!
+            // But SB_Analytics::get_top_links query needs to be checked if it returns platform.
+            // Assuming it does or we should fix PHP. 
+            // In dashboard.php loop: $link['platform']
+            var platformClass = 'sb-platform-' + (link.platform ? link.platform.toLowerCase() : 'unknown');
+            row += '<td><span class="sb-platform-badge ' + platformClass + '">' + (link.platform || 'General') + '</span></td>';
+
+            // Clicks
+            row += '<td><strong>' + new Intl.NumberFormat().format(link.clicks) + '</strong></td>';
+
+            // Actions
+            row += '<td><a href="' + sbAdmin.adminUrl + 'post.php?post=' + link.id + '&action=edit" class="button button-small">' + __('edit', '수정') + '</a></td>';
+
+            row += '</tr>';
+            $tbody.append(row);
+        });
+
+        // Re-attach event listeners if needed (e.g. for modal)
+        // sb-link-detail-trigger is handled by delegated event in initAnalytics usually
+    }
 
 })(jQuery);
