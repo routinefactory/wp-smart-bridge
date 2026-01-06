@@ -1511,54 +1511,51 @@
      * Update Top Links Table (v3.0.4)
      */
     function updateTopLinksTable(links) {
-        var $tbody = $('.sb-top-links tbody');
+        // Target specifically the "Today" links panel which serves as the "Filtered" view
+        var $panel = $('#sb-today-links');
+        var $tbody = $panel.find('tbody');
         $tbody.empty();
 
         if (!links || links.length === 0) {
-            $tbody.append('<tr><td colspan="4" class="sb-empty-state">' + __('no_data', '데이터가 없습니다.') + '</td></tr>');
+            $tbody.append('<tr><td colspan="6" class="sb-empty-state">' + __('no_data', '데이터가 없습니다.') + '</td></tr>');
             return;
         }
 
-        links.forEach(function (link) {
+        links.forEach(function (link, index) {
             var row = '<tr>';
 
-            // Title / Slug
-            row += '<td>';
-            row += '<strong><a href="#" class="sb-link-detail-trigger" data-slug="' + link.slug + '">' + link.title + '</a></strong>';
+            // # ID
+            row += '<td data-label="#">' + (index + 1) + '</td>';
+
+            // Slug / Title
+            row += '<td data-label="Slug">';
+            row += '<strong><a href="' + link.short_link + '" target="_blank">' + link.slug + '</a></strong>';
             if (link.group_name) {
-                row += ' <span class="sb-group-badge" style="background-color:' + link.group_color + '">' + link.group_name + '</span>';
+                row += ' <span class="sb-group-badge" style="background-color:' + (link.group_color || '#667eea') + '">' + link.group_name + '</span>';
             }
-            row += '<br><small class="sb-slug-copy" data-url="' + link.short_url + '">/go/' + link.slug + '</small>';
+            row += '<br><small class="sb-slug-copy" data-url="' + link.short_link + '">/go/' + link.slug + '</small>';
             row += '</td>';
 
             // Target URL
-            row += '<td><a href="' + link.target_url + '" target="_blank" class="sb-target-url" title="' + link.target_url + '">';
+            row += '<td data-label="' + __('target_url', '타겟 URL') + '"><a href="' + link.target_url + '" target="_blank" class="sb-target-url" title="' + link.target_url + '">';
             row += (link.target_url.length > 40 ? link.target_url.substring(0, 40) + '...' : link.target_url);
             row += '</a></td>';
 
             // Platform
-            // Note: get_top_links returns platform? It seems SB_Analytics::get_top_links joins with posts table effectively?
-            // Actually get_top_links in PHP returns array with [title, slug, clicks, target_url, etc.]
-            // We need to make sure we have platform data if we want to show it, but standard top links might not show platform column in dashboard.php?
-            // Checking dashboard.php again... Line 486 shows platform column!
-            // But SB_Analytics::get_top_links query needs to be checked if it returns platform.
-            // Assuming it does or we should fix PHP. 
-            // In dashboard.php loop: $link['platform']
             var platformClass = 'sb-platform-' + (link.platform ? link.platform.toLowerCase() : 'unknown');
-            row += '<td><span class="sb-platform-badge ' + platformClass + '">' + (link.platform || 'General') + '</span></td>';
+            row += '<td data-label="' + __('platform', '플랫폼') + '"><span class="sb-platform-badge ' + platformClass + '">' + (link.platform || 'General') + '</span></td>';
 
             // Clicks
-            row += '<td><strong>' + new Intl.NumberFormat().format(link.clicks) + '</strong></td>';
+            row += '<td data-label="' + __('clicks', '클릭 수') + '"><strong>' + new Intl.NumberFormat().format(link.clicks) + '</strong></td>';
 
-            // Actions
-            row += '<td><a href="' + sbAdmin.adminUrl + 'post.php?post=' + link.id + '&action=edit" class="button button-small">' + __('edit', '수정') + '</a></td>';
+            // Action
+            row += '<td data-label="' + __('actions', '액션') + '">';
+            row += '<a href="' + sbAdmin.adminUrl + 'post.php?post=' + link.id + '&action=edit" class="button button-small">' + __('edit', '수정') + '</a>';
+            row += '</td>';
 
             row += '</tr>';
             $tbody.append(row);
         });
-
-        // Re-attach event listeners if needed (e.g. for modal)
-        // sb-link-detail-trigger is handled by delegated event in initAnalytics usually
     }
 
 })(jQuery);

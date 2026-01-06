@@ -266,17 +266,19 @@ class SB_Analytics
     }
 
     /**
-     * 플랫폼별 점유율 조회
+     * 플랫폼별 점유율 조회 (필터 지원)
+     * v3.0.5: Added platform filter support
      * 
      * @param string $start_date 시작 날짜
      * @param string $end_date 종료 날짜
+     * @param string|null $platform 플랫폼 필터 (Optional)
      * @return array 플랫폼 => 클릭 수
      */
-    public function get_platform_share(string $start_date, string $end_date): array
+    public function get_platform_share(string $start_date, string $end_date, ?string $platform = null): array
     {
         global $wpdb;
 
-        $cache_key = 'sb_ps_' . md5($start_date . $end_date);
+        $cache_key = 'sb_ps_' . md5($start_date . $end_date . serialize($platform));
         $cached = get_transient($cache_key);
         if (false !== $cached) {
             return $cached;
@@ -284,20 +286,26 @@ class SB_Analytics
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT platform, COUNT(*) as clicks 
-             FROM $table 
-             WHERE visited_at BETWEEN %s AND %s 
-             GROUP BY platform 
-             ORDER BY clicks DESC",
-            $start_date,
-            $end_date
-        ), ARRAY_A);
+        $sql = "SELECT platform, COUNT(*) as clicks 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
+        $params = [$start_date, $end_date];
+
+        if ($platform) {
+            $sql .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY platform ORDER BY clicks DESC";
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
 
         $platform_share = [];
 
         foreach ($results as $row) {
-            $platform_share[$row['platform']] = (int) $row['clicks'];
+            // Handle null/empty platform
+            $p = $row['platform'] ? $row['platform'] : 'Unknown';
+            $platform_share[$p] = (int) $row['clicks'];
         }
 
         set_transient($cache_key, $platform_share, self::CACHE_EXPIRATION);
@@ -712,6 +720,13 @@ class SB_Analytics
         // ✅ N+1 쿼리 최적화
         update_meta_cache('post', $link_ids);
 
+        // v3.0.6: Fetch Group Info for badges
+        $all_groups = SB_Groups::get_all();
+        $groups_map = [];
+        foreach ($all_groups as $group) {
+            $groups_map[$group['id']] = $group;
+        }
+
         // 포스트 ID를 키로 하는 맵 생성 (빠른 조회를 위해)
         $posts_map = [];
         foreach ($posts as $post) {
@@ -726,14 +741,17 @@ class SB_Analytics
 
             $post = $posts_map[$result->link_id];
             $slug = $post->post_title;
+            $group_id = get_post_meta($post->ID, 'link_group', true);
 
             $links[] = [
                 'id' => $post->ID,
-                'slug' => $slug,
-                'short_link' => SB_Helpers::get_short_link_url($slug), // ✅ 실제 단축 URL 생성
+                'title' => $slug, // Post Title
+                'slug' => $post->post_name, // Real slug
+                'short_link' => SB_Helpers::get_short_link_url($post->post_name),
                 'target_url' => get_post_meta($post->ID, 'target_url', true),
-                // v3.0.5: If filtered by platform, reflect that in the badge even if meta is empty
                 'platform' => get_post_meta($post->ID, 'platform', true) ?: ($platform ?: ''),
+                'group_name' => isset($groups_map[$group_id]) ? $groups_map[$group_id]['name'] : '',
+                'group_color' => isset($groups_map[$group_id]) ? $groups_map[$group_id]['color'] : '',
                 'clicks' => (int) $result->clicks,
             ];
         }

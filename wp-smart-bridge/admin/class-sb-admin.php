@@ -199,6 +199,8 @@ class SB_Admin
             'factory_reset' => __('Factory Reset', 'sb'),
             // Chart A11y Labels
             'chart_daily_trend' => __('일별 트래픽 추세 차트', 'sb'),
+            'chart_weekly_trend' => __('주간 트래픽 추세 차트', 'sb'),
+            'chart_monthly_trend' => __('월간 트래픽 추세 차트', 'sb'),
             'chart_hourly' => __('시간대별 클릭 통계 차트', 'sb'),
             'chart_platform' => __('플랫폼별 점유율 차트', 'sb'),
             'chart_referer' => __('상위 유입 경로 차트', 'sb'),
@@ -206,6 +208,11 @@ class SB_Admin
             'chart_os' => __('운영체제별 통계', 'sb'),
             'chart_browser' => __('브라우저별 통계', 'sb'),
             'chart_weekday' => __('요일별 클릭 패턴', 'sb'),
+            'target_url' => __('타겟 URL', 'sb'),
+            'platform' => __('플랫폼', 'sb'),
+            'clicks' => __('클릭 수', 'sb'),
+            'actions' => __('액션', 'sb'),
+            'edit' => __('수정', 'sb'),
             // Dashboard Text
             'top_links_title' => __('📈 인기 링크 (현재 필터 기준)', 'sb'),
             'toggle_advanced_show' => __('OS & 브라우저 상세 보기', 'sb'),

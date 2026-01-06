@@ -667,7 +667,7 @@ class SB_Admin_Ajax
         $clicks_by_hour = $analytics->get_clicks_by_hour($start, $end, $platform);
 
         // 3. Platform Share
-        $platform_share = $analytics->get_platform_share_filtered($start, $end, $platform);
+        $platform_share = $analytics->get_platform_share($start, $end, $platform);
 
         // 4. Summary Stats (Total, Today, Growth) - Filtered
         // Note: For 'today' stats, we might need separate logic if range is not 'today'
@@ -677,7 +677,7 @@ class SB_Admin_Ajax
         $period_stats = $analytics->get_period_stats($start, $end, $platform); // Need to check if this method exists or create it
 
         // 5. Top Links (Filtered)
-        $top_links = $analytics->get_top_links($start, $end, 5, $platform);
+        $top_links = $analytics->get_top_links($start, $end, $platform, 5);
 
         wp_send_json_success([
             'dailyTrend' => $daily_trend,
@@ -688,7 +688,7 @@ class SB_Admin_Ajax
             'summary' => [
                 'total_clicks' => $period_stats['total_clicks'] ?? 0,
                 'unique_visitors' => $period_stats['unique_visitors'] ?? 0,
-                // Add more summary stats if needed
+                'growth_rate' => $period_stats['growth_rate'] ?? 0,
             ],
             'topLinks' => $top_links
         ]);
