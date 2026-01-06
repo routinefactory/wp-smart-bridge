@@ -229,15 +229,19 @@
      * Health Check - Verify short links work properly (Permalink flush check)
      */
     function runHealthCheck() {
-        // Optimization: Run only once every 24 hours
-        var lastCheck = localStorage.getItem('sb_last_health_check');
-        var now = new Date().getTime();
-        var ONE_DAY = 24 * 60 * 60 * 1000;
+        /**
+         * ⚠️ [CRITICAL] MANDATORY HEALTH CHECK
+         * 
+         * DO NOT REMOVE OR THROTTLE THIS LOGIC.
+         * This check MUST run on EVERY dashboard page load to ensure short links are accessible.
+         * Users must be immediately notified if permalinks are broken (404 error).
+         * 
+         * @intentional This seems expensive but is required for system integrity reliability.
+         * @lock NO_THROTTLING
+         */
 
-        if (lastCheck && (now - parseInt(lastCheck)) < ONE_DAY) {
-            // console.log('SB: Health check skipped (throttled).'); 
-            return;
-        }
+        // Remove legacy throttling if exists
+        localStorage.removeItem('sb_last_health_check');
 
         $.ajax({
             url: sbAdmin.ajaxUrl,
@@ -248,12 +252,7 @@
             },
             success: function (response) {
                 if (response.success) {
-                    // Only update timestamp on successful check
-                    localStorage.setItem('sb_last_health_check', now);
-
-                    var status = response.data.status;
-
-                    // Remove any existing health banner
+                    // Always clear banner first to prevent duplicates
                     $('#sb-health-warning').remove();
 
                     if (status === 'error_404') {
@@ -294,7 +293,7 @@
      */
     $(document).ready(function () {
         initAnalytics();
-        initLinkGroups();
+        // initLinkGroups(); // Feature disabled by user request (keeping code for algorithm reference)
         initRealtimeFeed();
         initGlobalErrorHandling(); // v3.0.0 Resilience
 
@@ -1008,14 +1007,14 @@
 
         // 7.2 Disable Title Field (Editing)
         // If we are on edit screen (not just list), disable title
-        // WP sets #title element
-        if ($('#title').length > 0) {
-            $('#title').prop('disabled', true).prop('readonly', true);
+        // Fix (v3.0.2): Use input#title to avoid selecting the table header th#title on list screen
+        if ($('input#title').length > 0) {
+            $('input#title').prop('disabled', true).prop('readonly', true);
             $('#title-prompt-text').text(typeof sb_i18n !== 'undefined' ? sb_i18n.slug_cannot_change : 'Slug cannot be changed');
 
             // Avoid duplicate description if re-run
             if ($('.sb-title-warning').length === 0) {
-                $('#title').after('<p class="description sb-title-warning" style="color: #d63638; margin-top: 5px;">⚠️ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.slug_warning : 'Slug cannot be changed.') + '</p>');
+                $('input#title').after('<p class="description sb-title-warning" style="color: #d63638; margin-top: 5px;">⚠️ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.slug_warning : 'Slug cannot be changed.') + '</p>');
             }
         }
     }
@@ -1110,6 +1109,235 @@
             }
         });
     }
+
+    // =========================================================================
+    // 9. Settings Page Logic (v3.0.2 Restore)
+    // =========================================================================
+    function initSettingsPage() {
+        if ($('.sb-settings').length === 0) return;
+
+        // 9.1 Generate API Key
+        $('#sb-generate-key').on('click', function () {
+            var $btn = $(this);
+            $btn.prop('disabled', true).addClass('sb-spin');
+
+            $.post(sbAdmin.ajaxUrl, {
+                action: 'sb_generate_api_key',
+                nonce: sbAdmin.ajaxNonce
+            }, function (response) {
+                $btn.prop('disabled', false).removeClass('sb-spin');
+                if (response.success) {
+                    $('#sb-new-api-key').text(response.data.api_key);
+                    $('#sb-new-secret-key').text(response.data.secret_key);
+
+                    var $modal = $('#sb-new-key-modal');
+                    $modal.removeClass('sb-hidden').addClass('sb-show');
+                    $('body').addClass('sb-modal-open');
+
+                    // Reload page after modal close to update list
+                    $modal.find('.sb-close-modal').one('click', function () {
+                        window.location.reload();
+                    });
+                } else {
+                    SB_UI.showToast(response.data.message || 'Error executing request', 'error');
+                }
+            }).fail(function () {
+                $btn.prop('disabled', false).removeClass('sb-spin');
+                SB_UI.showToast('Network Error', 'error');
+            });
+        });
+
+        // 9.2 Toggle Secret Key
+        $(document).on('click', '.sb-toggle-secret', function () {
+            var $row = $(this).closest('tr');
+            var $masked = $row.find('.sb-masked');
+            var $revealed = $row.find('.sb-revealed');
+
+            if ($revealed.hasClass('sb-hidden')) {
+                $masked.hide();
+                $revealed.removeClass('sb-hidden');
+                $(this).find('.dashicons').removeClass('dashicons-visibility').addClass('dashicons-hidden');
+            } else {
+                $masked.show();
+                $revealed.addClass('sb-hidden');
+                $(this).find('.dashicons').removeClass('dashicons-hidden').addClass('dashicons-visibility');
+            }
+        });
+
+        // 9.3 Delete API Key
+        $(document).on('click', '.sb-delete-key', function () {
+            if (!confirm(typeof sb_i18n !== 'undefined' ? sb_i18n.confirm_delete : 'Are you sure you want to delete this key?')) return;
+
+            var $btn = $(this);
+            var keyId = $btn.data('key-id');
+            $btn.prop('disabled', true);
+
+            $.post(sbAdmin.ajaxUrl, {
+                action: 'sb_delete_api_key',
+                nonce: sbAdmin.ajaxNonce,
+                key_id: keyId
+            }, function (response) {
+                if (response.success) {
+                    $btn.closest('tr').fadeOut(function () { $(this).remove(); });
+                    SB_UI.showToast(response.data.message, 'success');
+                } else {
+                    $btn.prop('disabled', false);
+                    SB_UI.showToast(response.data.message || 'Error', 'error');
+                }
+            });
+        });
+
+        // 9.4 Copy Button (Generic)
+        $(document).on('click', '.sb-copy-btn, .sb-copy-modal-key', function () {
+            var text = $(this).data('copy');
+            // For modal buttons, target ID
+            var target = $(this).data('target');
+            if (target) {
+                text = $('#' + target).text();
+            }
+
+            if (navigator.clipboard && text) {
+                navigator.clipboard.writeText(text).then(function () {
+                    SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.copied_to_clipboard : 'Copied!', 'success');
+                }).catch(function () {
+                    prompt('Copy manually:', text);
+                });
+            } else if (text) {
+                prompt('Copy manually:', text);
+            }
+        });
+
+        // 9.5 Save General Settings
+        $('#sb-settings-form').on('submit', function (e) {
+            e.preventDefault();
+            var $btn = $(this).find('button[type="submit"]');
+            $btn.prop('disabled', true).addClass('sb-spin');
+
+            $.post(sbAdmin.ajaxUrl, {
+                action: 'sb_save_settings',
+                nonce: sbAdmin.ajaxNonce,
+                redirect_delay: $('#sb-redirect-delay').val()
+            }, function (response) {
+                $btn.prop('disabled', false).removeClass('sb-spin');
+                if (response.success) {
+                    SB_UI.showToast(response.data.message, 'success');
+                } else {
+                    SB_UI.showToast(response.data.message || 'Error', 'error');
+                }
+            });
+        });
+
+        // 9.6 Migrate Stats
+        $('#sb-migrate-stats').on('click', function () {
+            var $btn = $(this);
+            var $status = $('#sb-migrate-status');
+
+            if (!confirm('This process may take some time. Do not close the window. Continue?')) return;
+
+            $btn.prop('disabled', true).addClass('sb-spin');
+            $status.show().text('Processing migration...');
+
+            function runMigration() {
+                $.post(sbAdmin.ajaxUrl, {
+                    action: 'sb_migrate_daily_stats',
+                    nonce: sbAdmin.ajaxNonce
+                }, function (response) {
+                    if (response.success) {
+                        $status.text(response.data.message);
+                        if (!response.data.completed) {
+                            // Continue next batch
+                            runMigration();
+                        } else {
+                            $btn.prop('disabled', false).removeClass('sb-spin');
+                            $status.text('All done! ' + response.data.message);
+                            SB_UI.showToast('Migration Complete', 'success');
+                        }
+                    } else {
+                        SB_UI.showToast('Error: ' + response.data.message, 'error');
+                        $btn.prop('disabled', false).removeClass('sb-spin');
+                        $status.text('Error occurred.');
+                    }
+                }).fail(function () {
+                    SB_UI.showToast('Network Error', 'error');
+                    $btn.prop('disabled', false).removeClass('sb-spin');
+                });
+            }
+            runMigration();
+        });
+
+        // 9.7 Factory Reset
+        $('#sb-factory-reset').on('click', function () {
+            var confirmation = prompt('Type "reset" to confirm factory reset. ALL DATA WILL BE LOST.');
+            if (confirmation !== 'reset') return;
+
+            var $btn = $(this);
+            $btn.prop('disabled', true).addClass('sb-spin');
+
+            $.post(sbAdmin.ajaxUrl, {
+                action: 'sb_factory_reset',
+                nonce: sbAdmin.ajaxNonce,
+                confirmation: 'reset'
+            }, function (response) {
+                if (response.success) {
+                    alert('Reset Complete. Reloading...');
+                    window.location.reload();
+                } else {
+                    $btn.prop('disabled', false).removeClass('sb-spin');
+                    alert('Error: ' + response.data.message);
+                }
+            });
+        });
+
+        // 9.8 Template Editor
+        $('#sb-validate-template').on('click', function () {
+            var template = $('#sb-redirect-template').val();
+            // Simple Client-side check first
+            if (template.indexOf('{{TARGET_URL}}') === -1) {
+                SB_UI.showToast('Missing {{TARGET_URL}} placeholder', 'error');
+                return;
+            }
+            SB_UI.showToast('Template structure looks OK (Server validation required for save)', 'success');
+        });
+
+        $('#sb-template-form').on('submit', function (e) {
+            e.preventDefault();
+            var $btn = $(this).find('#sb-save-template');
+            $btn.prop('disabled', true).addClass('sb-spin');
+
+            $.post(sbAdmin.ajaxUrl, {
+                action: 'sb_save_redirect_template',
+                nonce: sbAdmin.ajaxNonce,
+                template: $('#sb-redirect-template').val()
+            }, function (response) {
+                $btn.prop('disabled', false).removeClass('sb-spin');
+                if (response.success) {
+                    SB_UI.showToast(response.data.message, 'success');
+                } else {
+                    SB_UI.showToast(response.data.message, 'error');
+                    $('#sb-template-validation').html('<p class="error">' + response.data.message + '</p>');
+                }
+            });
+        });
+
+        $('#sb-reset-template').on('click', function () {
+            if (!confirm('Revert to default template?')) return;
+
+            $.post(sbAdmin.ajaxUrl, {
+                action: 'sb_reset_redirect_template',
+                nonce: sbAdmin.ajaxNonce
+            }, function (response) {
+                if (response.success) {
+                    $('#sb-redirect-template').val(response.data.template);
+                    SB_UI.showToast(response.data.message, 'success');
+                }
+            });
+        });
+    }
+
+    // Initialize Settings Logic
+    $(document).ready(function () {
+        initSettingsPage();
+    });
 
     // ========================================
     // Expose functions that need external access (e.g., from HTML onclick)

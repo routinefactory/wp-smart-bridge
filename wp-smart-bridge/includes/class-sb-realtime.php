@@ -49,7 +49,24 @@ class SB_Realtime
         // 초기 마지막 ID 조회
         global $wpdb;
         $table = $wpdb->prefix . 'sb_analytics_logs';
-        $last_id = (int) $wpdb->get_var("SELECT MAX(id) FROM $table");
+
+        // v3.0.3 Fix: Send recent 5 clicks immediately for better UX
+        $recent_clicks = $wpdb->get_results("SELECT * FROM $table ORDER BY id DESC LIMIT 5", ARRAY_A);
+
+        if ($recent_clicks) {
+            $recent_clicks = array_reverse($recent_clicks); // Send in chronological order
+            foreach ($recent_clicks as $click) {
+                // Enrich data
+                $post = get_post($click['link_id']);
+                $click['slug'] = $post ? $post->post_name : 'unknown';
+                $click['target_url'] = get_post_meta($click['link_id'], 'target_url', true);
+
+                self::send_event('click', $click);
+                $last_id = $click['id'];
+            }
+        } else {
+            $last_id = (int) $wpdb->get_var("SELECT MAX(id) FROM $table");
+        }
 
         // 안전한 종료를 위한 시작 시간 기록
         $start_time = time();
@@ -113,8 +130,8 @@ class SB_Realtime
                 break;
             }
 
-            // 3. 성능 최적화: 3초 -> 5초 대기 (CPU 부하 완화)
-            sleep(5);
+            // 3. 성능 최적화: 2초 대기 (반응성 개선)
+            sleep(2);
         }
     }
 

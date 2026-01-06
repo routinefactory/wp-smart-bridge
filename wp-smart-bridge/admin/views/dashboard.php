@@ -67,7 +67,13 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div class="sb-filter-group">
-            <label for="sb-platform-filter"><?php _e('플랫폼', 'sb'); ?></label>
+            <label for="sb-platform-filter">
+                <?php _e('플랫폼', 'sb'); ?>
+                <span class="sb-filter-help sb-tooltip-icon"
+                    title="<?php esc_attr_e('클릭 로그 기준으로 필터링됩니다. 링크의 타겟 URL을 변경한 경우, 변경 전 클릭도 포함될 수 있습니다.', 'sb'); ?>">
+                    <span class="dashicons dashicons-info"></span>
+                </span>
+            </label>
             <select id="sb-platform-filter" class="sb-filter-select">
                 <option value=""><?php _e('전체', 'sb'); ?></option>
                 <?php foreach ($available_platforms as $platform): ?>
@@ -79,22 +85,6 @@ if (!defined('ABSPATH')) {
                     <option value="" disabled><?php _e('데이터 없음', 'sb'); ?></option>
                 <?php endif; ?>
             </select>
-            <span class="sb-filter-help"
-                title="<?php esc_attr_e('클릭 로그 기준으로 필터링됩니다. 링크의 타겟 URL을 변경한 경우, 변경 전 클릭도 포함될 수 있습니다.', 'sb'); ?>"><span
-                    class="dashicons dashicons-info"></span></span>
-        </div>
-
-        <!-- Tier 4: Link Groups Filter -->
-        <div class="sb-filter-group">
-            <label for="sb-group-filter"><?php _e('그룹', 'sb'); ?></label>
-            <select id="sb-group-filter" class="sb-filter-select">
-                <option value=""><?php _e('전체', 'sb'); ?></option>
-                <!-- JS Populated -->
-            </select>
-            <button type="button" id="sb-manage-groups-btn" class="button button-small"
-                title="<?php esc_attr_e('그룹 관리', 'sb'); ?>" aria-label="<?php esc_attr_e('그룹 관리', 'sb'); ?>">
-                <span class="dashicons dashicons-category"></span>
-            </button>
         </div>
 
         <button type="button" id="sb-apply-filters" class="button button-primary">
@@ -608,10 +598,10 @@ if (!defined('ABSPATH')) {
                     <strong><?php _e('EXE 프로그램 설정', 'sb'); ?></strong>
                     <p><?php _e('발급받은 API Key와 Secret Key를 EXE 프로그램에 입력하세요.', 'sb'); ?></p>
                     <span class="sb-guide-status info"><?php _e('💻 로컬 PC', 'sb'); ?></span>
-                </div>\r\n
-            </div>\r\n
-        </div>\r\n
-    </div>\r\n
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 </div>
@@ -667,29 +657,7 @@ if (!defined('ABSPATH')) {
     </div>
 </div>
 
-<!-- Tier 4: Link Group Management Modal -->
-<div id="sb-group-manager-modal" class="sb-modal sb-hidden">
-    <div class="sb-modal-overlay"></div>
-    <div class="sb-modal-content">
-        <div class="sb-modal-header">
-            <h2><?php _e('📁 그룹 관리', 'sb'); ?></h2>
-            <button type="button" class="sb-modal-close" aria-label="<?php esc_attr_e('닫기', 'sb'); ?>">&times;</button>
-        </div>
-        <div class="sb-modal-body">
-            <div class="sb-group-form">
-                <input type="text" id="sb-new-group-name" placeholder="<?php esc_attr_e('새 그룹 이름', 'sb'); ?>"
-                    class="sb-input">
-                <input type="color" id="sb-new-group-color" value="#667eea" title="<?php esc_attr_e('그룹 색상', 'sb'); ?>">
-                <button type="button" id="sb-add-group-btn"
-                    class="button button-primary"><?php _e('추가', 'sb'); ?></button>
-            </div>
 
-            <ul id="sb-group-list" class="sb-group-list">
-                <!-- JS Populated -->
-            </ul>
-        </div>
-    </div>
-</div>
 
 
 
