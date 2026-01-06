@@ -55,6 +55,18 @@ class SB_Admin_View_Model
         $platform_share = $analytics->get_platform_share($start_date, $end_date);
         $daily_trend = $analytics->get_daily_trend($start_date, $end_date);
 
+        /**
+         * v3.0.4: Weekly and Monthly Trend Data for Multi-Period Charts
+         * 
+         * These are used by the new consolidated traffic trend section
+         * which shows Daily/Weekly/Monthly charts side by side.
+         * 
+         * @see dashboard.php: sb-weekly-trend-chart, sb-monthly-trend-chart canvas elements
+         * @see sb-chart.js: initWeeklyTrend(), initMonthlyTrend() functions
+         */
+        $weekly_trend = $analytics->get_weekly_trend(30);  // Last 30 weeks
+        $monthly_trend = $analytics->get_monthly_trend(30); // Last 30 months
+
         // Metadata
         $available_platforms = $analytics->get_available_platforms();
 
@@ -87,13 +99,16 @@ class SB_Admin_View_Model
             'today_unique_visitors' => $today_unique_visitors,
             'cumulative_total_clicks' => $cumulative_total_clicks,
             'cumulative_unique_visitors' => $cumulative_unique_visitors,
-            'total_clicks' => $total_clicks, // Defined but maybe used for custom ranges? Keep for safety.
-            'unique_visitors' => $unique_visitors, // Ditto
+            'total_clicks' => $total_clicks,
+            'unique_visitors' => $unique_visitors,
             'growth_rate' => $growth_rate,
             'active_links' => $active_links,
             'clicks_by_hour' => $clicks_by_hour,
             'platform_share' => $platform_share,
             'daily_trend' => $daily_trend,
+            // v3.0.4: New multi-period trend data
+            'weekly_trend' => $weekly_trend,
+            'monthly_trend' => $monthly_trend,
             'available_platforms' => $available_platforms,
             'top_links' => $top_links, // This maps to $today_top_links in view? Wait, let's check view.
             // View uses $today_top_links variable name for the first table?

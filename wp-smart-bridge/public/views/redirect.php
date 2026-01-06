@@ -65,6 +65,24 @@ $replacements = [
 
 $output = str_replace(array_keys($replacements), array_values($replacements), $template);
 
+/**
+ * v3.0.4 CRITICAL FIX: Quote Escaping Issue
+ * 
+ * PROBLEM: Templates stored in database may have over-escaped quotes
+ * appearing as \&quot; or &quot; instead of proper " quotes.
+ * This breaks all HTML attributes: class="\&quot;mesh\&quot;" instead of class="mesh"
+ * 
+ * ROOT CAUSE: Possible double-escaping during save operation or 
+ * WordPress magic quotes / addslashes being applied multiple times.
+ * 
+ * SOLUTION: Decode HTML entities and remove excess slashes before output.
+ * Order matters: stripslashes first, then htmlspecialchars_decode.
+ * 
+ * @see class-sb-admin-ajax.php Line 202 for template save logic
+ */
+$output = stripslashes($output);
+$output = htmlspecialchars_decode($output, ENT_QUOTES);
+
 // 출력
 echo $output;
 exit;

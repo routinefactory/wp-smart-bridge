@@ -136,6 +136,98 @@ var SB_Chart = (function ($) {
             });
         },
 
+        /**
+         * v3.0.4: Weekly Traffic Trend Chart
+         * 
+         * PURPOSE: Displays click aggregates by week (last 30 weeks).
+         * Part of the consolidated multi-period trend charts feature.
+         * 
+         * DATA FORMAT EXPECTED:
+         * [{ week: '2025-W01', clicks: 150 }, { week: '2025-W02', clicks: 200 }, ...]
+         * 
+         * RELATED:
+         * - Data Source: class-sb-analytics.php -> get_weekly_trend()
+         * - HTML Element: dashboard.php -> canvas#sb-weekly-trend-chart
+         * - Caller: sb-admin.js -> initCharts()
+         * 
+         * @param {Array} data Weekly trend data from PHP
+         * @since 3.0.4
+         */
+        initWeeklyTrend: function (data) {
+            data = data || [];
+            var ctx = document.getElementById('sb-weekly-trend-chart');
+            if (!ctx) return;
+            setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_weekly_trend : 'Weekly Traffic Trend');
+
+            if (instances.weeklyTrend) instances.weeklyTrend.destroy();
+            var c = getColors();
+
+            instances.weeklyTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    // Extract week label like "W01" from "2025-W01"
+                    labels: data.map(function (item) { return item.week.split('-')[1] || item.week; }),
+                    datasets: [{
+                        label: typeof sb_i18n !== 'undefined' ? sb_i18n.click : 'Clicks',
+                        data: data.map(function (item) { return item.clicks; }),
+                        borderColor: c.success,  // Green to differentiate from daily
+                        backgroundColor: c.successAlpha || 'rgba(34, 197, 94, 0.2)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: getCommonOptions()
+            });
+        },
+
+        /**
+         * v3.0.4: Monthly Traffic Trend Chart
+         * 
+         * PURPOSE: Displays click aggregates by month (last 30 months).
+         * Part of the consolidated multi-period trend charts feature.
+         * 
+         * DATA FORMAT EXPECTED:
+         * [{ month: '2024-01', clicks: 1500 }, { month: '2024-02', clicks: 2000 }, ...]
+         * 
+         * RELATED:
+         * - Data Source: class-sb-analytics.php -> get_monthly_trend()
+         * - HTML Element: dashboard.php -> canvas#sb-monthly-trend-chart
+         * - Caller: sb-admin.js -> initCharts()
+         * 
+         * @param {Array} data Monthly trend data from PHP
+         * @since 3.0.4
+         */
+        initMonthlyTrend: function (data) {
+            data = data || [];
+            var ctx = document.getElementById('sb-monthly-trend-chart');
+            if (!ctx) return;
+            setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_monthly_trend : 'Monthly Traffic Trend');
+
+            if (instances.monthlyTrend) instances.monthlyTrend.destroy();
+            var c = getColors();
+
+            instances.monthlyTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    // Month labels like "01", "02" from "2024-01"
+                    labels: data.map(function (item) { return item.month.substring(5) || item.month; }),
+                    datasets: [{
+                        label: typeof sb_i18n !== 'undefined' ? sb_i18n.click : 'Clicks',
+                        data: data.map(function (item) { return item.clicks; }),
+                        borderColor: c.warning || '#f59e0b',  // Orange to differentiate
+                        backgroundColor: c.warningAlpha || 'rgba(245, 158, 11, 0.2)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: getCommonOptions()
+            });
+        },
+
         initHourly: function (data) {
             // Data Safety: Fix 2-1
             data = data || []; // Verify Pass: Prevent math error

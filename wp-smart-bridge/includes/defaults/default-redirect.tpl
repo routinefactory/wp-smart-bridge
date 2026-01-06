@@ -233,7 +233,7 @@
             ring.style.transition = `stroke-dashoffset ${total}s linear`;
             ring.style.strokeDashoffset = 0;
         }, 100);
-        }) ();
+        })();
     </script>
 </body>
 

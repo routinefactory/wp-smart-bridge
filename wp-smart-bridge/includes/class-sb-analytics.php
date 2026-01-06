@@ -367,6 +367,186 @@ class SB_Analytics
     }
 
     /**
+     * v3.0.4: 주간 추세 조회 (Weekly Trend)
+     * 
+     * PURPOSE: Returns click aggregates by week for the traffic trend chart.
+     * Used by: Dashboard "주간 추세 (최근 30주)" chart
+     * 
+     * DATA FORMAT RETURNED:
+     * [
+     *     ['week' => '2025-W01', 'clicks' => 150],
+     *     ['week' => '2025-W02', 'clicks' => 200],
+     *     ...
+     * ]
+     * 
+     * RELATED FILES:
+     * - JS Consumer: admin/js/sb-chart.js -> initWeeklyTrend()
+     * - View Model: admin/class-sb-admin-view-model.php
+     * - AJAX: includes/class-sb-admin-ajax.php -> ajax_refresh_stats()
+     * 
+     * @param int $weeks Number of weeks to retrieve (default: 30)
+     * @param string|null $platform Platform filter (optional)
+     * @return array Array of week => clicks pairs
+     * @since 3.0.4
+     */
+    public function get_weekly_trend(int $weeks = 30, ?string $platform = null): array
+    {
+        global $wpdb;
+
+        $cache_key = 'sb_wt_' . md5($weeks . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $today = new DateTime('now', wp_timezone());
+
+        // Calculate start date (weeks * 7 days ago)
+        $start = (clone $today)->modify('-' . ($weeks * 7) . ' days');
+        $start_date = $start->format('Y-m-d 00:00:00');
+        $end_date = $today->format('Y-m-d 23:59:59');
+
+        // Query: Group by ISO year-week (YEARWEEK with mode 3 = ISO week)
+        $sql = "SELECT 
+                    CONCAT(YEAR(visited_at), '-W', LPAD(WEEK(visited_at, 3), 2, '0')) as week_label,
+                    COUNT(*) as clicks 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
+
+        $params = [$start_date, $end_date];
+
+        if ($platform) {
+            $sql .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY week_label ORDER BY week_label ASC";
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+
+        // Build result array from DB
+        $week_map = [];
+        foreach ($results as $row) {
+            $week_map[$row['week_label']] = (int) $row['clicks'];
+        }
+
+        // Generate all weeks in range and fill gaps with 0
+        $weekly_trend = [];
+        $current = clone $start;
+
+        while ($current <= $today) {
+            // ISO week label: YYYY-WNN
+            $week_label = $current->format('o') . '-W' . $current->format('W');
+
+            // Only add if not already in array (avoid duplicates within same week)
+            $already_added = false;
+            foreach ($weekly_trend as $item) {
+                if ($item['week'] === $week_label) {
+                    $already_added = true;
+                    break;
+                }
+            }
+
+            if (!$already_added) {
+                $weekly_trend[] = [
+                    'week' => $week_label,
+                    'clicks' => isset($week_map[$week_label]) ? $week_map[$week_label] : 0,
+                ];
+            }
+
+            $current->modify('+7 days');
+        }
+
+        set_transient($cache_key, $weekly_trend, self::CACHE_EXPIRATION);
+        return $weekly_trend;
+    }
+
+    /**
+     * v3.0.4: 월간 추세 조회 (Monthly Trend)
+     * 
+     * PURPOSE: Returns click aggregates by month for the traffic trend chart.
+     * Used by: Dashboard "월간 추세 (최근 30개월)" chart
+     * 
+     * DATA FORMAT RETURNED:
+     * [
+     *     ['month' => '2024-01', 'clicks' => 1500],
+     *     ['month' => '2024-02', 'clicks' => 2000],
+     *     ...
+     * ]
+     * 
+     * RELATED FILES:
+     * - JS Consumer: admin/js/sb-chart.js -> initMonthlyTrend()
+     * - View Model: admin/class-sb-admin-view-model.php
+     * - AJAX: includes/class-sb-admin-ajax.php -> ajax_refresh_stats()
+     * 
+     * @param int $months Number of months to retrieve (default: 30)
+     * @param string|null $platform Platform filter (optional)
+     * @return array Array of month => clicks pairs
+     * @since 3.0.4
+     */
+    public function get_monthly_trend(int $months = 30, ?string $platform = null): array
+    {
+        global $wpdb;
+
+        $cache_key = 'sb_mt_' . md5($months . serialize($platform));
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
+
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $today = new DateTime('now', wp_timezone());
+
+        // Calculate start date (months ago, first day of that month)
+        $start = (clone $today)->modify('-' . $months . ' months')->modify('first day of this month');
+        $start_date = $start->format('Y-m-d 00:00:00');
+        $end_date = $today->format('Y-m-d 23:59:59');
+
+        // Query: Group by YYYY-MM format
+        $sql = "SELECT 
+                    DATE_FORMAT(visited_at, '%Y-%m') as month_label,
+                    COUNT(*) as clicks 
+                FROM $table 
+                WHERE visited_at BETWEEN %s AND %s";
+
+        $params = [$start_date, $end_date];
+
+        if ($platform) {
+            $sql .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $sql .= " GROUP BY month_label ORDER BY month_label ASC";
+
+        $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+
+        // Build result array from DB
+        $month_map = [];
+        foreach ($results as $row) {
+            $month_map[$row['month_label']] = (int) $row['clicks'];
+        }
+
+        // Generate all months in range and fill gaps with 0
+        $monthly_trend = [];
+        $current = clone $start;
+
+        while ($current <= $today) {
+            $month_label = $current->format('Y-m');
+
+            $monthly_trend[] = [
+                'month' => $month_label,
+                'clicks' => isset($month_map[$month_label]) ? $month_map[$month_label] : 0,
+            ];
+
+            $current->modify('+1 month');
+        }
+
+        set_transient($cache_key, $monthly_trend, self::CACHE_EXPIRATION);
+        return $monthly_trend;
+    }
+
+    /**
      * 특정 링크의 통계 조회
      * 
      * @param int $link_id 링크 ID

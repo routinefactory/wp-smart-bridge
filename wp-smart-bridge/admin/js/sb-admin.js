@@ -31,13 +31,22 @@
 
         // Init Charts via Module with initial PHP data
         SB_Chart.initTrafficTrend(sbChartData.dailyTrend);
+
+        /**
+         * v3.0.4: Multi-Period Trend Charts
+         * These replaced the removed "Period Comparison" feature.
+         * Weekly uses green color, Monthly uses orange to differentiate visually.
+         */
+        SB_Chart.initWeeklyTrend(sbChartData.weeklyTrend);   // v3.0.4: New
+        SB_Chart.initMonthlyTrend(sbChartData.monthlyTrend); // v3.0.4: New
+
         SB_Chart.initHourly(sbChartData.clicksByHour);
         SB_Chart.initPlatform(sbChartData.platformShare);
 
         // Load Async Data
         loadRefererAnalytics();
         loadDeviceAnalytics();
-        loadPatternAnalytics();
+        // v3.0.4: Removed - loadPatternAnalytics(); // Pattern Analytics feature removed by user request
     }
 
     /**
@@ -101,7 +110,7 @@
         // Ensure functions return the ajax promise object
         requests.push(loadRefererAnalytics());
         requests.push(loadDeviceAnalytics());
-        requests.push(loadPatternAnalytics());
+        // v3.0.4: Removed - requests.push(loadPatternAnalytics()); // Pattern Analytics feature removed
 
         // 3. Synchronize Completion (Wait for ALL requests)
         // Using Promise.allSettled-like behavior via jQuery.when or Promise.all
@@ -174,6 +183,56 @@
         });
     }
 
+    /**
+     * v3.0.4: DISABLED - Pattern Analytics Feature Removed
+     * 
+     * This function and renderVisitorStats were removed since the HTML section
+     * (weekday chart, visitor types, anomaly detection) was removed from dashboard.php.
+     * 
+     * RELATED REMOVED:
+     * - dashboard.php: "Advanced Pattern Analysis" section
+     * - sb-chart.js: renderWeekday function (no longer called)
+     * - sb-ui.js: renderAnomalies function (no longer called)
+     * - class-sb-rest-api.php: get_pattern_analytics endpoint (kept but unused)
+     * 
+     * @deprecated 3.0.4 Removed by user request
+     */
+
+    /**
+     * Get Filter Parameters
+     * CRITICAL: This function is used by almost all AJAX calls on the dashboard.
+     * DO NOT REMOVE or many features will break!
+     * 
+     * Used by: refreshDashboard, loadRefererAnalytics, loadDeviceAnalytics, 
+     *          comparison logic, link detail modal, and more.
+     */
+    function getFilterParams() {
+        var range = $('#sb-date-range').val();
+        var platform = $('#sb-platform-filter').val();
+        var params = { range: range, platform: platform };
+
+        if (range === 'custom') {
+            params.start_date = $('#sb-start-date').val();
+            params.end_date = $('#sb-end-date').val();
+        }
+        return params;
+    }
+
+    /**
+     * v3.0.4: DISABLED - Pattern Analytics Feature Removed
+     * 
+     * This function and renderVisitorStats were removed since the HTML section
+     * (weekday chart, visitor types, anomaly detection) was removed from dashboard.php.
+     * 
+     * RELATED REMOVED:
+     * - dashboard.php: "Advanced Pattern Analysis" section
+     * - sb-chart.js: renderWeekday function (no longer called)
+     * - sb-ui.js: renderAnomalies function (no longer called)
+     * - class-sb-rest-api.php: get_pattern_analytics endpoint (kept but unused)
+     * 
+     * @deprecated 3.0.4 Removed by user request
+     */
+    /*
     function loadPatternAnalytics() {
         var params = getFilterParams();
         return $.ajax({
@@ -200,30 +259,13 @@
         });
     }
 
-    /**
-     * Get Filter Parameters
-     */
-    function getFilterParams() {
-        var range = $('#sb-date-range').val();
-        var platform = $('#sb-platform-filter').val();
-        var params = { range: range, platform: platform };
-
-        if (range === 'custom') {
-            params.start_date = $('#sb-start-date').val();
-            params.end_date = $('#sb-end-date').val();
-        }
-        return params;
-    }
-
-    /**
-     * Visitor Stats Renderer
-     */
     function renderVisitorStats(data) {
         SB_UI.setText('#sb-new-visitors', data.new_visitors.toLocaleString());
         SB_UI.setText('#sb-returning-visitors', data.returning.toLocaleString());
         SB_UI.setText('#sb-frequent-visitors', data.frequent.toLocaleString());
         SB_UI.setText('#sb-returning-rate', data.returning_rate + '%');
     }
+    */
 
     /**
      * Health Check - Verify short links work properly (Permalink flush check)

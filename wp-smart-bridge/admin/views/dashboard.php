@@ -192,11 +192,41 @@ if (!defined('ABSPATH')) {
 
     <!-- 차트 영역 -->
     <div class="sb-charts-grid">
-        <!-- 트래픽 추세선 -->
-        <div class="sb-chart-box sb-chart-wide">
-            <h3><?php _e('📈 트래픽 추세 (최근 30일)', 'sb'); ?></h3>
+        <!--
+            v3.0.4: Multi-Period Traffic Trend Charts
+            
+            Displays Daily/Weekly/Monthly trends side by side for comprehensive view.
+            These replaced the removed "Period Comparison" feature for cleaner UX.
+            
+            Data Sources:
+            - Daily: $daily_trend from SB_Analytics::get_daily_trend()
+            - Weekly: $weekly_trend from SB_Analytics::get_weekly_trend()
+            - Monthly: $monthly_trend from SB_Analytics::get_monthly_trend()
+            
+            JS Renderers: sb-chart.js -> initTrafficTrend(), initWeeklyTrend(), initMonthlyTrend()
+        -->
+
+        <!-- 일간 트래픽 추세 -->
+        <div class="sb-chart-box">
+            <h3><?php _e('📈 일간 추세 (최근 30일)', 'sb'); ?></h3>
             <div class="sb-chart-container">
                 <canvas id="sb-traffic-trend-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- 주간 트래픽 추세 (v3.0.4 신규) -->
+        <div class="sb-chart-box">
+            <h3><?php _e('📊 주간 추세 (최근 30주)', 'sb'); ?></h3>
+            <div class="sb-chart-container">
+                <canvas id="sb-weekly-trend-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- 월간 트래픽 추세 (v3.0.4 신규) -->
+        <div class="sb-chart-box">
+            <h3><?php _e('📅 월간 추세 (최근 30개월)', 'sb'); ?></h3>
+            <div class="sb-chart-container">
+                <canvas id="sb-monthly-trend-chart"></canvas>
             </div>
         </div>
 
@@ -292,101 +322,9 @@ if (!defined('ABSPATH')) {
     </div>
 
     <!-- 고급 패턴 분석 -->
-    <div class="sb-analytics-section">
-        <h2 class="sb-section-title">
-            <span class="dashicons dashicons-chart-area"></span>
-            <?php _e('고급 패턴 분석', 'sb'); ?>
-            <span class="sb-section-badge">Phase 4</span>
-        </h2>
-        <div class="sb-charts-grid">
-            <div class="sb-chart-box">
-                <h3><?php _e('📅 요일별 클릭 패턴', 'sb'); ?></h3>
-                <div class="sb-chart-container">
-                    <canvas id="sb-weekday-chart"></canvas>
-                </div>
-            </div>
-            <div class="sb-chart-box">
-                <h3><?php _e('👥 방문자 유형', 'sb'); ?></h3>
-                <div class="sb-visitor-stats" id="sb-visitor-stats">
-                    <div class="sb-stat-card">
-                        <div class="sb-stat-icon new">👋</div>
-                        <div class="sb-stat-value" id="sb-new-visitors">-</div>
-                        <div class="sb-stat-label"><?php _e('신규 방문자 (1회)', 'sb'); ?></div>
-                    </div>
-                    <div class="sb-stat-card">
-                        <div class="sb-stat-icon returning">🔄</div>
-                        <div class="sb-stat-value" id="sb-returning-visitors">-</div>
-                        <div class="sb-stat-label"><?php _e('재방문자 (2-5회)', 'sb'); ?></div>
-                    </div>
-                    <div class="sb-stat-card">
-                        <div class="sb-stat-icon frequent">⭐</div>
-                        <div class="sb-stat-value" id="sb-frequent-visitors">-</div>
-                        <div class="sb-stat-label"><?php _e('단골 (6회+)', 'sb'); ?></div>
-                    </div>
-                    <div class="sb-stat-card highlight">
-                        <div class="sb-stat-icon rate">📈</div>
-                        <div class="sb-stat-value" id="sb-returning-rate">-</div>
-                        <div class="sb-stat-label"><?php _e('재방문율', 'sb'); ?></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- v3.0.4: Removed "Advanced Pattern Analysis" section (weekday chart, visitor types, anomaly detection) - Feature deemed unnecessary by user -->
 
-        <!-- 이상치 탐지 -->
-        <div class="sb-anomaly-section sb-hidden" id="sb-anomaly-section">
-            <h3><?php _e('⚠️ 트래픽 이상 탐지', 'sb'); ?></h3>
-            <div class="sb-anomaly-content" id="sb-anomaly-content">
-                <!-- JS로 채워짐 -->
-            </div>
-        </div>
-    </div>
-
-    <!-- 기간 비교 섹션 -->
-    <div class="sb-analytics-section sb-comparison-section">
-        <h2 class="sb-section-title">
-            <span class="dashicons dashicons-chart-line"></span>
-            <?php _e('기간 비교 분석', 'sb'); ?>
-            <button type="button" id="sb-toggle-comparison" class="button button-primary sb-ml-10">
-                <?php _e('📊 지난주와 비교하기', 'sb'); ?>
-            </button>
-        </h2>
-        <div id="sb-comparison-container" class="sb-hidden">
-            <div class="sb-comparison-controls">
-                <select id="sb-comparison-type" class="sb-filter-select">
-                    <option value="wow"><?php _e('주간 비교 (WoW)', 'sb'); ?></option>
-                    <option value="mom"><?php _e('월간 비교 (MoM)', 'sb'); ?></option>
-                    <option value="custom"><?php _e('사용자 지정', 'sb'); ?></option>
-                </select>
-                <button type="button" id="sb-load-comparison"
-                    class="button button-primary"><?php _e('비교 데이터 로드', 'sb'); ?></button>
-            </div>
-            <div class="sb-comparison-result" id="sb-comparison-result">
-                <div class="sb-comparison-stats">
-                    <div class="sb-comparison-card">
-                        <h4><?php _e('현재 기간', 'sb'); ?></h4>
-                        <div class="sb-comparison-value" id="sb-current-clicks">-</div>
-                        <div class="sb-comparison-label"><?php _e('클릭', 'sb'); ?></div>
-                    </div>
-                    <div class="sb-comparison-card">
-                        <h4><?php _e('이전 기간', 'sb'); ?></h4>
-                        <div class="sb-comparison-value" id="sb-previous-clicks">-</div>
-                        <div class="sb-comparison-label"><?php _e('클릭', 'sb'); ?></div>
-                    </div>
-                    <div class="sb-comparison-card highlight">
-                        <h4><?php _e('변화율', 'sb'); ?></h4>
-                        <div class="sb-comparison-value" id="sb-comparison-rate">-</div>
-                        <div class="sb-comparison-label"><?php _e('증감', 'sb'); ?></div>
-                    </div>
-                </div>
-                <div class="sb-chart-box sb-chart-wide">
-                    <h3><?php _e('📊 기간 비교 트렌드', 'sb'); ?></h3>
-                    <div class="sb-chart-container">
-                        <canvas id="sb-comparison-chart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- v3.0.4: Removed "Period Comparison" section - Replaced with multi-period trend charts in the traffic section above -->
 
     <!-- Realtime Click Feed (v2.9.23/24) -->
     <div class="sb-analytics-section sb-realtime-section">
@@ -663,12 +601,27 @@ if (!defined('ABSPATH')) {
 
 <!-- 차트 데이터 -->
 <script>
+    /**
+     * v3.0.4: Chart Data Injection
+     * 
+     * This object is consumed by sb-chart.js and sb-admin.js to render charts.
+     * Data is prepared by SB_Admin_View_Model::get_dashboard_data()
+     * 
+     * IMPORTANT: If you add new keys here, you must:
+     * 1. Add corresponding method in class-sb-analytics.php
+     * 2. Add to return array in class-sb-admin-view-model.php
+     * 3. Add init function in admin/js/sb-chart.js
+     * 4. Call init function in admin/js/sb-admin.js initCharts()
+     */
     var sbChartData = {
         dailyTrend: <?php echo json_encode($daily_trend ?: []); ?>,
+        weeklyTrend: <?php echo json_encode($weekly_trend ?: []); ?>,   // v3.0.4: New
+        monthlyTrend: <?php echo json_encode($monthly_trend ?: []); ?>, // v3.0.4: New
         clicksByHour: <?php echo json_encode($clicks_by_hour ?: []); ?>,
         platformShare: <?php echo json_encode($platform_share ?: []); ?>
     };
 </script>
+
 
 <!-- 
     ===========================================================================
