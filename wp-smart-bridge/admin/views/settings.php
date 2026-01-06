@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) {
 
     <!-- API 키 관리 -->
     <div class="sb-settings-section">
-        <h2><?php _e('🔑 API 키 관리', 'sb'); ?></h2>
+        <h2><span class="dashicons dashicons-lock"></span> <?php _e('API 키 관리', 'sb'); ?></h2>
         <p class="description">
             <?php _e('EXE 프로그램에서 사용할 API 키를 관리합니다.', 'sb'); ?>
             <strong><?php _e('Secret Key는 절대 외부에 노출하지 마세요.', 'sb'); ?></strong>
@@ -63,25 +63,24 @@ if (!defined('ABSPATH')) {
                                 <code class="sb-api-key"><?php echo esc_html($key['api_key']); ?></code>
                                 <button type="button" class="button button-small sb-copy-btn"
                                     data-copy="<?php echo esc_attr($key['api_key']); ?>">
-                                    📋
+                                    <span class="dashicons dashicons-clipboard"></span>
                                 </button>
                             </td>
                             <td>
                                 <code class="sb-secret-key sb-masked">••••••••••••••••</code>
-                                <code class="sb-secret-key sb-revealed sb-hidden">
-                                                                                                                                                                                                                    <?php echo esc_html($key['secret_key']); ?>
-                                                                                                                                                                                                                </code>
+                                <code
+                                    class="sb-secret-key sb-revealed sb-hidden"><?php echo esc_html($key['secret_key']); ?></code>
                                 <button type="button" class="button button-small sb-toggle-secret">
-                                    👁️
+                                    <span class="dashicons dashicons-visibility"></span>
                                 </button>
                                 <button type="button" class="button button-small sb-copy-btn"
                                     data-copy="<?php echo esc_attr($key['secret_key']); ?>">
-                                    📋
+                                    <span class="dashicons dashicons-clipboard"></span>
                                 </button>
                             </td>
                             <td>
                                 <span class="sb-status sb-status-<?php echo esc_attr($key['status']); ?>">
-                                    <?php echo $key['status'] === 'active' ? '✅ ' . __('활성', 'sb') : '❌ ' . __('비활성', 'sb'); ?>
+                                    <?php echo $key['status'] === 'active' ? '<span class="dashicons dashicons-yes"></span> ' . __('활성', 'sb') : '<span class="dashicons dashicons-no"></span> ' . __('비활성', 'sb'); ?>
                                 </span>
                             </td>
                             <td>
@@ -108,7 +107,7 @@ if (!defined('ABSPATH')) {
 
     <!-- 일반 설정 -->
     <div class="sb-settings-section">
-        <h2><?php _e('⚙️ 일반 설정', 'sb'); ?></h2>
+        <h2><span class="dashicons dashicons-admin-settings"></span> <?php _e('일반 설정', 'sb'); ?></h2>
 
         <form id="sb-settings-form">
             <table class="form-table">
@@ -139,7 +138,7 @@ if (!defined('ABSPATH')) {
 
     <!-- 데이터 최적화 (v2.9.27) -->
     <div class="sb-settings-section">
-        <h2><?php _e('⚡ 데이터 최적화', 'sb'); ?></h2>
+        <h2><span class="dashicons dashicons-performance"></span> <?php _e('데이터 최적화', 'sb'); ?></h2>
         <p class="description">
             <?php _e('대시보드 로딩 속도를 획기적으로 개선하기 위해 과거 로그 데이터를 일별 요약 테이블로 변환합니다.', 'sb'); ?><br>
             <?php _e('데이터가 많을 경우 시간이 소요될 수 있습니다. (진행 중 페이지를 닫지 마세요)', 'sb'); ?>
@@ -150,20 +149,20 @@ if (!defined('ABSPATH')) {
                 <span class="dashicons dashicons-performance"></span>
                 <?php _e('데이터 마이그레이션 시작', 'sb'); ?>
             </button>
-            <span id="sb-migrate-status" class="sb-status-text" style="display:none; margin-left: 10px;"></span>
+            <span id="sb-migrate-status" class="sb-status-text sb-ml-10" style="display:none;"></span>
         </div>
     </div>
 
     <!-- 커스텀 리다이렉션 템플릿 -->
     <div class="sb-settings-section">
-        <h2><?php _e('🎨 커스텀 리다이렉션 템플릿', 'sb'); ?></h2>
+        <h2><span class="dashicons dashicons-art"></span> <?php _e('커스텀 리다이렉션 템플릿', 'sb'); ?></h2>
         <p class="description">
             <?php _e('리다이렉션 대기 페이지의 전체 HTML/CSS를 자유롭게 커스터마이징할 수 있습니다.', 'sb'); ?><br>
             <strong>⚠️ <?php _e('필수 Placeholder를 반드시 포함해야 합니다!', 'sb'); ?></strong>
         </p>
 
         <div class="sb-info-box sb-info-box-blue">
-            <h4><?php _e('📝 필수 Placeholder 목록', 'sb'); ?></h4>
+            <h4><span class="dashicons dashicons-editor-ul"></span> <?php _e('필수 Placeholder 목록', 'sb'); ?></h4>
             <ul class="sb-placeholder-list">
                 <li><code>{{DELAY_SECONDS}}</code> - <?php _e('초기 딜레이 초가 표시될 위치', 'sb'); ?></li>
                 <li><code>{{TARGET_URL}}</code> - <?php _e('타겟 URL (href 속성 등에 사용)', 'sb'); ?></li>
@@ -176,7 +175,7 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div class="sb-info-box sb-info-box-yellow">
-            <h4><?php _e('🤖 AI로 디자인 변경하기', 'sb'); ?></h4>
+            <h4><span class="dashicons dashicons-superhero"></span> <?php _e('AI로 디자인 변경하기', 'sb'); ?></h4>
             <p class="sb-helper-text sb-helper-text-sm">
                 <?php _e('ChatGPT, Claude 등 AI에게 아래 프롬프트를 복사해서 붙여넣으면 안전하게 디자인을 변경할 수 있습니다:', 'sb'); ?>
             </p>
@@ -220,7 +219,7 @@ if (!defined('ABSPATH')) {
 
     <!-- 사용 안내 (Classes Applied) -->
     <div class="sb-settings-section sb-usage-guide">
-        <h2><?php _e('📖 EXE 프로그램 연동 방법', 'sb'); ?></h2>
+        <h2><span class="dashicons dashicons-book"></span> <?php _e('EXE 프로그램 연동 방법', 'sb'); ?></h2>
 
         <div class="sb-guide-content">
             <h4><?php _e('1. API 키 발급', 'sb'); ?></h4>
@@ -245,7 +244,7 @@ if (!defined('ABSPATH')) {
     </div>
     <!-- 백업 및 복구 -->
     <div class="sb-settings-section">
-        <h2><?php _e('💾 백업 및 복원', 'sb'); ?></h2>
+        <h2><span class="dashicons dashicons-download"></span> <?php _e('백업 및 복원', 'sb'); ?></h2>
         <p class="description">
             <?php _e('플러그인의 모든 데이터(링크, 통계, 설정)를 JSON 파일로 백업하거나 복원할 수 있습니다.', 'sb'); ?><br>
             <strong><?php _e('주기적으로 백업하는 것을 권장합니다.', 'sb'); ?></strong>
@@ -281,28 +280,28 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
     </div>
-</div>
 
-
-<!-- Danger Zone (공장 초기화) (Classes Applied) -->
-<div class="sb-danger-zone">
-    <h3 class="sb-danger-title">
-        <span class="dashicons dashicons-warning sb-icon-warn"></span>
-        <?php _e('Danger Zone (위험 구역)', 'sb'); ?>
-    </h3>
-    <p class="sb-danger-text">
-        <?php _e('이 작업은 플러그인의 <strong>모든 데이터(링크, 통계 로그, API 키, 설정)</strong>를 영구적으로 삭제하고 초기 상태로 되돌립니다.', 'sb'); ?><br>
-        <span class="sb-text-danger"><?php _e('삭제된 데이터는 복구할 수 없습니다. 신중하게 진행해주세요.', 'sb'); ?></span>
-    </p>
-    <button type="button" id="sb-factory-reset" class="button button-primary sb-danger-btn">
-        <?php _e('Factory Reset (공장 초기화)', 'sb'); ?>
-    </button>
+    <!-- Danger Zone (공장 초기화) - Inside .wrap for proper styling -->
+    <div class="sb-danger-zone">
+        <h3 class="sb-danger-title">
+            <span class="dashicons dashicons-warning sb-icon-warn"></span>
+            <?php _e('Danger Zone (위험 구역)', 'sb'); ?>
+        </h3>
+        <p class="sb-danger-text">
+            <?php _e('이 작업은 플러그인의 <strong>모든 데이터(링크, 통계 로그, API 키, 설정)</strong>를 영구적으로 삭제하고 초기 상태로 되돌립니다.', 'sb'); ?><br>
+            <span class="sb-text-danger"><?php _e('삭제된 데이터는 복구할 수 없습니다. 신중하게 진행해주세요.', 'sb'); ?></span>
+        </p>
+        <button type="button" id="sb-factory-reset" class="button button-primary sb-danger-btn">
+            <?php _e('Factory Reset (공장 초기화)', 'sb'); ?>
+        </button>
+    </div>
 </div>
 
 <!-- 새 키 발급 모달 -->
-<div id="sb-new-key-modal" class="sb-modal" style="display: none;">
+<div id="sb-new-key-modal" class="sb-modal sb-hidden">
+    <div class="sb-modal-overlay"></div>
     <div class="sb-modal-content">
-        <h3><?php _e('🎉 새 API 키가 발급되었습니다!', 'sb'); ?></h3>
+        <h3><span class="dashicons dashicons-awards"></span> <?php _e('새 API 키가 발급되었습니다!', 'sb'); ?></h3>
         <p><strong><?php _e('아래 정보를 안전한 곳에 저장하세요. Secret Key는 다시 확인할 수 없습니다.', 'sb'); ?></strong></p>
 
         <div class="sb-key-display">

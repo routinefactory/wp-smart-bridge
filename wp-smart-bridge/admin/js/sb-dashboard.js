@@ -3,7 +3,7 @@
  * Extracted from dashboard.php
  * 
  * @package WP_Smart_Bridge
- * @since 2.9.22
+ * @since 3.0.1
  */
 
 (function ($) {

@@ -4,13 +4,24 @@
  * Refactored for UX/A11y/Performance
  * 
  * @package WP_Smart_Bridge
- * @since 3.0.0
+ * @since 3.0.1
  */
 
 (function ($) {
     'use strict';
 
     var sbAdmin = window.sbAdmin || {};
+
+    /**
+     * i18n Helper Function
+     * Reduces repetitive typeof checks throughout codebase
+     * @param {string} key - The translation key
+     * @param {string} fallback - Fallback value if key not found
+     * @returns {string}
+     */
+    function __(key, fallback) {
+        return (typeof sb_i18n !== 'undefined' && sb_i18n[key]) ? sb_i18n[key] : fallback;
+    }
 
     /**
      * Initialize all Analytics
@@ -34,15 +45,30 @@
      */
     function refreshDashboard() {
         var params = getFilterParams();
-        var promises = [];
 
         // UI Feedback: Spin Apply Button
         var $btn = $('#sb-apply-filters');
-        var originalText = $btn.html();
+
+        // Prevent double-click while loading
+        if ($btn.prop('disabled')) {
+            return;
+        }
+
         $btn.addClass('disabled').prop('disabled', true);
         $btn.find('.dashicons').addClass('sb-spin');
 
-        // 1. Reload Main Charts
+        // Helper function to re-enable button
+        function enableButton() {
+            setTimeout(function () {
+                $btn.removeClass('disabled').prop('disabled', false);
+                $btn.find('.dashicons').removeClass('sb-spin');
+            }, 300);
+        }
+
+        // 1. Collect all requests promises
+        var requests = [];
+
+        // Main Charts Request
         var mainReq = $.ajax({
             url: sbAdmin.ajaxUrl,
             method: 'POST',
@@ -51,7 +77,6 @@
                 nonce: sbAdmin.ajaxNonce
             }, params),
             beforeSend: function () {
-                // Show skeletons for main charts
                 $('#sb-trend-chart, #sb-hourly-chart, #sb-platform-chart').parent().addClass('sb-skeleton');
             },
             success: function (response) {
@@ -60,28 +85,39 @@
                     SB_Chart.initHourly(response.data.clicksByHour);
                     SB_Chart.initPlatform(response.data.platformShare);
                 } else {
-                    SB_UI.showToast(response.data.message || sb_i18n.error_occurred, 'error');
+                    SB_UI.showToast(response.data.message || __('error_occurred', 'Error occurred'), 'error');
                 }
+            },
+            error: function () {
+                SB_UI.showToast(__('network_error', 'Network error'), 'error');
             },
             complete: function () {
                 $('#sb-trend-chart, #sb-hourly-chart, #sb-platform-chart').parent().removeClass('sb-skeleton');
             }
         });
-        promises.push(mainReq);
+        requests.push(mainReq);
 
-        // 2. Reload Sub-modules (collect promises)
-        promises.push(loadRefererAnalytics());
-        promises.push(loadDeviceAnalytics());
-        promises.push(loadPatternAnalytics());
+        // 2. Sub-module Requests (Push promises to array)
+        // Ensure functions return the ajax promise object
+        requests.push(loadRefererAnalytics());
+        requests.push(loadDeviceAnalytics());
+        requests.push(loadPatternAnalytics());
 
-        // 3. When ALL finished (Success or Fail)
-        $.when.apply($, promises).always(function () {
-            // Setup minimum spinner time of 500ms to prevent jitter
-            setTimeout(function () {
-                $btn.removeClass('disabled').prop('disabled', false);
-                $btn.find('.dashicons').removeClass('sb-spin');
-            }, 500);
-        });
+        // 3. Synchronize Completion (Wait for ALL requests)
+        // Using Promise.allSettled-like behavior via jQuery.when or Promise.all
+        // We use Promise.all to wait for all, utilizing jQuery's distinct promise compatibility
+        Promise.all(requests)
+            .then(function () {
+                // All success (technically)
+            })
+            .catch(function () {
+                // Some failed, but we still proceed
+            })
+            .finally(function () {
+                // 4. Re-enable button ONLY after EVERYTHING is done
+                enableButton();
+                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.success_saved || 'Refreshed' : 'Refreshed', 'success');
+            });
     }
 
     /**
@@ -104,7 +140,7 @@
                 }
             },
             error: function () {
-                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_data : 'Failed to load data', 'error');
+                SB_UI.showToast(__('error_loading_data', 'Failed to load data'), 'error');
             },
             complete: function () {
                 $('#sb-referer-chart, #sb-referer-groups-chart').parent().removeClass('sb-skeleton');
@@ -130,7 +166,7 @@
                 }
             },
             error: function () {
-                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_data : 'Failed to load data', 'error');
+                SB_UI.showToast(__('error_loading_data', 'Failed to load data'), 'error');
             },
             complete: function () {
                 $('#sb-device-chart, #sb-os-chart, #sb-browser-chart').parent().removeClass('sb-skeleton');
@@ -156,7 +192,7 @@
                 }
             },
             error: function () {
-                SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.error_loading_data : 'Failed to load data', 'error');
+                SB_UI.showToast(__('error_loading_data', 'Failed to load data'), 'error');
             },
             complete: function () {
                 $('#sb-weekday-chart').parent().removeClass('sb-skeleton');
@@ -190,6 +226,70 @@
     }
 
     /**
+     * Health Check - Verify short links work properly (Permalink flush check)
+     */
+    function runHealthCheck() {
+        // Optimization: Run only once every 24 hours
+        var lastCheck = localStorage.getItem('sb_last_health_check');
+        var now = new Date().getTime();
+        var ONE_DAY = 24 * 60 * 60 * 1000;
+
+        if (lastCheck && (now - parseInt(lastCheck)) < ONE_DAY) {
+            // console.log('SB: Health check skipped (throttled).'); 
+            return;
+        }
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_health_check',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function (response) {
+                if (response.success) {
+                    // Only update timestamp on successful check
+                    localStorage.setItem('sb_last_health_check', now);
+
+                    var status = response.data.status;
+
+                    // Remove any existing health banner
+                    $('#sb-health-warning').remove();
+
+                    if (status === 'error_404') {
+                        // Show prominent warning banner
+                        var $banner = $('<div id="sb-health-warning" class="notice notice-error sb-health-banner">' +
+                            '<h3>⚠️ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.permalink_error_title || '단축 링크가 작동하지 않습니다!' : 'Short links are not working!') + '</h3>' +
+                            '<p>' + (typeof sb_i18n !== 'undefined' ? sb_i18n.permalink_error_msg || '퍼마링크 설정이 필요합니다. 아래 버튼을 클릭하여 설정 페이지로 이동한 후, "변경사항 저장" 버튼을 클릭해주세요.' : 'Permalinks need to be flushed.') + '</p>' +
+                            '<p><a href="' + sbAdmin.adminUrl + 'options-permalink.php" class="button button-primary">' +
+                            (typeof sb_i18n !== 'undefined' ? sb_i18n.go_to_permalinks || '퍼마링크 설정으로 이동' : 'Go to Permalinks') + ' →</a></p>' +
+                            (typeof sb_i18n !== 'undefined' ? sb_i18n.go_to_permalinks || '퍼마링크 설정으로 이동' : 'Go to Permalinks') + ' →</a></p>' +
+                            '<p class="sb-health-details"><small>테스트 URL: ' + response.data.test_url + ' (응답 코드: ' + response.data.code + ')</small></p>' +
+                            '<button type="button" class="notice-dismiss"><span class="screen-reader-text">' + (typeof sb_i18n !== 'undefined' ? sb_i18n.dismiss || 'Dismiss' : 'Dismiss') + '</span></button>' +
+                            '</div>');
+
+                        // Insert at top of dashboard
+                        $('.sb-dashboard').prepend($banner);
+
+                        // Fix 3-3: Add dismiss handler immediately
+                        $banner.find('.notice-dismiss').on('click', function () {
+                            $banner.fadeTo(100, 0, function () {
+                                $(this).slideUp(100, function () {
+                                    $(this).remove();
+                                });
+                            });
+                        });
+                    }
+                    // status 'ok' or 'no_links' - no action needed
+                }
+            },
+            error: function () {
+                // Silent fail - don't annoy user with health check errors
+            }
+        });
+    }
+
+    /**
      * Event Listeners
      */
     $(document).ready(function () {
@@ -197,6 +297,9 @@
         initLinkGroups();
         initRealtimeFeed();
         initGlobalErrorHandling(); // v3.0.0 Resilience
+
+        // Run health check on dashboard load (v3.0.0)
+        runHealthCheck();
 
         // 1. Filter events (Now AJAX)
         $('#sb-apply-filters').on('click', function () {
@@ -673,12 +776,18 @@
     }
 
     function connectEventSource() {
+        // Fix 3-1: Resource Cleanup (Verify Pass: Prevent duplicate connections)
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+
         var feedUrl = sbAdmin.ajaxUrl + '?action=sb_realtime_feed&nonce=' + sbAdmin.ajaxNonce;
         eventSource = new EventSource(feedUrl);
 
         eventSource.onopen = function () {
             $('#sb-realtime-status').removeClass('error').addClass('connected')
-                .attr('title', sb_i18n.realtime_connected || 'Connected');
+                .attr('title', __('realtime_connected', 'Connected'));
             reconnectAttempts = 0; // Reset on successful connection
         };
 

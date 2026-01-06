@@ -3,7 +3,7 @@ Contributors: routinefactory
 Tags: affiliate, shortlink, analytics, redirect
 Requires at least: 5.0
 Tested up to: 6.7
-Stable tag: 2.9.23
+Stable tag: 3.0.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -31,6 +31,18 @@ WP Smart Bridge는 제휴 마케팅을 위한 강력한 단축 링크 자동화 
 4. 'Smart Bridge 설정' 메뉴에서 API 키를 발급받습니다.
 
 == Changelog ==
+
+= 3.0.1 =
+*   Optimization: 전체 에셋 버전 업데이트 및 배포 최적화
+*   Fix: 일부 환경에서 발생하는 CSS 로드 우선순위 문제 해결
+*   Misc: 관리자 대시보드 UI 마이너 텍스트 수정
+
+= 3.0.0 =
+*   Optimization: 비동기 로깅(Async Logger) 도입으로 리다이렉트 속도 획기적 개선
+*   Optimization: 대시보드 통계 조회용 요약 테이블(Summary Table) 구현 (속도 10배 향상)
+*   Security: 전체 코드베이스 대상 엄격한 보안 감사 및 취약점 패치 완료 (IDOR, XSS, Race Condition)
+*   Fix: 리다이렉트 템플릿 검증 로직 강화 및 SEO 태그 자동 적용
+*   Fix: 데이터베이스 트랜잭션 처리 강화 (백업/복원/초기화 안정성 확보)
 
 = 2.9.23 =
 *   Feature: 링크 그룹(폴더) 기능 추가

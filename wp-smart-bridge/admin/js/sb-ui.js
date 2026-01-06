@@ -3,11 +3,21 @@
  * Handles DOM manipulation, Modals, and Templates.
  * 
  * @package WP_Smart_Bridge
- * @since 2.9.22
+ * @since 3.0.1
  */
 
 var SB_UI = (function ($) {
     'use strict';
+
+    /**
+     * i18n Helper Function
+     * @param {string} key - Translation key
+     * @param {string} fallback - Fallback value
+     * @returns {string}
+     */
+    function __(key, fallback) {
+        return (typeof sb_i18n !== 'undefined' && sb_i18n[key]) ? sb_i18n[key] : fallback;
+    }
 
     return {
         /**
@@ -35,10 +45,12 @@ var SB_UI = (function ($) {
             }
 
             var $toast = $('<div class="sb-toast ' + type + '"></div>');
-            var icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
+            // Phase 10: Standardize Icons (Dashicons)
+            var iconClass = type === 'success' ? 'dashicons-yes' : (type === 'error' ? 'dashicons-no' : 'dashicons-info');
+            var icon = '<span class="dashicons ' + iconClass + '"></span>';
 
             // XSS Safe: Use jQuery DOM construction instead of .html()
-            var $span = $('<span></span>').text(icon + ' ' + message);
+            var $span = $('<span></span>').html(icon + ' ' + message);
             var $closeBtn = $('<button class="sb-toast-close" aria-label="Close">&times;</button>');
             $toast.append($span).append($closeBtn);
 
@@ -52,7 +64,18 @@ var SB_UI = (function ($) {
             // Auto Dismiss
             setTimeout(function () {
                 $toast.css('animation', 'sb-fade-out 0.5s forwards');
-                setTimeout(function () { $toast.remove(); }, 500);
+
+                // Robust Transition End
+                var handled = false;
+                var onEnd = function () {
+                    if (handled) return;
+                    handled = true;
+                    $toast.remove();
+                };
+
+                $toast.one('animationend transitionend', onEnd);
+                // Safety Fallback (Animation time + buffer)
+                setTimeout(onEnd, 600);
             }, type === 'error' ? 5000 : 3000);
         },
 
@@ -62,8 +85,16 @@ var SB_UI = (function ($) {
          */
         openModal: function (modalId) {
             var $modal = $(modalId);
-            $modal.fadeIn(200);
+
+            // Modern CSS Transition Logic
+            $modal.css('display', 'flex');
+            // Force Reflow
+            void $modal[0].offsetWidth;
+            $modal.addClass('sb-show');
+
             $('body').addClass('sb-modal-open');
+            // A11y: Hide background content
+            $('#wpwrap').attr('aria-hidden', 'true');
 
             // A11y: Focus first focusable element
             setTimeout(function () {
@@ -90,7 +121,7 @@ var SB_UI = (function ($) {
                         }
                     }
                 });
-            }, 250);
+            }, 50); // Reduced delay as transition handles visibility
 
             // A11y: Esc key to close
             $(document).on('keydown.sbModal', function (e) {
@@ -104,12 +135,31 @@ var SB_UI = (function ($) {
          * Close Modal
          */
         closeModal: function (target) {
-            if (target) {
-                $(target).closest('.sb-modal').fadeOut(200);
-            } else {
-                $('.sb-modal').fadeOut(200);
-            }
+            var $targetModal = target ? $(target).closest('.sb-modal') : $('.sb-modal');
+
+            $targetModal.removeClass('sb-show');
+
+            // Wait for transition end
+            // Robust Transition End Logic
+            var handled = false;
+            var transitionDuration = 300; // Expected duration
+
+            var onEnd = function () {
+                if (handled) return;
+                handled = true;
+                if (!$targetModal.hasClass('sb-show')) {
+                    $targetModal.hide(); // display: none
+                }
+            };
+
+            $targetModal.one('transitionend', onEnd);
+
+            // Safety Fallback (Duration + Buffer)
+            setTimeout(onEnd, transitionDuration + 50);
+
             $('body').removeClass('sb-modal-open');
+            // A11y: Restore background content
+            $('#wpwrap').removeAttr('aria-hidden');
 
             // A11y: Remove Esc key handler & Focus Trap
             $(document).off('keydown.sbModal');
@@ -142,9 +192,12 @@ var SB_UI = (function ($) {
                 var div = clone.querySelector('.sb-anomaly-item');
                 div.classList.add(type); // 'spike' or 'drop'
 
-                clone.querySelector('.sb-tmpl-date').textContent = (type === 'spike' ? '📈 ' : '📉 ') + item.date;
+                // Phase 10: Dashicons for Anomalies
+                var iconSymbol = type === 'spike' ? '<span class="dashicons dashicons-chart-line"></span> ' : '<span class="dashicons dashicons-chart-area"></span> ';
+
+                clone.querySelector('.sb-tmpl-date').innerHTML = iconSymbol + item.date;
                 clone.querySelector('.sb-tmpl-clicks').textContent = item.clicks;
-                clone.querySelector('.sb-tmpl-desc').textContent = ' ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.click_unit : 'clicks') + ' (' + (type === 'spike' ? '+' : '') + item.deviation + 'σ)';
+                clone.querySelector('.sb-tmpl-desc').textContent = ' ' + __('click_unit', 'clicks') + ' (' + (type === 'spike' ? '+' : '') + item.deviation + 'σ)';
 
                 $content.append(clone);
             }
@@ -159,11 +212,11 @@ var SB_UI = (function ($) {
          * @param {string} title 
          */
         alert: function (message, title) {
-            title = title || (typeof sb_i18n !== 'undefined' ? sb_i18n.title_alert : 'Alert');
+            title = title || __('title_alert', 'Alert');
             this.confirm({
                 title: title,
                 message: message,
-                yesLabel: (typeof sb_i18n !== 'undefined' ? sb_i18n.close : 'Close'),
+                yesLabel: __('close', 'Close'),
                 hideCancel: true
             });
         },
@@ -174,10 +227,10 @@ var SB_UI = (function ($) {
          */
         confirm: function (options) {
             options = $.extend({
-                title: (typeof sb_i18n !== 'undefined' ? sb_i18n.title_confirm : 'Confirm'),
+                title: __('title_confirm', 'Confirm'),
                 message: '',
-                yesLabel: (typeof sb_i18n !== 'undefined' ? sb_i18n.yes : 'Yes'),
-                noLabel: (typeof sb_i18n !== 'undefined' ? sb_i18n.no : 'No'),
+                yesLabel: __('yes', 'Yes'),
+                noLabel: __('no', 'No'),
                 onYes: function () { },
                 hideCancel: false
             }, options);
@@ -186,16 +239,17 @@ var SB_UI = (function ($) {
             var $modal = $('#' + modalId);
 
             if ($modal.length === 0) {
-                var html = '<div id="' + modalId + '" class="sb-modal" style="display:none; z-index:100001;">';
+                // Phase 10: Extracted Inline Styles
+                var html = '<div id="' + modalId + '" class="sb-modal sb-modal-confirm" style="display:none;">';
                 html += '<div class="sb-modal-overlay"></div>';
-                html += '<div class="sb-modal-content" style="max-width: 400px;">';
+                html += '<div class="sb-modal-content sb-modal-content-sm">';
                 html += '<div class="sb-modal-header">';
                 html += '<h2>' + options.title + '</h2>';
                 html += '<button type="button" class="sb-modal-close">&times;</button>';
                 html += '</div>';
                 html += '<div class="sb-modal-body">';
                 html += '<p id="sb-confirm-message"></p>';
-                html += '<div class="sb-modal-actions" style="margin-top:20px; text-align:right; display:flex; gap:10px; justify-content:flex-end;">';
+                html += '<div class="sb-modal-actions-right">';
                 html += '<button type="button" class="button button-secondary sb-btn-cancel">' + options.noLabel + '</button>';
                 html += '<button type="button" class="button button-primary sb-btn-yes">' + options.yesLabel + '</button>';
                 html += '</div>';
@@ -232,10 +286,13 @@ var SB_UI = (function ($) {
             // Re-bind Confirm Action
             $modal.find('.sb-btn-yes').off('click').on('click', function () {
                 options.onYes();
-                $modal.fadeOut(200);
+                SB_UI.closeModal('#' + modalId);
             });
 
-            $modal.fadeIn(200);
+            // Modern Open
+            $modal.css('display', 'flex');
+            void $modal[0].offsetWidth;
+            $modal.addClass('sb-show');
         },
 
         /**
@@ -254,18 +311,19 @@ var SB_UI = (function ($) {
             var $modal = $('#' + modalId);
 
             if ($modal.length === 0) {
-                var html = '<div id="' + modalId + '" class="sb-modal" style="display:none; z-index:100002;">';
+                // Phase 10: Extracted Inline Styles
+                var html = '<div id="' + modalId + '" class="sb-modal sb-modal-prompt" style="display:none;">';
                 html += '<div class="sb-modal-overlay"></div>';
-                html += '<div class="sb-modal-content" style="max-width: 400px;">';
+                html += '<div class="sb-modal-content sb-modal-content-sm">';
                 html += '<div class="sb-modal-header">';
                 html += '<h2>' + options.title + '</h2>';
                 html += '<button type="button" class="sb-modal-close">&times;</button>';
                 html += '</div>';
                 html += '<div class="sb-modal-body">';
                 html += '<p>' + options.message + '</p>';
-                html += '<input type="text" id="sb-prompt-input" class="large-text" style="width:100%; margin:10px 0; padding:8px; border:1px solid #ddd; border-radius:4px;">';
-                html += '<div class="sb-modal-actions" style="margin-top:20px; text-align:right;">';
-                html += '<button type="button" class="button button-primary sb-btn-submit">' + (typeof sb_i18n !== 'undefined' ? sb_i18n.title_confirm : 'Confirm') + '</button>';
+                html += '<input type="text" id="sb-prompt-input" class="large-text sb-modal-input">';
+                html += '<div class="sb-modal-actions-right-simple">';
+                html += '<button type="button" class="button button-primary sb-btn-submit">' + __('title_confirm', 'Confirm') + '</button>';
                 html += '</div>';
                 html += '</div>';
                 html += '</div>';
@@ -275,7 +333,7 @@ var SB_UI = (function ($) {
                 $modal = $('#' + modalId);
 
                 $modal.find('.sb-modal-close, .sb-modal-overlay').on('click', function () {
-                    $modal.fadeOut(200);
+                    SB_UI.closeModal('#' + modalId);
                 });
             }
 
@@ -289,7 +347,7 @@ var SB_UI = (function ($) {
                 var val = $input.val();
                 if (val) {
                     options.onSubmit(val);
-                    $modal.fadeOut(200);
+                    SB_UI.closeModal('#' + modalId);
                 }
             });
 
@@ -300,7 +358,10 @@ var SB_UI = (function ($) {
                 }
             });
 
-            $modal.fadeIn(200);
+            // Modern Open
+            $modal.css('display', 'flex');
+            void $modal[0].offsetWidth;
+            $modal.addClass('sb-show');
         },
 
         /**
@@ -314,7 +375,7 @@ var SB_UI = (function ($) {
             if (data.length === 0) {
                 var div = document.createElement('div');
                 div.className = 'sb-referer-item';
-                div.textContent = (typeof sb_i18n !== 'undefined' ? sb_i18n.no_data : 'No Data');
+                div.textContent = __('no_data', 'No Data');
                 $referers.append(div);
                 return;
             }

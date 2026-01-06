@@ -4,7 +4,7 @@
  * Uses CSS variables for consistent styling.
  * 
  * @package WP_Smart_Bridge
- * @since 3.0.0
+ * @since 3.0.1
  */
 
 var SB_Chart = (function ($) {
@@ -21,7 +21,7 @@ var SB_Chart = (function ($) {
      * @returns {string}
      */
     function getCssVar(name) {
-        return getComputedStyle(document.body).getPropertyValue(name).trim();
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
     /**
@@ -30,8 +30,8 @@ var SB_Chart = (function ($) {
     function getColors() {
         return {
             primary: getCssVar('--sb-primary') || '#667eea',
-            primaryAlpha: 'rgba(102, 126, 234, 0.1)', // Hard to derive alpha from hex var easily without calc
-            primaryStrong: 'rgba(102, 126, 234, 0.7)',
+            primaryAlpha: getCssVar('--sb-primary-alpha-10'),
+            primaryStrong: getCssVar('--sb-primary-alpha-70'),
             secondary: getCssVar('--sb-secondary') || '#764ba2',
             success: getCssVar('--sb-success') || '#22c55e',
             warning: getCssVar('--sb-warning') || '#f59e0b',
@@ -39,7 +39,7 @@ var SB_Chart = (function ($) {
             info: getCssVar('--sb-info') || '#3b82f6',
             grey: '#6B7280',
             previous: '#94a3b8',
-            previousAlpha: 'rgba(148, 163, 184, 0.1)'
+            previousAlpha: getCssVar('--sb-previous-alpha-10')
         };
     }
 
@@ -81,7 +81,20 @@ var SB_Chart = (function ($) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    titleColor: getCssVar('--sb-text-main') || '#1e1e1e',
+                    bodyColor: getCssVar('--sb-text-secondary') || '#50575e',
+                    borderColor: getCssVar('--sb-border') || '#e2e4e7',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    padding: 12,
+                    boxPadding: 4,
+                    usePointStyle: true,
+                    titleFont: { size: 13, weight: 600 },
+                    bodyFont: { size: 12 }
+                }
             },
             scales: {
                 x: { grid: { display: false } },
@@ -95,6 +108,8 @@ var SB_Chart = (function ($) {
 
     return {
         initTrafficTrend: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || []; // Verify Pass: Prevent null map error
             var ctx = document.getElementById('sb-traffic-trend-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_daily_trend : 'Daily Traffic Trend');
@@ -122,6 +137,8 @@ var SB_Chart = (function ($) {
         },
 
         initHourly: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || []; // Verify Pass: Prevent math error
             var ctx = document.getElementById('sb-hourly-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_hourly : 'Hourly Click Stats');
@@ -151,6 +168,8 @@ var SB_Chart = (function ($) {
         },
 
         initPlatform: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || {}; // Verify Pass: Prevent Object.keys error
             var ctx = document.getElementById('sb-platform-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_platform : 'Platform Share Chart');
@@ -184,6 +203,8 @@ var SB_Chart = (function ($) {
         },
 
         renderReferer: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || []; // Verify Pass: Prevent map error
             var ctx = document.getElementById('sb-referer-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_referer : 'Top Referer Chart');
@@ -213,6 +234,8 @@ var SB_Chart = (function ($) {
         },
 
         renderRefererGroups: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || { Direct: 0, SNS: 0, Search: 0, Other: 0 }; // Verify Pass: Prevent undefined access
             var ctx = document.getElementById('sb-referer-groups-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? 'Referer Groups' : 'Referer Groups');
@@ -220,10 +243,32 @@ var SB_Chart = (function ($) {
             if (instances.refererGroups) instances.refererGroups.destroy();
             var c = getColors();
 
+            // Render Dynamic Legend
+            var $legend = $('#sb-referer-groups-legend');
+            if ($legend.length) {
+                var legendHtml = '';
+                var items = [
+                    { key: 'Direct', label: typeof sb_i18n !== 'undefined' ? sb_i18n.referer_direct || 'Direct' : 'Direct', class: 'direct' },
+                    { key: 'SNS', label: typeof sb_i18n !== 'undefined' ? sb_i18n.referer_sns || 'SNS' : 'SNS', class: 'sns' },
+                    { key: 'Search', label: typeof sb_i18n !== 'undefined' ? sb_i18n.referer_search || 'Search' : 'Search', class: 'search' },
+                    { key: 'Other', label: typeof sb_i18n !== 'undefined' ? sb_i18n.referer_other || 'Other' : 'Other', class: 'other' }
+                ];
+
+                items.forEach(function (item) {
+                    legendHtml += '<span class="sb-legend-item"><span class="sb-legend-color ' + item.class + '"></span>' + item.label + '</span>';
+                });
+                $legend.html(legendHtml);
+            }
+
             instances.refererGroups = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Direct', 'SNS', 'Search', 'Other'],
+                    labels: [
+                        typeof sb_i18n !== 'undefined' ? sb_i18n.referer_direct || 'Direct' : 'Direct',
+                        typeof sb_i18n !== 'undefined' ? sb_i18n.referer_sns || 'SNS' : 'SNS',
+                        typeof sb_i18n !== 'undefined' ? sb_i18n.referer_search || 'Search' : 'Search',
+                        typeof sb_i18n !== 'undefined' ? sb_i18n.referer_other || 'Other' : 'Other'
+                    ],
                     datasets: [{
                         data: [data.Direct, data.SNS, data.Search, data.Other],
                         backgroundColor: [c.info, c.danger, c.success, c.warning]
@@ -238,6 +283,8 @@ var SB_Chart = (function ($) {
         },
 
         renderDevice: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || {}; // Verify Pass: Prevent Object.keys error
             var ctx = document.getElementById('sb-device-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_device : 'Device Type Stats');
@@ -263,6 +310,8 @@ var SB_Chart = (function ($) {
         },
 
         renderOS: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || {}; // Verify Pass: Prevent Object.keys error
             var ctx = document.getElementById('sb-os-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_os : 'OS Statistics');
@@ -290,6 +339,8 @@ var SB_Chart = (function ($) {
         },
 
         renderBrowser: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || {}; // Verify Pass: Prevent Object.keys error
             var ctx = document.getElementById('sb-browser-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_browser : 'Browser Statistics');
@@ -317,6 +368,8 @@ var SB_Chart = (function ($) {
         },
 
         renderWeekday: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || {}; // Verify Pass: Prevent Object.keys error
             var ctx = document.getElementById('sb-weekday-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.chart_weekday : 'Weekday Click Pattern');
@@ -347,6 +400,11 @@ var SB_Chart = (function ($) {
         },
 
         renderComparison: function (data) {
+            // Data Safety: Fix 2-1
+            // Ensure data structure exists (nested objects)
+            data = data || {};
+            data.current = data.current || { trend: [] };
+            data.previous = data.previous || { trend: [] };
             var ctx = document.getElementById('sb-comparison-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? 'Comparison Analysis' : 'Comparison Analysis');
@@ -388,6 +446,8 @@ var SB_Chart = (function ($) {
         },
 
         renderLinkHourly: function (data) {
+            // Data Safety: Fix 2-1
+            data = data || []; // Verify Pass: Prevent math/map error
             var ctx = document.getElementById('sb-link-hourly-chart');
             if (!ctx) return;
             setA11y(ctx, typeof sb_i18n !== 'undefined' ? sb_i18n.link_hourly_chart : 'Link Hourly Distribution');

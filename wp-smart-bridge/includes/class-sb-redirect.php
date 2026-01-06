@@ -89,7 +89,7 @@ class SB_Redirect
 
         // Settings - Redirect Delay
         $settings = get_option('sb_settings');
-        $redirect_delay = isset($settings['redirect_delay']) ? (int) $settings['redirect_delay'] : 0;
+        $redirect_delay = isset($settings['redirect_delay']) ? floatval($settings['redirect_delay']) : 0.0;
 
         // v3.0.0 Async Logging Implementation
         // Instead of logging first then redirecting, we hand off to the async logger.
