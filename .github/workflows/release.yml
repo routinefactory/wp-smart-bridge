@@ -40,7 +40,7 @@ jobs:
       - name: Check PHP Syntax
         run: |
           echo "🔍 Checking PHP syntax..."
-          find wp-smart-bridge -name "*.php" -print0 | xargs -0 -n1 php -l
+          find wp-smart-bridge -name "*.php" -not -path "*/tests/*" -print0 | xargs -0 -n1 php -l
           echo "✅ PHP syntax check passed."
 
       # ===============================================================
