@@ -459,41 +459,87 @@ class SB_Rest_API
 
     /**
      * 기간 비교 API
+     * v3.0.3 Fix: Properly handle `type` parameter (wow, mom, custom)
      */
     public static function get_period_comparison(WP_REST_Request $request)
     {
         $params = self::parse_date_params($request);
         $platform_filter = $params['platform'];
 
-        // 현재 기간
-        $current_start = $request->get_param('current_start');
-        $current_end = $request->get_param('current_end');
-        $previous_start = $request->get_param('previous_start');
-        $previous_end = $request->get_param('previous_end');
+        // Get comparison type
+        $type = $request->get_param('type') ?: 'wow';
 
-        // 지정되지 않은 경우 자동 계산 (최근 7일 vs 이전 7일)
-        if (!$current_start || !$current_end) {
-            $today = new DateTime('now', wp_timezone());
-            $current_end = $today->format('Y-m-d 23:59:59');
-            $current_start = (clone $today)->modify('-6 days')->format('Y-m-d 00:00:00');
-            $previous_end = (clone $today)->modify('-7 days')->format('Y-m-d 23:59:59');
-            $previous_start = (clone $today)->modify('-13 days')->format('Y-m-d 00:00:00');
-        } else {
-            $current_start .= ' 00:00:00';
-            $current_end .= ' 23:59:59';
-            $previous_start .= ' 00:00:00';
-            $previous_end .= ' 23:59:59';
+        $today = new DateTime('now', wp_timezone());
+
+        switch ($type) {
+            case 'wow': // Week over Week
+                // Current: Last 7 days (today - 6 days to today)
+                $current_end = clone $today;
+                $current_start = (clone $today)->modify('-6 days');
+                // Previous: 7 days before that
+                $previous_end = (clone $today)->modify('-7 days');
+                $previous_start = (clone $today)->modify('-13 days');
+                break;
+
+            case 'mom': // Month over Month
+                // Current: Last 30 days
+                $current_end = clone $today;
+                $current_start = (clone $today)->modify('-29 days');
+                // Previous: 30 days before that
+                $previous_end = (clone $today)->modify('-30 days');
+                $previous_start = (clone $today)->modify('-59 days');
+                break;
+
+            case 'custom':
+                // Use provided dates
+                $current_start_str = $request->get_param('current_start');
+                $current_end_str = $request->get_param('current_end');
+                $previous_start_str = $request->get_param('previous_start');
+                $previous_end_str = $request->get_param('previous_end');
+
+                // Fallback to WoW if custom dates not provided
+                if (!$current_start_str || !$current_end_str || !$previous_start_str || !$previous_end_str) {
+                    $current_end = clone $today;
+                    $current_start = (clone $today)->modify('-6 days');
+                    $previous_end = (clone $today)->modify('-7 days');
+                    $previous_start = (clone $today)->modify('-13 days');
+                } else {
+                    $current_start = new DateTime($current_start_str, wp_timezone());
+                    $current_end = new DateTime($current_end_str, wp_timezone());
+                    $previous_start = new DateTime($previous_start_str, wp_timezone());
+                    $previous_end = new DateTime($previous_end_str, wp_timezone());
+                }
+                break;
+
+            default: // Default to WoW
+                $current_end = clone $today;
+                $current_start = (clone $today)->modify('-6 days');
+                $previous_end = (clone $today)->modify('-7 days');
+                $previous_start = (clone $today)->modify('-13 days');
         }
+
+        // Format dates with time bounds
+        $current_start_fmt = $current_start->format('Y-m-d 00:00:00');
+        $current_end_fmt = $current_end->format('Y-m-d 23:59:59');
+        $previous_start_fmt = $previous_start->format('Y-m-d 00:00:00');
+        $previous_end_fmt = $previous_end->format('Y-m-d 23:59:59');
 
         $analytics = new SB_Analytics();
 
         $data = $analytics->get_period_comparison(
-            $current_start,
-            $current_end,
-            $previous_start,
-            $previous_end,
+            $current_start_fmt,
+            $current_end_fmt,
+            $previous_start_fmt,
+            $previous_end_fmt,
             $platform_filter
         );
+
+        // Add date range info to response for debugging/display
+        $data['date_ranges'] = [
+            'current' => ['start' => $current_start->format('Y-m-d'), 'end' => $current_end->format('Y-m-d')],
+            'previous' => ['start' => $previous_start->format('Y-m-d'), 'end' => $previous_end->format('Y-m-d')],
+            'type' => $type
+        ];
 
         return new WP_REST_Response([
             'success' => true,
@@ -513,12 +559,34 @@ class SB_Rest_API
         $analytics = new SB_Analytics();
 
         $data = [
-            'weekday_pattern' => $analytics->get_weekday_pattern(
+            /**
+             * v3.0.3 FIX: Response Key Names Must Match JavaScript Expectations
+             * 
+             * PROBLEM: The "Advanced Pattern Analysis" section showed "-" for all values.
+             * - Weekday chart was empty
+             * - Visitor stats (new/returning/frequent) all showed placeholder dashes
+             * 
+             * ROOT CAUSE: Key name mismatch between PHP response and JS consumer.
+             *   - PHP returned: 'weekday_pattern', 'returning_visitors'
+             *   - JS expected: 'weekday_stats', 'visitor_stats'
+             * 
+             * JS Code (admin/js/sb-admin.js) does:
+             *   SB_Chart.renderWeekday(response.data.weekday_stats);  // <-- expects 'weekday_stats'
+             *   renderVisitorStats(response.data.visitor_stats);       // <-- expects 'visitor_stats'
+             * 
+             * SOLUTION: Renamed response keys to match JS expectations.
+             * 
+             * IMPORTANT: If you change these keys, you MUST also update:
+             *   - admin/js/sb-admin.js Lines 189-191 (loadPatternAnalytics success callback)
+             * 
+             * @since 3.0.3
+             */
+            'weekday_stats' => $analytics->get_weekday_pattern(
                 $date_range['start'],
                 $date_range['end'],
                 $platform_filter
             ),
-            'returning_visitors' => $analytics->get_returning_visitors(
+            'visitor_stats' => $analytics->get_returning_visitors(
                 $date_range['start'],
                 $date_range['end'],
                 $platform_filter

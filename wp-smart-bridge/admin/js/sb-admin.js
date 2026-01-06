@@ -255,7 +255,24 @@
                     // Always clear banner first to prevent duplicates
                     $('#sb-health-warning').remove();
 
-                    if (status === 'error_404') {
+                    /**
+                     * v3.0.3 CRITICAL BUG FIX: Health Check Banner Not Showing
+                     * 
+                     * PROBLEM: The 404 warning banner was NEVER displayed even when links were broken.
+                     * 
+                     * ROOT CAUSE: The original code checked `if (status === 'error_404')` but `status` 
+                     * was an UNDEFINED variable. The actual status data is inside `response.data.status`.
+                     * JavaScript's loose comparison made `undefined === 'error_404'` always `false`.
+                     * 
+                     * SOLUTION: Changed to read from `response.data.status` which contains the 
+                     * actual server response status ('ok', 'no_links', 'error_404', 'connection_error').
+                     * 
+                     * RELATED: PHP handler is in class-sb-admin-ajax.php -> ajax_health_check()
+                     * which returns { success: true, data: { status: 'error_404', ... } }
+                     * 
+                     * @see class-sb-admin-ajax.php:283-361
+                     */
+                    if (response.data.status === 'error_404') {
                         // Show prominent warning banner
                         var $banner = $('<div id="sb-health-warning" class="notice notice-error sb-health-banner">' +
                             '<h3>⚠️ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.permalink_error_title || '단축 링크가 작동하지 않습니다!' : 'Short links are not working!') + '</h3>' +
@@ -844,15 +861,53 @@
         var $feed = $('#sb-realtime-feed');
         $('.sb-feed-placeholder').remove();
 
-        var time = click.visited_at.split(' ')[1].substring(0, 5);
+        /**
+         * v3.0.3 FIX: Realtime Feed Date Display
+         * 
+         * PROBLEM: Feed only showed time (e.g., "14:49") without any date context.
+         * Users couldn't tell if a click was from today, yesterday, or older.
+         * 
+         * ROOT CAUSE: Original code `click.visited_at.split(' ')[1].substring(0, 5)` 
+         * extracted only the time portion, completely discarding the date.
+         * 
+         * SOLUTION: Smart display format:
+         * - Today's clicks: Show time only (e.g., "14:49") for brevity
+         * - Older clicks: Show "MM-DD HH:MM" (e.g., "01-06 14:49") for clarity
+         * 
+         * NOTE: `new Date().toISOString().slice(0,10)` uses UTC, not local time.
+         * This may cause edge cases around midnight. Consider using local date if issues arise.
+         * 
+         * RELATED: PHP SSE handler is in class-sb-realtime.php -> start_stream()
+         * which sends `visited_at` in 'Y-m-d H:i:s' format from WordPress timezone.
+         */
+        var dateTime = click.visited_at || '';
+        var datePart = dateTime.split(' ')[0] || '';  // YYYY-MM-DD
+        var timePart = dateTime.split(' ')[1] || '';
+        var today = new Date().toISOString().slice(0, 10);
+        var displayTime = (datePart === today) ? timePart.substring(0, 5) : datePart.substring(5) + ' ' + timePart.substring(0, 5);
 
         // Safe HTML construction JQuery
         var $item = $('<div class="sb-feed-item"></div>');
-        $item.append($('<div class="sb-feed-time"></div>').text(time));
+        $item.append($('<div class="sb-feed-time"></div>').text(displayTime));
 
         var $content = $('<div class="sb-feed-content"></div>');
-        $content.append($('<div class="sb-feed-link"></div>').text(click.post_title));
-        $content.append($('<div class="sb-feed-meta"></div>').text(click.platform + ' | ' + click.device + ' | ' + click.visitor_ip));
+        /**
+         * v3.0.3 FIX: Feed Item Data Key Mismatch
+         * 
+         * PROBLEM: Feed items showed empty/undefined for the link name.
+         * 
+         * ROOT CAUSE: JS was using `click.post_title` but PHP sends `click['slug']`.
+         * The PHP handler in class-sb-realtime.php enriches data with:
+         *   $click['slug'] = $post->post_name;
+         * NOT `post_title`.
+         * 
+         * SOLUTION: Changed to use `click.slug` with null fallback for safety.
+         * Also truncated visitor_ip for privacy and visual cleanliness.
+         * 
+         * RELATED: PHP -> class-sb-realtime.php:88-91 (data enrichment)
+         */
+        $content.append($('<div class="sb-feed-link"></div>').text(click.slug || 'unknown'));
+        $content.append($('<div class="sb-feed-meta"></div>').text((click.platform || 'unknown') + ' | ' + (click.device || 'unknown') + ' | ' + (click.visitor_ip || '').substring(0, 16) + '...'));
 
         $item.append($content);
 

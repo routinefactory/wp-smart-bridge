@@ -50,7 +50,29 @@ class SB_Realtime
         global $wpdb;
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
-        // v3.0.3 Fix: Send recent 5 clicks immediately for better UX
+        /**
+         * v3.0.3 FIX: Send Recent Clicks on Connection for Better UX
+         * 
+         * PROBLEM: When users opened the dashboard, the Realtime Feed was completely empty
+         * until a NEW click occurred. This gave the impression the feature was broken.
+         * 
+         * ROOT CAUSE: The original code only tracked `$last_id` and waited for NEW logs
+         * (id > $last_id). Upon connection, $last_id = MAX(id), so nothing was ever sent
+         * until a new click created id = MAX(id) + 1.
+         * 
+         * SOLUTION: Upon SSE connection, immediately fetch and send the 5 most recent
+         * click logs. This provides instant visual feedback that the feature works.
+         * 
+         * IMPLEMENTATION NOTES:
+         * - Fetch ORDER BY id DESC LIMIT 5 (most recent first)
+         * - Reverse array to send in chronological order (oldest of 5 first)
+         * - Enrich each with slug/target_url like the main loop does
+         * - Update $last_id to prevent re-sending these in the main loop
+         * 
+         * RELATED JS: admin/js/sb-admin.js -> renderFeedItem() which displays these items
+         * 
+         * @since 3.0.3
+         */
         $recent_clicks = $wpdb->get_results("SELECT * FROM $table ORDER BY id DESC LIMIT 5", ARRAY_A);
 
         if ($recent_clicks) {
