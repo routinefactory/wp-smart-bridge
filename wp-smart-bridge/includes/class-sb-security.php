@@ -212,4 +212,63 @@ class SB_Security
     {
         return current_user_can('edit_posts');
     }
+
+    /**
+     * AJAX 요청 인증 (REST API 우회용)
+     * 
+     * ⚠️ [경고: 삭제 금지] ⚠️
+     * 이 메소드는 `admin-ajax.php`를 통해 들어오는 외부 API 요청을 인증하는 핵심 보안 로직입니다.
+     * REST API(`/wp-json/`) 차단 문제를 해결하기 위해 필수적이므로, 절대 삭제하거나 변경하지 마십시오.
+     * 
+     * 동작 원리:
+     * 1. `$_SERVER` 전역 변수에서 커스텀 헤더(`HTTP_X_SB_...`)를 직접 추출합니다.
+     *    (워드프레스 AJAX 핸들러는 WP_REST_Request 객체를 제공하지 않기 때문)
+     * 2. 추출된 헤더와 Request Body(`php://input`)를 사용하여 HMAC 서명을 검증합니다.
+     * 
+     * @return bool|WP_Error 성공 시 true, 실패 시 WP_Error
+     */
+    public static function authenticate_ajax_request()
+    {
+        // 1. 헤더 추출 (Apache/Nginx 표준: HTTP_ prefix)
+        $api_key = $_SERVER['HTTP_X_SB_API_KEY'] ?? '';
+        $timestamp = $_SERVER['HTTP_X_SB_TIMESTAMP'] ?? '';
+        $signature = $_SERVER['HTTP_X_SB_SIGNATURE'] ?? '';
+        $nonce_req = $_SERVER['HTTP_X_SB_NONCE'] ?? '';
+
+        // 필수 헤더 확인
+        if (empty($api_key) || empty($timestamp) || empty($signature) || empty($nonce_req)) {
+            return new WP_Error(
+                'missing_headers',
+                'Required authentication headers are missing (API Key, Timestamp, Signature, Nonce).',
+                ['status' => 400]
+            );
+        }
+
+        // 2. Timestamp 검증
+        $timestamp = intval($timestamp);
+        $ts_check = self::verify_timestamp($timestamp);
+        if (is_wp_error($ts_check)) {
+            return $ts_check;
+        }
+
+        // 3. Nonce 검증
+        $nonce_key = 'sb_nonce_' . md5($api_key . $nonce_req);
+        if (get_transient($nonce_key)) {
+            return new WP_Error(
+                'nonce_used',
+                'Nonce already used. Replay attack detected.',
+                ['status' => 401]
+            );
+        }
+        set_transient($nonce_key, true, self::TIMESTAMP_TOLERANCE);
+
+        // 4. 서명 검증
+        $body = file_get_contents('php://input');
+        $sig_check = self::verify_signature($api_key, $body, $timestamp, $signature);
+        if (is_wp_error($sig_check)) {
+            return $sig_check;
+        }
+
+        return true;
+    }
 }

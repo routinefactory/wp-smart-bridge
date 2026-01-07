@@ -45,6 +45,10 @@ class SB_Admin_Ajax
         foreach ($actions as $action => $method) {
             add_action('wp_ajax_' . $action, [__CLASS__, $method]);
         }
+
+        // v3.1.6: Public AJAX API for Python Clients (Bypassing REST API blocks)
+        add_action('wp_ajax_nopriv_sb_api_create_link', [__CLASS__, 'ajax_api_create_link']);
+        add_action('wp_ajax_sb_api_create_link', [__CLASS__, 'ajax_api_create_link']);
     }
 
     /**
@@ -795,4 +799,118 @@ class SB_Admin_Ajax
             'processed_dates' => $dates_to_process
         ]);
     }
+    /**
+     * AJAX 기반 링크 생성 API (REST API 대체용)
+     * 
+     * ⚠️ [중요 아키텍처 결정 사항] ⚠️
+     * 이 메소드는 일반적인 REST API (`/wp-json/`) 대신 `admin-ajax.php`를 사용하여
+     * 외부 클라이언트(예: Python Script)로부터 링크 생성 요청을 처리합니다.
+     * 
+     * ❓ 왜 REST API를 쓰지 않는가?
+     * - miniOrange, Wordfence 등 일부 강력한 보안 플러그인들은 REST API 엔드포인트(`/wp-json/`) 
+     *   진입 자체를 차단하거나, 화이트리스트에 없는 경로를 무조건 거부합니다.
+     * - `rest_authentication_errors` 필터로 우회를 시도해도, 플러그인 로드 순서나 
+     *   강제적인 차단 정책으로 인해 실패하는 경우가 많습니다.
+     * 
+     * ✅ 해결책 (AJAX Tunneling)
+     * - 워드프레스의 기본 AJAX 채널(`admin-ajax.php`)은 보안 플러그인들이 
+     *   기능 호환성을 위해 보통 차단하지 않습니다.
+     * - 따라서 이 경로를 통해 요청을 받고, 내부적으로 강력한 자체 보안 인증(HMAC)을 수행합니다.
+     * 
+     * 🔒 보안
+     * - 이 경로는 열려있지만, `SB_Security::authenticate_ajax_request()`를 통과하지 못하면
+     *   어떤 작업도 수행하지 않습니다. (HMAC + Timestamp + Nonce 3중 방어)
+     * 
+     * @since 3.1.6
+     */
+    public static function ajax_api_create_link()
+    {
+        // 1. 보안 인증 (HMAC)
+        $auth = SB_Security::authenticate_ajax_request();
+        if (is_wp_error($auth)) {
+            wp_send_json_error([
+                'message' => $auth->get_error_message(),
+                'code' => $auth->get_error_code()
+            ], 403); // Status code setting is tricky in admin-ajax, but WP sends 200 usually. We rely on JSON 'success': false
+        }
+
+        // 2. 요청 파싱
+        $body = file_get_contents('php://input');
+        $params = json_decode($body, true);
+
+        if (!$params) {
+            wp_send_json_error(['message' => 'Invalid JSON body'], 400);
+        }
+
+        $target_url = isset($params['target_url']) ? esc_url_raw($params['target_url']) : '';
+        $custom_slug = isset($params['slug']) ? sanitize_text_field($params['slug']) : null;
+
+        // 3. URL 검증
+        if (!SB_Helpers::validate_url($target_url)) {
+            wp_send_json_error(['message' => 'Invalid target URL format'], 400);
+        }
+
+        // 4. Slug 처리
+        if ($custom_slug) {
+            if (!preg_match('/^[a-zA-Z0-9\-_]+$/', $custom_slug)) {
+                wp_send_json_error(['message' => 'Invalid slug format'], 400);
+            }
+            if (SB_Helpers::slug_exists($custom_slug)) {
+                wp_send_json_error(['message' => 'Slug already exists'], 409);
+            }
+            $slug = $custom_slug;
+        } else {
+            $slug = SB_Helpers::generate_unique_slug(SB_Helpers::DEFAULT_SLUG_LENGTH, SB_Helpers::MAX_SLUG_RETRIES);
+            if (!$slug) {
+                wp_send_json_error(['message' => 'Failed to generate unique slug'], 500);
+            }
+        }
+
+        // 5. 플랫폼 감지
+        $platform = SB_Helpers::detect_platform($target_url);
+
+        // 6. 저장
+        $post_id = wp_insert_post([
+            'post_title' => $slug,
+            'post_type' => SB_Post_Type::POST_TYPE,
+            'post_status' => 'publish',
+            'meta_input' => [
+                'target_url' => $target_url,
+                'platform' => $platform,
+                'click_count' => 0,
+            ],
+        ]);
+
+        if (is_wp_error($post_id) || $post_id === 0) {
+            status_header(500);
+            wp_send_json([
+                'code' => 'db_error',
+                'message' => 'Failed to save link',
+                'data' => ['status' => 500]
+            ]);
+        }
+
+        // 7. Race Condition Check
+        $final_slug = get_post_field('post_name', $post_id);
+        if ($final_slug !== $slug) {
+            wp_delete_post($post_id, true);
+            status_header(409);
+            wp_send_json([
+                'code' => 'conflict',
+                'message' => 'Slug collision detected',
+                'data' => ['status' => 409]
+            ]);
+        }
+
+        // 8. 성공 응답 (REST API 포맷 유지 - data 래퍼 없이 직접 출력)
+        wp_send_json([
+            'success' => true,
+            'short_link' => SB_Helpers::get_short_link_url($slug),
+            'slug' => $slug,
+            'target_url' => $target_url,
+            'platform' => $platform,
+            'created_at' => current_time('c'),
+        ]);
+    }
 }
+
