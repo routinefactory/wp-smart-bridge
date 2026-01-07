@@ -1636,6 +1636,14 @@
                             html += '<p class="description" style="margin-top:10px;">';
                             html += 'sb-assets/loader.js 수정으로 전체 업데이트 가능!</p>';
                             $result.html(html).show();
+
+                            // 자동 다운로드 (v3.4.0)
+                            var link = document.createElement('a');
+                            link.href = res.data.download_url;
+                            link.download = '';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
                         }
                     } else {
                         $btn.prop('disabled', false);

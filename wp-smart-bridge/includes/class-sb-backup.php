@@ -503,7 +503,7 @@ class SB_Backup
              INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
              WHERE p.post_type = %s 
              AND p.post_status = 'publish'
-             AND pm.meta_key = 'sb_target_url'
+             AND pm.meta_key = 'target_url'
              LIMIT %d OFFSET %d",
             $post_type,
             $limit,
@@ -519,7 +519,7 @@ class SB_Backup
                  INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
                  WHERE p.post_type = %s 
                  AND p.post_status = 'publish'
-                 AND pm.meta_key = 'sb_target_url'",
+                 AND pm.meta_key = 'target_url'",
                 $post_type
             );
             $total_links = (int) $wpdb->get_var($count_query);
