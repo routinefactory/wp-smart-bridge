@@ -259,86 +259,84 @@ if (!defined('ABSPATH')) {
             </button>
         </div>
 
-    </div>
+        <!-- 재난 복구 (Static Backup) - v3.3.0 -->
+        <div class="sb-backup-section" style="margin-top: 30px;">
+            <h4>
+                <span class="dashicons dashicons-shield"></span>
+                <?php _e('재난 복구 키트 (Disaster Recovery)', 'sb'); ?>
+            </h4>
+            <p class="description">
+                <?php _e('서버가 완전히 파괴되어도 링크를 살릴 수 있습니다. 모든 단축 링크를 <strong>정적 HTML 파일(.zip)</strong>로 변환하여 다운로드합니다.', 'sb'); ?><br>
+                <?php _e('생성된 파일을 Github Pages나 S3 등에 업로드하면 즉시 링크 기능이 복구됩니다.', 'sb'); ?>
+            </p>
 
-    <!-- 재난 복구 (Static Backup) - v3.3.0 -->
-    <div class="sb-backup-section" style="margin-top: 30px;">
-        <h4>
-            <span class="dashicons dashicons-shield"></span>
-            <?php _e('재난 복구 키트 (Disaster Recovery)', 'sb'); ?>
-        </h4>
-        <p class="description">
-            <?php _e('서버가 완전히 파괴되어도 링크를 살릴 수 있습니다. 모든 단축 링크를 <strong>정적 HTML 파일(.zip)</strong>로 변환하여 다운로드합니다.', 'sb'); ?><br>
-            <?php _e('생성된 파일을 Github Pages나 S3 등에 업로드하면 즉시 링크 기능이 복구됩니다.', 'sb'); ?>
-        </p>
+            <div style="margin-top:10px;">
+                <button type="button" id="sb-generate-static-backup" class="button button-primary button-hero">
+                    <span class="dashicons dashicons-media-archive"></span>
+                    <?php _e('정적 HTML 백업 생성하기 (.zip)', 'sb'); ?>
+                </button>
+            </div>
 
-        <div style="margin-top:10px;">
-            <button type="button" id="sb-generate-static-backup" class="button button-primary button-hero">
-                <span class="dashicons dashicons-media-archive"></span>
-                <?php _e('정적 HTML 백업 생성하기 (.zip)', 'sb'); ?>
-            </button>
-        </div>
+            <!-- 진행 상태 UI -->
+            <div id="sb-static-backup-ui"
+                style="display:none; margin-top:20px; background:#fff; padding:20px; border:1px solid #ccd0d4; border-left:4px solid #2271b1; box-shadow:0 1px 1px rgba(0,0,0,0.04);">
+                <h3 style="margin-top:0;"><?php _e('백업 생성 중...', 'sb'); ?></h3>
 
-        <!-- 진행 상태 UI -->
-        <div id="sb-static-backup-ui"
-            style="display:none; margin-top:20px; background:#fff; padding:20px; border:1px solid #ccd0d4; border-left:4px solid #2271b1; box-shadow:0 1px 1px rgba(0,0,0,0.04);">
-            <h3 style="margin-top:0;"><?php _e('백업 생성 중...', 'sb'); ?></h3>
-
-            <div class="sb-progress-wrapper" style="margin:15px 0;">
-                <div class="sb-progress-bar-bg"
-                    style="background:#f0f0f1; height:24px; border-radius:4px; overflow:hidden; border:1px solid #dcdcde;">
-                    <div class="sb-progress-bar-fill"
-                        style="background:#2271b1; width:0%; height:100%; transition:width 0.3s ease-out; background-image:linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent); background-size:1rem 1rem;">
+                <div class="sb-progress-wrapper" style="margin:15px 0;">
+                    <div class="sb-progress-bar-bg"
+                        style="background:#f0f0f1; height:24px; border-radius:4px; overflow:hidden; border:1px solid #dcdcde;">
+                        <div class="sb-progress-bar-fill"
+                            style="background:#2271b1; width:0%; height:100%; transition:width 0.3s ease-out; background-image:linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent); background-size:1rem 1rem;">
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:5px; color:#646970;">
+                        <span id="sb-static-backup-status-text"><?php _e('초기화 중...', 'sb'); ?></span>
+                        <span id="sb-static-backup-percent">0%</span>
                     </div>
                 </div>
-                <div style="display:flex; justify-content:space-between; margin-top:5px; color:#646970;">
-                    <span id="sb-static-backup-status-text"><?php _e('초기화 중...', 'sb'); ?></span>
-                    <span id="sb-static-backup-percent">0%</span>
+
+                <div id="sb-static-backup-download" style="display:none; margin-top:15px; text-align:center;">
+                    <!-- 다운로드 버튼이 여기에 삽입됨 -->
                 </div>
             </div>
+        </div>
 
-            <div id="sb-static-backup-download" style="display:none; margin-top:15px; text-align:center;">
-                <!-- 다운로드 버튼이 여기에 삽입됨 -->
+        <hr class="sb-divider">
+
+        <!-- 백업 복원 -->
+        <div>
+            <h4><?php _e('데이터 복원', 'sb'); ?></h4>
+            <p class="description sb-restore-desc">
+                <?php _e('주의: 복원 시 기존 설정과 데이터가 백업 파일의 내용으로 덮어씌워질 수 있습니다.', 'sb'); ?>
+            </p>
+            <form id="sb-restore-form" enctype="multipart/form-data">
+                <input type="file" id="sb-backup-file" name="backup_file" accept=".json" required>
+                <button type="submit" class="button button-primary">
+                    <span class="dashicons dashicons-upload"></span>
+                    <?php _e('복원 시작', 'sb'); ?>
+                </button>
+            </form>
+            <div id="sb-restore-progress" class="sb-restore-progress">
+                <span class="spinner is-active sb-spinner-inline"></span>
+                <?php _e('데이터 복원 중입니다... 페이지를 닫지 마세요.', 'sb'); ?>
             </div>
         </div>
     </div>
 
-    <hr class="sb-divider">
-
-    <!-- 백업 복원 -->
-    <div>
-        <h4><?php _e('데이터 복원', 'sb'); ?></h4>
-        <p class="description sb-restore-desc">
-            <?php _e('주의: 복원 시 기존 설정과 데이터가 백업 파일의 내용으로 덮어씌워질 수 있습니다.', 'sb'); ?>
+    <!-- Danger Zone (공장 초기화) - Inside .wrap for proper styling -->
+    <div class="sb-danger-zone">
+        <h3 class="sb-danger-title">
+            <span class="dashicons dashicons-warning sb-icon-warn"></span>
+            <?php _e('Danger Zone (위험 구역)', 'sb'); ?>
+        </h3>
+        <p class="sb-danger-text">
+            <?php _e('이 작업은 플러그인의 <strong>모든 데이터(링크, 통계 로그, API 키, 설정)</strong>를 영구적으로 삭제하고 초기 상태로 되돌립니다.', 'sb'); ?><br>
+            <span class="sb-text-danger"><?php _e('삭제된 데이터는 복구할 수 없습니다. 신중하게 진행해주세요.', 'sb'); ?></span>
         </p>
-        <form id="sb-restore-form" enctype="multipart/form-data">
-            <input type="file" id="sb-backup-file" name="backup_file" accept=".json" required>
-            <button type="submit" class="button button-primary">
-                <span class="dashicons dashicons-upload"></span>
-                <?php _e('복원 시작', 'sb'); ?>
-            </button>
-        </form>
-        <div id="sb-restore-progress" class="sb-restore-progress">
-            <span class="spinner is-active sb-spinner-inline"></span>
-            <?php _e('데이터 복원 중입니다... 페이지를 닫지 마세요.', 'sb'); ?>
-        </div>
+        <button type="button" id="sb-factory-reset" class="button button-primary sb-danger-btn">
+            <?php _e('Factory Reset (공장 초기화)', 'sb'); ?>
+        </button>
     </div>
-</div>
-
-<!-- Danger Zone (공장 초기화) - Inside .wrap for proper styling -->
-<div class="sb-danger-zone">
-    <h3 class="sb-danger-title">
-        <span class="dashicons dashicons-warning sb-icon-warn"></span>
-        <?php _e('Danger Zone (위험 구역)', 'sb'); ?>
-    </h3>
-    <p class="sb-danger-text">
-        <?php _e('이 작업은 플러그인의 <strong>모든 데이터(링크, 통계 로그, API 키, 설정)</strong>를 영구적으로 삭제하고 초기 상태로 되돌립니다.', 'sb'); ?><br>
-        <span class="sb-text-danger"><?php _e('삭제된 데이터는 복구할 수 없습니다. 신중하게 진행해주세요.', 'sb'); ?></span>
-    </p>
-    <button type="button" id="sb-factory-reset" class="button button-primary sb-danger-btn">
-        <?php _e('Factory Reset (공장 초기화)', 'sb'); ?>
-    </button>
-</div>
 </div>
 
 <!-- 새 키 발급 모달 -->
