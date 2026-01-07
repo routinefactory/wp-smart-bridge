@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.3.3');
+define('SB_VERSION', '3.3.4');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -208,14 +208,16 @@ class WP_Smart_Bridge
         // 커스텀 포스트 타입 등록
         SB_Post_Type::register();
 
-        // v3.3.0: Backup Module (Safety Load)
+        // v3.3.0: Backup Module - TEMPORARILY DISABLED FOR DEBUGGING
+        // TODO: Re-enable after confirming plugin activation works
+        /*
         if (file_exists(SB_PLUGIN_DIR . 'includes/class-sb-backup.php')) {
             require_once SB_PLUGIN_DIR . 'includes/class-sb-backup.php';
             SB_Backup::init();
         } else {
-            // Log error if file missing (optional)
             error_log('SB_Backup class file not found.');
         }
+        */
 
         // 클래스 초기화
         SB_Security::init();
