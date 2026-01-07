@@ -15,7 +15,7 @@ class SB_Helpers
     /**
      * 기본 슬러그 길이
      */
-    const DEFAULT_SLUG_LENGTH = 6;
+    const DEFAULT_SLUG_LENGTH = 7;
 
     /**
      * 슬러그 생성 최대 재시도 횟수
