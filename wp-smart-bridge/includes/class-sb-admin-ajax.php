@@ -39,6 +39,7 @@ class SB_Admin_Ajax
             'sb_get_dashboard_stats' => 'ajax_get_dashboard_stats',
             'sb_migrate_daily_stats' => 'ajax_migrate_daily_stats', // v2.9.27
             'sb_restore_backup_chunk' => 'ajax_restore_backup_chunk', // v3.0.0 Scalability
+            'sb_flush_rewrite_rules' => 'ajax_flush_rewrite_rules', // v3.0.8 Auto-fix permalinks
         ];
 
         foreach ($actions as $action => $method) {
@@ -275,6 +276,35 @@ class SB_Admin_Ajax
             SB_Database::rollback();
             wp_send_json_error(['message' => '복원 중 오류 발생: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * v3.0.8: 퍼마링크 규칙 자동 재생성 (Auto-fix)
+     * 
+     * 404 에러 감지 시 프론트엔드에서 자동으로 호출하여
+     * flush_rewrite_rules()를 실행합니다.
+     * 
+     * 보안: manage_options 권한 필요 (관리자 전용)
+     */
+    public static function ajax_flush_rewrite_rules()
+    {
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        // 관리자 권한 필수 (flush_rewrite_rules는 민감한 작업)
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error([
+                'message' => '관리자 권한이 필요합니다.',
+                'can_auto_fix' => false
+            ]);
+        }
+
+        // WordPress 내장 함수로 퍼마링크 규칙 재생성
+        flush_rewrite_rules();
+
+        wp_send_json_success([
+            'message' => '퍼마링크 규칙이 재생성되었습니다.',
+            'flushed' => true
+        ]);
     }
 
     /**

@@ -257,6 +257,13 @@ class SB_Admin
             'clipboard_not_supported' => __('이 브라우저는 자동 복사를 지원하지 않습니다. 복사하세요:', 'sb'),
             'slug_warning' => __('단축 주소는 생성 후 변경할 수 없습니다. 링크 무결성을 위해 영구적으로 고정됩니다.', 'sb'),
             'click_unit' => __('클릭', 'sb'),
+            // v3.0.8: Auto-fix Permalinks
+            'auto_fixing_permalinks' => __('🔧 Bridge 서버 안정화 작업 진행중...', 'sb'),
+            'please_wait' => __('잠시만 기다려주세요...', 'sb'),
+            'auto_fix_success' => __('✅ 자동 복구 완료!', 'sb'),
+            'auto_fix_failed' => __('자동 복구에 실패했습니다. 수동으로 퍼마링크 설정이 필요합니다.', 'sb'),
+            'permalink_error_title' => __('단축 링크가 작동하지 않습니다!', 'sb'),
+            'go_to_permalinks' => __('퍼마링크 설정으로 이동', 'sb'),
         ]);
     }
 

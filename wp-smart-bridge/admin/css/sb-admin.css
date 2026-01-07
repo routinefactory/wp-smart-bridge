@@ -2369,3 +2369,49 @@ Realtime Feed Styles
     font-size: 14px;
     border-radius: var(--sb-radius-lg);
 }
+
+/* ==========================================================================
+   v3.0.8: Auto-Fix Overlay (Permalink Flush)
+   ========================================================================== */
+.sb-autofix-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: var(--sb-z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.sb-autofix-content {
+    background: var(--sb-bg-white);
+    padding: 40px 60px;
+    border-radius: var(--sb-radius-lg);
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+}
+
+.sb-autofix-content .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: var(--sb-primary);
+    margin-bottom: 20px;
+}
+
+.sb-autofix-content p {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--sb-text-main);
+    margin: 0 0 10px 0;
+}
+
+.sb-autofix-content small {
+    font-size: 14px;
+    color: var(--sb-text-muted);
+}
