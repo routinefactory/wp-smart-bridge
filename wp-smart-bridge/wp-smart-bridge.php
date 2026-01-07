@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.2.1');
+define('SB_VERSION', '3.3.0');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -208,14 +208,17 @@ class WP_Smart_Bridge
         // 커스텀 포스트 타입 등록
         SB_Post_Type::register();
 
-        // 리다이렉트 핸들러 초기화
+        require_once SB_PLUGIN_DIR . 'includes/class-sb-backup.php'; // v3.3.0
+
+        // 클래스 초기화
+        SB_Security::init();
+        SB_Post_Type::init();
         SB_Redirect::init();
-
-        // Cron 초기화
-        SB_Cron::init();
-
-        // 비동기 로거 초기화 (v3.0.0 Update)
+        SB_Admin_Ajax::init();
+        SB_Realtime::init();
         SB_Async_Logger::init();
+        SB_Backup::init(); // v3.3.0
+        SB_Cron::init(); // Keep existing Cron init
 
         // v3.1.4: Bypass 3rd-party auth plugins (e.g., miniOrange)
         // Registered in init() to ensure it catches early blocks
