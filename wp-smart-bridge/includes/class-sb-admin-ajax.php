@@ -181,7 +181,8 @@ class SB_Admin_Ajax
     {
         self::check_permission();
 
-        $template = isset($_POST['template']) ? $_POST['template'] : '';
+        // v3.1.2 FIX: Strip slashes added by WordPress magic quotes
+        $template = isset($_POST['template']) ? stripslashes($_POST['template']) : '';
 
         if (empty($template)) {
             wp_send_json_error(['message' => '템플릿이 비어있습니다.']);

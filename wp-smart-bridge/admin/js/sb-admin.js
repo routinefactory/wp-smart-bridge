@@ -1031,15 +1031,50 @@
          * RELATED: PHP SSE handler is in class-sb-realtime.php -> start_stream()
          * which sends `visited_at` in 'Y-m-d H:i:s' format from WordPress timezone.
          */
-        var dateTime = click.visited_at || '';
-        var datePart = dateTime.split(' ')[0] || '';  // YYYY-MM-DD
-        var timePart = dateTime.split(' ')[1] || '';
-        // v3.1.0: Use local timezone for "today" check instead of UTC
-        var now = new Date();
-        var today = now.getFullYear() + '-' +
-            String(now.getMonth() + 1).padStart(2, '0') + '-' +
-            String(now.getDate()).padStart(2, '0');
-        var displayTime = (datePart === today) ? timePart.substring(0, 5) : datePart.substring(5) + ' ' + timePart.substring(0, 5);
+        /**
+         * v3.1.3 FIX: Accurate Timezone Handling
+         * 
+         * PROBLEM: Server sends 'visited_at' in WordPress timezone (which might be UTC),
+         * but user expects to see it in their local browser time (e.g. KST).
+         * 
+         * SOLUTION: Use 'timestamp' (UTC seconds) sent from server to create Date object.
+         * Browser automatically converts this to local system time.
+         */
+        var displayTime;
+
+        if (click.timestamp) {
+            // Timestamp based (Preferred, v3.1.3+)
+            var date = new Date(parseInt(click.timestamp) * 1000);
+            var now = new Date();
+
+            var isToday = date.getFullYear() === now.getFullYear() &&
+                date.getMonth() === now.getMonth() &&
+                date.getDate() === now.getDate();
+
+            var hours = String(date.getHours()).padStart(2, '0');
+            var minutes = String(date.getMinutes()).padStart(2, '0');
+            var timeStr = hours + ':' + minutes;
+
+            if (isToday) {
+                displayTime = timeStr;
+            } else {
+                var month = String(date.getMonth() + 1).padStart(2, '0');
+                var day = String(date.getDate()).padStart(2, '0');
+                displayTime = month + '-' + day + ' ' + timeStr;
+            }
+        } else {
+            // Legacy fallback (String parsing)
+            var dateTime = click.visited_at || '';
+            var datePart = dateTime.split(' ')[0] || '';  // YYYY-MM-DD
+            var timePart = dateTime.split(' ')[1] || '';
+
+            var now = new Date();
+            var today = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0');
+
+            displayTime = (datePart === today) ? timePart.substring(0, 5) : datePart.substring(5) + ' ' + timePart.substring(0, 5);
+        }
 
         // Safe HTML construction JQuery
         var $item = $('<div class="sb-feed-item"></div>');

@@ -82,6 +82,14 @@ class SB_Realtime
                 $click['slug'] = $post ? $post->post_name : 'unknown';
                 $click['target_url'] = get_post_meta($click['link_id'], 'target_url', true);
 
+                // v3.1.3 Fix: Add UTC timestamp for correct timezone handling
+                try {
+                    $dt = new DateTime($click['visited_at'], wp_timezone());
+                    $click['timestamp'] = $dt->getTimestamp();
+                } catch (Exception $e) {
+                    $click['timestamp'] = time(); // Fallback
+                }
+
                 self::send_event('click', $click);
                 $last_id = $click['id'];
             }
@@ -120,6 +128,14 @@ class SB_Realtime
                     $click['slug'] = $post ? $post->post_name : 'unknown';
                     $click['target_url'] = get_post_meta($click['link_id'], 'target_url', true);
 
+                    // v3.1.3 Fix: Add UTC timestamp for correct timezone handling
+                    try {
+                        $dt = new DateTime($click['visited_at'], wp_timezone());
+                        $click['timestamp'] = $dt->getTimestamp();
+                    } catch (Exception $e) {
+                        $click['timestamp'] = time(); // Fallback
+                    }
+
                     self::send_event('click', $click);
                     $last_id = $click['id'];
                 }
@@ -151,30 +167,9 @@ class SB_Realtime
                 break;
             }
 
-            // 새 클릭 확인 (Last ID보다 큰 ID)
-            $new_clicks = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $table WHERE id > %d ORDER BY id ASC LIMIT 50",
-                $last_id
-            ), ARRAY_A);
-
-            if ($new_clicks) {
-                foreach ($new_clicks as $click) {
-                    // 링크 정보 조회 (슬러그 등)
-                    $post = get_post($click['link_id']);
-                    $click['slug'] = $post ? $post->post_name : 'unknown';
-                    $click['target_url'] = get_post_meta($click['link_id'], 'target_url', true);
-
-                    // 이벤트 전송
-                    self::send_event('click', $click);
-                    $last_id = $click['id'];
-                }
-            } else {
-                // Heartbeat (연결 유지용) - 15초마다 전송
-                if (time() - $last_heartbeat > 15) {
-                    self::send_event('heartbeat', ['time' => time()]);
-                    $last_heartbeat = time();
-                }
-            }
+            // v3.1.3 Cleanup: Removed duplicated query logic that was causing issues
+            // Logic handled above in lines 105-125
+            // v3.1.3 Cleanup: Removed duplicated query logic
 
             // 출력 버퍼 비우기 (중요)
             if (ob_get_level() > 0) {
