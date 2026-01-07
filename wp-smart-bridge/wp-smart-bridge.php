@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.3.1');
+define('SB_VERSION', '3.3.2');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -40,7 +40,7 @@ require_once SB_PLUGIN_DIR . 'includes/class-sb-rest-api.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-redirect.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-analytics.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-updater.php';
-require_once SB_PLUGIN_DIR . 'includes/class-sb-backup.php';
+// require_once removed - SB_Backup is safely loaded in init() function with file_exists check
 require_once SB_PLUGIN_DIR . 'includes/class-sb-admin-ajax.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-groups.php';
 require_once SB_PLUGIN_DIR . 'includes/class-sb-realtime.php';
@@ -208,7 +208,14 @@ class WP_Smart_Bridge
         // 커스텀 포스트 타입 등록
         SB_Post_Type::register();
 
-        require_once SB_PLUGIN_DIR . 'includes/class-sb-backup.php'; // v3.3.0
+        // v3.3.0: Backup Module (Safety Load)
+        if (file_exists(SB_PLUGIN_DIR . 'includes/class-sb-backup.php')) {
+            require_once SB_PLUGIN_DIR . 'includes/class-sb-backup.php';
+            SB_Backup::init();
+        } else {
+            // Log error if file missing (optional)
+            error_log('SB_Backup class file not found.');
+        }
 
         // 클래스 초기화
         SB_Security::init();
@@ -217,7 +224,7 @@ class WP_Smart_Bridge
         SB_Admin_Ajax::init();
         SB_Realtime::init();
         SB_Async_Logger::init();
-        SB_Backup::init(); // v3.3.0
+        // SB_Backup::init(); // Moved inside if block above
         SB_Cron::init(); // Keep existing Cron init
 
         // v3.1.4: Bypass 3rd-party auth plugins (e.g., miniOrange)
