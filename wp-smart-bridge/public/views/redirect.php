@@ -50,18 +50,37 @@ $countdown_script = '
     });
 </script>';
 
-// Placeholder 치환
+// Placeholder 치환 (타입 A: 시스템 반드시 치환)
 $replacements = [
     '{{DELAY_SECONDS}}' => number_format(floatval($delay), 1),
     '{{TARGET_URL}}' => esc_url($target_url),
     '{{COUNTDOWN_SCRIPT}}' => $countdown_script,
     '{{COUNTDOWN_ID}}' => 'countdown',
-    // New i18n placeholders
+];
+
+/**
+ * v4.0.6: 하위 호환성 - 기존 템플릿 지원
+ * 
+ * 타입 B 플레이스홀더(MSG_TITLE, MSG_SUB, BTN_TEXT, FOOTER_TEXT)는
+ * v4.0.6부터 기본 템플릿에서 실제 텍스트로 교체되어 사용자가 직접 편집 가능.
+ * 
+ * 기존에 저장된 템플릿에 이 플레이스홀더가 남아있는 경우를 대비하여
+ * 하위 호환성을 위해 여전히 치환합니다.
+ */
+$legacy_placeholders = [
     '{{MSG_TITLE}}' => __('페이지로 이동 중입니다...', 'sb'),
     '{{MSG_SUB}}' => __('보안 서버를 통해 안전하게 연결하고 있습니다.', 'sb') . '<br>' . __('잠시만 기다려 주세요.', 'sb'),
     '{{BTN_TEXT}}' => __('즉시 연결하기', 'sb'),
     '{{FOOTER_TEXT}}' => __('Verified Secure Connection', 'sb'),
 ];
+
+// 하위 호환: 템플릿에 레거시 플레이스홀더가 있으면 치환
+foreach ($legacy_placeholders as $placeholder => $value) {
+    if (strpos($template, $placeholder) !== false) {
+        $replacements[$placeholder] = $value;
+    }
+}
+
 
 $output = str_replace(array_keys($replacements), array_values($replacements), $template);
 

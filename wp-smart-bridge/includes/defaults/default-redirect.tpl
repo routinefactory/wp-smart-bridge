@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>{{MSG_TITLE}}</title>
+    <title>페이지로 이동 중입니다...</title>
     <style>
         :root {
             --primary: #0066FF;
@@ -203,17 +203,17 @@
             <div class="timer-val" id="{{COUNTDOWN_ID}}">{{DELAY_SECONDS}}</div>
         </div>
 
-        <h1>{{MSG_TITLE}}</h1>
-        <p class="sub">{{MSG_SUB}}</p>
+        <h1>페이지로 이동 중입니다...</h1>
+        <p class="sub">보안 서버를 통해 안전하게 연결하고 있습니다.<br>잠시만 기다려 주세요.</p>
 
-        <a href="{{TARGET_URL}}" class="action-btn">{{BTN_TEXT}}</a>
+        <a href="{{TARGET_URL}}" class="action-btn">즉시 연결하기</a>
 
         <div class="security-footer">
             <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
-            {{FOOTER_TEXT}}
+            Verified Secure Connection
         </div>
     </div>
 
