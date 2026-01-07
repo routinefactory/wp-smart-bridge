@@ -297,8 +297,9 @@ class SB_Helpers
         }
 
         // v3.0.0 Security Fix: Prevent Redirect Loop & Chaining
-        // 자신의 사이트 내의 단축 링크 경로('/go/')를 타겟으로 설정하는 것을 차단
-        $short_link_base = home_url('/go/');
+        // v4.0.0: 파라미터 방식(?go=)으로 변경
+        // 자신의 사이트 내의 단축 링크 경로를 타겟으로 설정하는 것을 차단
+        $short_link_base = home_url('/?go=');
 
         // 1. Normalize Base (remove scheme)
         $clean_base = preg_replace('/^(https?:\/\/|\/\/)/i', '', $short_link_base);
@@ -325,12 +326,21 @@ class SB_Helpers
     /**
      * 단축 링크 URL 생성
      * 
+     * v4.0.0: 파라미터 방식(?go=slug)으로 변경
+     * 이 함수는 중앙 허브 역할을 하며, 여러 파일에서 호출됨:
+     * - class-sb-rest-api.php (Line 330, 696, 785)
+     * - class-sb-analytics.php (Line 751, 815, 820)
+     * - class-sb-post-type.php (Line 107, 144, 147)
+     * - class-sb-admin-ajax.php (Line 343, 915)
+     * - dashboard.php (Line 379, 476)
+     * 
      * @param string $slug Slug
      * @return string 전체 단축 URL
      */
     public static function get_short_link_url($slug)
     {
-        return home_url('/go/' . $slug);
+        // v4.0.0: 파라미터 방식
+        return home_url('/?go=' . $slug);
     }
 
     /**

@@ -427,16 +427,24 @@ class SB_Backup
     }
 
     // =========================================================================
-    // 정적 HTML 백업 기능 (v3.4.0)
+    // 정적 HTML 백업 기능 (v4.0.0 - 5파일 아키텍처)
     // =========================================================================
 
     /**
-     * 정적 HTML 백업 생성 (배치 처리)
+     * 정적 백업 생성 (v4.0.0 - 5파일 아키텍처)
      * 
-     * @param int $offset 시작 위치
-     * @param int $limit 배치 크기
+     * 기존: 링크당 1개 HTML 파일 (100만 링크 = 100만 파일)
+     * 신규: 5개 파일만 생성 (index.html, links.json, config.js, loader.js, style.css)
+     * 
+     * 장점:
+     * - 파일 수 대폭 감소 (N개 → 5개)
+     * - ZIP 크기 감소 (~500MB → ~15MB)
+     * - 중앙 설정 가능 (config.js)
+     * 
+     * @param int $offset 시작 위치 (배치 처리용, v4.0.0에서는 무시)
+     * @param int $limit 배치 크기 (v4.0.0에서는 무시)
      * @param string $file_id 파일 식별자
-     * @param int $total_links 전체 링크 수 (첫 배치에서 계산)
+     * @param int $total_links 전체 링크 수
      * @return array 결과 데이터
      */
     public static function generate_static_backup($offset = 0, $limit = 1000, $file_id = '', $total_links = 0)
@@ -449,7 +457,17 @@ class SB_Backup
             );
         }
 
-        // 파일 ID 생성 (첫 배치)
+        // 시간 제한 해제
+        if (function_exists('set_time_limit')) {
+            set_time_limit(0);
+        }
+
+        // 메모리 제한 증가
+        if (function_exists('ini_set')) {
+            ini_set('memory_limit', '512M');
+        }
+
+        // 파일 ID 생성
         if (empty($file_id)) {
             $file_id = 'sb_static_' . date('Ymd_His') . '_' . wp_generate_password(6, false);
         }
@@ -473,13 +491,9 @@ class SB_Backup
         $zip_path = $backup_dir . '/' . $file_id . '.zip';
         $zip_url = $backup_url . '/' . $file_id . '.zip';
 
-        // ZIP 열기
+        // ZIP 생성
         $zip = new ZipArchive();
-        if ($offset === 0) {
-            $result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-        } else {
-            $result = $zip->open($zip_path, ZipArchive::CREATE);
-        }
+        $result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
         if ($result !== true) {
             return array(
@@ -488,148 +502,287 @@ class SB_Backup
             );
         }
 
-        // 시간 제한 해제
-        if (function_exists('set_time_limit')) {
-            set_time_limit(0);
-        }
-
-        // 링크 조회 (직접 SQL로 성능 최적화)
+        // 모든 링크 조회 (한 번에)
         global $wpdb;
         $post_type = SB_Post_Type::POST_TYPE;
 
         $query = $wpdb->prepare(
-            "SELECT p.post_name, pm.meta_value as target_url 
+            "SELECT p.post_name as slug, pm.meta_value as target_url 
              FROM {$wpdb->posts} p
              INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
              WHERE p.post_type = %s 
              AND p.post_status = 'publish'
-             AND pm.meta_key = 'target_url'
-             LIMIT %d OFFSET %d",
-            $post_type,
-            $limit,
-            $offset
+             AND pm.meta_key = 'target_url'",
+            $post_type
         );
         $links = $wpdb->get_results($query);
+        $total_links = count($links);
 
-        // 첫 배치: 전체 카운트 및 공통 에셋 추가
-        if ($offset === 0 && $total_links === 0) {
-            $count_query = $wpdb->prepare(
-                "SELECT COUNT(p.ID) 
-                 FROM {$wpdb->posts} p
-                 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-                 WHERE p.post_type = %s 
-                 AND p.post_status = 'publish'
-                 AND pm.meta_key = 'target_url'",
-                $post_type
-            );
-            $total_links = (int) $wpdb->get_var($count_query);
-
-            // 공통 에셋 추가
-            $assets = self::get_static_assets();
-            $zip->addFromString('sb-assets/loader.js', $assets['loader_js']);
-            $zip->addFromString('sb-assets/style.css', $assets['style_css']);
-            $zip->addFromString('index.html', $assets['root_html']);
-        }
-
-        // 링크별 HTML 생성
-        $processed = 0;
+        // 1. links.json 생성 (슬러그 → URL 매핑)
+        $links_map = array();
         foreach ($links as $link) {
-            if (!empty($link->post_name) && !empty($link->target_url)) {
-                $html = self::generate_static_html($link->target_url);
-                $zip->addFromString('go/' . $link->post_name . '/index.html', $html);
-                $processed++;
+            if (!empty($link->slug) && !empty($link->target_url)) {
+                $links_map[$link->slug] = $link->target_url;
             }
         }
+        $links_json = json_encode($links_map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $zip->addFromString('links.json', $links_json);
+
+        // 2. config.js 생성 (워드프레스 설정 반영)
+        $config_js = self::generate_config_js();
+        $zip->addFromString('config.js', $config_js);
+
+        // 3. loader.js 생성 (라우팅 + 리다이렉트 로직)
+        $loader_js = self::generate_loader_js();
+        $zip->addFromString('loader.js', $loader_js);
+
+        // 4. style.css 생성 (브릿지 페이지 스타일)
+        $style_css = self::generate_style_css();
+        $zip->addFromString('style.css', $style_css);
+
+        // 5. index.html 생성 (라우터 페이지)
+        $index_html = self::generate_index_html();
+        $zip->addFromString('index.html', $index_html);
 
         $zip->close();
 
-        // 완료 여부 확인
-        $next_offset = $offset + $limit;
-        $is_finished = ($next_offset >= $total_links) || ($total_links === 0);
-
         return array(
             'success' => true,
-            'offset' => $next_offset,
-            'processed' => $processed,
+            'offset' => $total_links,
+            'processed' => $total_links,
             'total' => $total_links,
             'file_id' => $file_id,
-            'finished' => $is_finished,
-            'download_url' => $is_finished ? $zip_url : null
+            'finished' => true,
+            'download_url' => $zip_url
         );
     }
 
     /**
-     * 정적 HTML 템플릿 생성 (Smart Template)
+     * config.js 생성 (중앙 설정)
      * 
-     * @param string $target_url 리다이렉트 대상 URL
-     * @return string HTML 내용
+     * 워드프레스 설정값을 정적 파일에 포함
+     * 
+     * @return string JavaScript 코드
      */
-    private static function generate_static_html($target_url)
+    private static function generate_config_js()
     {
-        $safe_url = esc_url($target_url);
+        $settings = get_option('sb_settings', array());
+        $delay = isset($settings['redirect_delay']) ? floatval($settings['redirect_delay']) : 2;
+        $delay_ms = intval($delay * 1000);
 
-        // 단순 문자열 연결 (Heredoc 사용 안함)
-        $html = '<!DOCTYPE html>';
-        $html .= '<html lang="ko">';
-        $html .= '<head>';
-        $html .= '<meta charset="UTF-8">';
-        $html .= '<meta name="viewport" content="width=device-width,initial-scale=1.0">';
-        $html .= '<meta name="robots" content="noindex,nofollow">';
-        $html .= '<link rel="stylesheet" href="../../sb-assets/style.css">';
-        $html .= '<script src="../../sb-assets/loader.js" data-target="' . $safe_url . '"></script>';
-        $html .= '<noscript>';
-        $html .= '<meta http-equiv="refresh" content="0;url=' . $safe_url . '">';
-        $html .= '</noscript>';
-        $html .= '</head>';
-        $html .= '<body>';
-        $html .= '<div class="sb-redirect-container">';
-        $html .= '<p class="sb-redirect-message">Redirecting...</p>';
-        $html .= '<p class="sb-redirect-link"><a href="' . $safe_url . '">' . $safe_url . '</a></p>';
-        $html .= '</div>';
-        $html .= '</body>';
-        $html .= '</html>';
+        $config = "/**\n";
+        $config .= " * Smart Bridge Static Backup - Config v4.0.0\n";
+        $config .= " * Generated: " . date('Y-m-d H:i:s') . "\n";
+        $config .= " * \n";
+        $config .= " * 이 파일을 수정하면 모든 링크에 즉시 반영됩니다.\n";
+        $config .= " */\n";
+        $config .= "window.SB_CONFIG = {\n";
+        $config .= "  delay: " . $delay_ms . ",\n";
+        $config .= "  message: '잠시 후 이동합니다...',\n";
+        $config .= "  showCountdown: true,\n";
+        $config .= "  showSpinner: true,\n";
+        $config .= "  notFoundMessage: '요청하신 링크를 찾을 수 없습니다.',\n";
+        $config .= "  notFoundUrl: null\n";
+        $config .= "};\n";
+
+        return $config;
+    }
+
+    /**
+     * loader.js 생성 (라우팅 + 리다이렉트 로직)
+     * 
+     * URL에서 ?go=slug 파라미터를 추출하고
+     * links.json에서 해당 타겟 URL을 찾아 리다이렉트
+     * 
+     * @return string JavaScript 코드
+     */
+    private static function generate_loader_js()
+    {
+        $js = "/**\n";
+        $js .= " * Smart Bridge Static Backup - Loader v4.0.0\n";
+        $js .= " */\n";
+        $js .= "(function() {\n";
+        $js .= "  'use strict';\n";
+        $js .= "\n";
+        $js .= "  // URL에서 슬러그 추출\n";
+        $js .= "  var params = new URLSearchParams(window.location.search);\n";
+        $js .= "  var slug = params.get('go');\n";
+        $js .= "\n";
+        $js .= "  if (!slug) {\n";
+        $js .= "    showNotFound();\n";
+        $js .= "    return;\n";
+        $js .= "  }\n";
+        $js .= "\n";
+        $js .= "  // links.json 로드\n";
+        $js .= "  fetch('links.json')\n";
+        $js .= "    .then(function(response) {\n";
+        $js .= "      if (!response.ok) throw new Error('Network error');\n";
+        $js .= "      return response.json();\n";
+        $js .= "    })\n";
+        $js .= "    .then(function(links) {\n";
+        $js .= "      var target = links[slug];\n";
+        $js .= "      if (target) {\n";
+        $js .= "        showBridge(target);\n";
+        $js .= "      } else {\n";
+        $js .= "        showNotFound();\n";
+        $js .= "      }\n";
+        $js .= "    })\n";
+        $js .= "    .catch(function(err) {\n";
+        $js .= "      console.error('Error loading links:', err);\n";
+        $js .= "      showNotFound();\n";
+        $js .= "    });\n";
+        $js .= "\n";
+        $js .= "  function showBridge(targetUrl) {\n";
+        $js .= "    var config = window.SB_CONFIG || { delay: 2000, showCountdown: true };\n";
+        $js .= "    var delay = config.delay || 2000;\n";
+        $js .= "\n";
+        $js .= "    // 메시지 표시\n";
+        $js .= "    var msgEl = document.querySelector('.sb-message');\n";
+        $js .= "    if (msgEl && config.message) msgEl.textContent = config.message;\n";
+        $js .= "\n";
+        $js .= "    // 링크 표시\n";
+        $js .= "    var linkEl = document.querySelector('.sb-link');\n";
+        $js .= "    if (linkEl) linkEl.innerHTML = '<a href=\"' + targetUrl + '\">' + targetUrl + '</a>';\n";
+        $js .= "\n";
+        $js .= "    // 카운트다운\n";
+        $js .= "    if (config.showCountdown) {\n";
+        $js .= "      var countEl = document.querySelector('.sb-countdown');\n";
+        $js .= "      var sec = Math.ceil(delay / 1000);\n";
+        $js .= "      if (countEl) countEl.textContent = sec;\n";
+        $js .= "      var iv = setInterval(function() {\n";
+        $js .= "        sec--;\n";
+        $js .= "        if (countEl) countEl.textContent = sec;\n";
+        $js .= "        if (sec <= 0) clearInterval(iv);\n";
+        $js .= "      }, 1000);\n";
+        $js .= "    }\n";
+        $js .= "\n";
+        $js .= "    // 리다이렉트\n";
+        $js .= "    setTimeout(function() {\n";
+        $js .= "      window.location.replace(targetUrl);\n";
+        $js .= "    }, delay);\n";
+        $js .= "  }\n";
+        $js .= "\n";
+        $js .= "  function showNotFound() {\n";
+        $js .= "    var config = window.SB_CONFIG || {};\n";
+        $js .= "    var container = document.querySelector('.sb-redirect-container');\n";
+        $js .= "    if (container) {\n";
+        $js .= "      container.innerHTML = '<h2>404</h2><p>' + (config.notFoundMessage || 'Link not found') + '</p>';\n";
+        $js .= "    }\n";
+        $js .= "    if (config.notFoundUrl) {\n";
+        $js .= "      window.location.href = config.notFoundUrl;\n";
+        $js .= "    }\n";
+        $js .= "  }\n";
+        $js .= "})();\n";
+
+        return $js;
+    }
+
+    /**
+     * style.css 생성 (브릿지 페이지 스타일)
+     * 
+     * @return string CSS 코드
+     */
+    private static function generate_style_css()
+    {
+        $css = "/**\n";
+        $css .= " * Smart Bridge Static Backup - Style v4.0.0\n";
+        $css .= " */\n";
+        $css .= "* { box-sizing: border-box; }\n";
+        $css .= "\n";
+        $css .= "body {\n";
+        $css .= "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n";
+        $css .= "  display: flex;\n";
+        $css .= "  justify-content: center;\n";
+        $css .= "  align-items: center;\n";
+        $css .= "  min-height: 100vh;\n";
+        $css .= "  margin: 0;\n";
+        $css .= "  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-redirect-container {\n";
+        $css .= "  text-align: center;\n";
+        $css .= "  padding: 50px 40px;\n";
+        $css .= "  max-width: 400px;\n";
+        $css .= "  background: rgba(255, 255, 255, 0.95);\n";
+        $css .= "  border-radius: 16px;\n";
+        $css .= "  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-spinner {\n";
+        $css .= "  width: 50px;\n";
+        $css .= "  height: 50px;\n";
+        $css .= "  margin: 0 auto 20px;\n";
+        $css .= "  border: 4px solid #e0e0e0;\n";
+        $css .= "  border-top-color: #667eea;\n";
+        $css .= "  border-radius: 50%;\n";
+        $css .= "  animation: sb-spin 1s linear infinite;\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= "@keyframes sb-spin {\n";
+        $css .= "  to { transform: rotate(360deg); }\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-countdown {\n";
+        $css .= "  font-size: 48px;\n";
+        $css .= "  font-weight: 700;\n";
+        $css .= "  color: #667eea;\n";
+        $css .= "  margin: 0 0 10px;\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-message {\n";
+        $css .= "  font-size: 16px;\n";
+        $css .= "  color: #666;\n";
+        $css .= "  margin: 0 0 20px;\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-link {\n";
+        $css .= "  font-size: 13px;\n";
+        $css .= "  color: #999;\n";
+        $css .= "  word-break: break-all;\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-link a {\n";
+        $css .= "  color: #667eea;\n";
+        $css .= "  text-decoration: none;\n";
+        $css .= "}\n";
+        $css .= "\n";
+        $css .= ".sb-link a:hover {\n";
+        $css .= "  text-decoration: underline;\n";
+        $css .= "}\n";
+
+        return $css;
+    }
+
+    /**
+     * index.html 생성 (라우터 페이지)
+     * 
+     * ?go=slug 파라미터를 받아 loader.js가 처리
+     * 
+     * @return string HTML 코드
+     */
+    private static function generate_index_html()
+    {
+        $html = "<!DOCTYPE html>\n";
+        $html .= "<html lang=\"ko\">\n";
+        $html .= "<head>\n";
+        $html .= "  <meta charset=\"UTF-8\">\n";
+        $html .= "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+        $html .= "  <meta name=\"robots\" content=\"noindex, nofollow\">\n";
+        $html .= "  <title>Redirecting...</title>\n";
+        $html .= "  <link rel=\"stylesheet\" href=\"style.css\">\n";
+        $html .= "</head>\n";
+        $html .= "<body>\n";
+        $html .= "  <div class=\"sb-redirect-container\">\n";
+        $html .= "    <div class=\"sb-spinner\"></div>\n";
+        $html .= "    <p class=\"sb-countdown\">...</p>\n";
+        $html .= "    <p class=\"sb-message\">Loading...</p>\n";
+        $html .= "    <p class=\"sb-link\"></p>\n";
+        $html .= "  </div>\n";
+        $html .= "  <script src=\"config.js\"></script>\n";
+        $html .= "  <script src=\"loader.js\"></script>\n";
+        $html .= "</body>\n";
+        $html .= "</html>\n";
 
         return $html;
-    }
-
-    /**
-     * 공통 에셋 생성 (중앙 수정 가능)
-     * 
-     * @return array 에셋 배열 (loader_js, style_css, root_html)
-     */
-    private static function get_static_assets()
-    {
-        // Loader.js - 즉시 리다이렉트
-        $loader_js = '(function(){';
-        $loader_js .= 'var s=document.currentScript;';
-        $loader_js .= 'var t=s?s.getAttribute("data-target"):null;';
-        $loader_js .= 'if(t){window.location.replace(t);}';
-        $loader_js .= '})();';
-
-        // Style.css - 커스터마이징 가능
-        $style_css = '/* Smart Bridge Static Backup Styles */';
-        $style_css .= 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
-        $style_css .= 'display:flex;justify-content:center;align-items:center;min-height:100vh;';
-        $style_css .= 'margin:0;background:#f5f5f5;}';
-        $style_css .= '.sb-redirect-container{text-align:center;padding:40px;';
-        $style_css .= 'background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);}';
-        $style_css .= '.sb-redirect-message{font-size:18px;color:#333;margin:0 0 10px;}';
-        $style_css .= '.sb-redirect-link{font-size:14px;color:#666;}';
-        $style_css .= '.sb-redirect-link a{color:#0073aa;text-decoration:none;}';
-
-        // Root index.html - 직접 접근 방지
-        $root_html = '<!DOCTYPE html><html><head>';
-        $root_html .= '<meta charset="UTF-8">';
-        $root_html .= '<title>Access Denied</title>';
-        $root_html .= '</head><body>';
-        $root_html .= '<h1>Direct Access Forbidden</h1>';
-        $root_html .= '<p>This directory is for redirect links only.</p>';
-        $root_html .= '</body></html>';
-
-        return array(
-            'loader_js' => $loader_js,
-            'style_css' => $style_css,
-            'root_html' => $root_html
-        );
     }
 }

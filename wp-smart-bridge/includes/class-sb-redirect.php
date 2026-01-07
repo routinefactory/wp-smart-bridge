@@ -20,46 +20,62 @@ class SB_Redirect
 
     /**
      * 초기화
+     * 
+     * v4.0.0: 파라미터 방식(?go=slug)으로 변경
+     * - Rewrite rules 불필요
+     * - Query vars 불필요
      */
     public static function init()
     {
-        // Rewrite 규칙 추가 (직접 호출 - init 훅 내에서 호출되므로)
-        self::add_rewrite_rules();
+        // v4.0.0: 파라미터 방식으로 rewrite rules 제거
+        // self::add_rewrite_rules(); // 더 이상 사용 안 함
+        // add_filter('query_vars', [__CLASS__, 'add_query_vars']); // 더 이상 사용 안 함
 
-        // Query vars 추가
-        add_filter('query_vars', [__CLASS__, 'add_query_vars']);
-
-        // 템플릿 리다이렉트 처리
+        // 템플릿 리다이렉트 처리 (핵심)
         add_action('template_redirect', [__CLASS__, 'handle_redirect']);
     }
 
     /**
      * Rewrite 규칙 추가
+     * 
+     * @deprecated v4.0.0 파라미터 방식으로 더 이상 사용 안 함
+     * 호환성을 위해 메소드는 유지하되 호출되지 않음
      */
     public static function add_rewrite_rules()
     {
+        // v4.0.0: 파라미터 방식으로 이 메소드는 더 이상 호출되지 않음
+        // 기존 코드 주석 처리 (히스토리 보존)
+        /*
         add_rewrite_rule(
             '^' . self::PREFIX . '/([^/]+)/?$',
             'index.php?sb_slug=$matches[1]',
             'top'
         );
+        */
     }
 
     /**
      * Query vars 추가
+     * 
+     * @deprecated v4.0.0 파라미터 방식으로 더 이상 사용 안 함
      */
     public static function add_query_vars($vars)
     {
-        $vars[] = 'sb_slug';
+        // v4.0.0: 파라미터 방식으로 이 메소드는 더 이상 호출되지 않음
+        // $vars[] = 'sb_slug';
         return $vars;
     }
 
     /**
      * 리다이렉트 처리
+     * 
+     * v4.0.0: 파라미터 방식(?go=slug)으로 변경
      */
     public static function handle_redirect()
     {
-        $slug = get_query_var('sb_slug');
+        // v4.0.0: 파라미터 방식 - $_GET['go']에서 슬러그 추출
+        // 보안: sanitize_text_field()로 XSS 방지
+        $slug = isset($_GET['go']) ? sanitize_text_field($_GET['go']) : '';
 
         if (empty($slug)) {
             return;

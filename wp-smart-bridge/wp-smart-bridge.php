@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.4.1');
+define('SB_VERSION', '4.0.1');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -140,10 +140,10 @@ class WP_Smart_Bridge
         /**
          * 3. Rewrite 규칙 플러시
          * 
-         * /go/{slug} URL 라우팅을 위해 필수
-         * 데이터에는 영향 없음
+         * v4.0.0: 파라미터 방식(?go=slug)으로 rewrite rules 불필요
+         * 기존 /go/{slug} 방식에서는 필수였지만, 더 이상 필요 없음
          */
-        flush_rewrite_rules();
+        // flush_rewrite_rules(); // v4.0.0: 더 이상 사용 안 함
 
         /**
          * 4. 버전 정보 업데이트
@@ -196,8 +196,8 @@ class WP_Smart_Bridge
      */
     public function deactivate()
     {
-        // Rewrite 규칙 플러시
-        flush_rewrite_rules();
+        // v4.0.0: 파라미터 방식으로 rewrite rules 플러시 불필요
+        // flush_rewrite_rules(); // v4.0.0: 더 이상 사용 안 함
     }
 
     /**
@@ -340,19 +340,13 @@ class WP_Smart_Bridge
             /**
              * v3.0.5 CRITICAL FIX: Flush Rewrite Rules on Upgrade
              * 
-             * PROBLEM: After plugin update, WordPress 404s on /go/xxx/ URLs
-             * because rewrite rules haven't been refreshed.
+             * v4.0.0: 파라미터 방식(?go=slug)으로 rewrite rules 불필요
+             * 기존 /go/{slug} 방식에서는 필수였지만, 더 이상 필요 없음
              * 
-             * ROOT CAUSE: Plugin updates don't trigger activation hook,
-             * so flush_rewrite_rules() was never called after update.
-             * 
-             * SOLUTION: Explicitly register and flush rewrite rules
-             * during version upgrade process.
-             * 
-             * @see class-sb-redirect.php Line 39 for rewrite rule pattern
+             * @deprecated v4.0.0
              */
-            SB_Redirect::add_rewrite_rules();
-            flush_rewrite_rules();
+            // SB_Redirect::add_rewrite_rules(); // v4.0.0: 더 이상 사용 안 함
+            // flush_rewrite_rules(); // v4.0.0: 더 이상 사용 안 함
 
             /**
              * 🔔 업그레이드 완료 알림 (관리자 전용)

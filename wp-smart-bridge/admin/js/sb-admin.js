@@ -1743,7 +1743,8 @@
             if (link.group_name) {
                 row += ' <span class="sb-group-badge" style="background-color:' + (link.group_color || '#667eea') + '">' + link.group_name + '</span>';
             }
-            row += '<br><small class="sb-slug-copy" data-url="' + link.short_link + '">/go/' + link.slug + '</small>';
+            // v4.0.0: 파라미터 방식으로 변경
+            row += '<br><small class="sb-slug-copy" data-url="' + link.short_link + '">?go=' + link.slug + '</small>';
             row += '</td>';
 
             // Target URL
