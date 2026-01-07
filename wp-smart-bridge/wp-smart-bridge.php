@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.1.4');
+define('SB_VERSION', '3.1.6');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -97,9 +97,7 @@ class WP_Smart_Bridge
 
         add_action('rest_api_init', [$this, 'init_rest_api']);
 
-        // v3.1.1: Bypass 3rd-party auth plugins (e.g., miniOrange)
-        // Priority PHP_INT_MAX to run absolutely LAST
-        add_filter('rest_authentication_errors', ['SB_Rest_API', 'bypass_authentication'], PHP_INT_MAX);
+        // v3.1.1: Bypass moved to init() for earlier execution
 
         // 플러그인 로드 완료
         add_action('plugins_loaded', [$this, 'on_plugins_loaded']);
@@ -218,6 +216,11 @@ class WP_Smart_Bridge
 
         // 비동기 로거 초기화 (v3.0.0 Update)
         SB_Async_Logger::init();
+
+        // v3.1.4: Bypass 3rd-party auth plugins (e.g., miniOrange)
+        // Registered in init() to ensure it catches early blocks
+        // Priority PHP_INT_MAX to run absolutely LAST
+        add_filter('rest_authentication_errors', ['SB_Rest_API', 'bypass_authentication'], PHP_INT_MAX);
     }
 
     /**
