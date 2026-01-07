@@ -299,7 +299,8 @@ class SB_Admin_Ajax
         }
 
         // WordPress 내장 함수로 퍼마링크 규칙 재생성
-        flush_rewrite_rules();
+        // v3.0.9: Use hard flush (true) to immediately update .htaccess/rules
+        flush_rewrite_rules(true);
 
         wp_send_json_success([
             'message' => '퍼마링크 규칙이 재생성되었습니다.',
@@ -335,11 +336,19 @@ class SB_Admin_Ajax
         // 실제 접속 URL (예: http://site.com/go/abcd)
         $test_url = SB_Helpers::get_short_link_url($slug);
 
+        // v3.0.9: Add cache-busting parameter to bypass CDN/server cache
+        $test_url_with_bust = add_query_arg('_sb_health', time(), $test_url);
+
         // 2. HTTP 요청 보내기 (Loopback Request)
-        $response = wp_remote_get($test_url, [
+        $response = wp_remote_get($test_url_with_bust, [
             'timeout' => 5,
             'redirection' => 0, // 리다이렉트 따라가지 않음 (302/301 받으면 성공)
-            'sslverify' => false // 로컬 환경 등 고려
+            'sslverify' => false, // 로컬 환경 등 고려
+            // v3.0.9: Add cache-control headers to prevent cached responses
+            'headers' => [
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+            ]
         ]);
 
         if (is_wp_error($response)) {
