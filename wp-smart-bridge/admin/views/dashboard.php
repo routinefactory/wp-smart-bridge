@@ -523,16 +523,6 @@ if (!defined('ABSPATH')) {
             <div class="sb-guide-item">
                 <div class="sb-guide-step">2</div>
                 <div class="sb-guide-content">
-                    <strong><?php _e('퍼마링크 새로고침', 'sb'); ?></strong>
-                    <p><?php printf(__('%s설정 → 퍼마링크%s에서 "변경사항 저장" 버튼을 클릭해 주세요.', 'sb'), '<a href="' . admin_url('options-permalink.php') . '">', '</a>'); ?>
-                    </p>
-                    <span class="sb-guide-status info"><?php _e('💡 최초 1회 필수', 'sb'); ?></span>
-                </div>
-            </div>
-
-            <div class="sb-guide-item">
-                <div class="sb-guide-step">3</div>
-                <div class="sb-guide-content">
                     <strong><?php _e('EXE 프로그램 설정', 'sb'); ?></strong>
                     <p><?php _e('발급받은 API Key와 Secret Key를 EXE 프로그램에 입력하세요.', 'sb'); ?></p>
                     <span class="sb-guide-status info"><?php _e('💻 로컬 PC', 'sb'); ?></span>

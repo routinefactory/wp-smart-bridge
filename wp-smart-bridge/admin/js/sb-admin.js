@@ -279,8 +279,11 @@
     */
 
     /**
-     * Health Check - Verify short links work properly (Permalink flush check)
-     * v3.0.8: Auto-flush rewrite rules on 404 detection
+     * Health Check - Verify short links work properly
+     * 
+     * v4.0.0: 파라미터 방식(?go=slug)으로 변경됨
+     * - 퍼마링크 flush가 필요 없어짐
+     * - 404 시 간단한 경고만 표시 (서버 오류, DB 문제 등 감지용)
      */
     function runHealthCheck() {
         /**
@@ -289,7 +292,7 @@
          * DO NOT REMOVE OR THROTTLE THIS LOGIC.
          * This check MUST run on EVERY dashboard page load to ensure short links are accessible.
          * 
-         * v3.0.8: Now includes automatic permalink flush with retry mechanism.
+         * v4.0.0: Simplified - no more auto-fix permalink flush
          * 
          * @intentional This seems expensive but is required for system integrity reliability.
          * @lock NO_THROTTLING
@@ -298,39 +301,15 @@
         // Remove legacy throttling if exists
         localStorage.removeItem('sb_last_health_check');
 
-        // Internal state for retry mechanism
-        var retryCount = 0;
-        var maxRetries = 3;
-
         /**
-         * Show/hide loading overlay during auto-fix
+         * v4.0.0: 간단한 경고 배너 표시
+         * 퍼마링크 관련 메시지 없이 서버 상태 확인 안내만 표시
          */
-        function showAutoFixOverlay(show, message) {
-            $('#sb-autofix-overlay').remove();
-            if (show) {
-                var $overlay = $(
-                    '<div id="sb-autofix-overlay" class="sb-autofix-overlay">' +
-                    '<div class="sb-autofix-content">' +
-                    '<span class="dashicons dashicons-update sb-spin"></span>' +
-                    '<p>' + (message || __('auto_fixing_permalinks', '🔧 Bridge 서버 안정화 작업 진행중...')) + '</p>' +
-                    '<small>' + __('please_wait', '잠시만 기다려주세요...') + ' (' + (retryCount + 1) + '/' + maxRetries + ')</small>' +
-                    '</div>' +
-                    '</div>'
-                );
-                $('body').append($overlay);
-            }
-        }
-
-        /**
-         * Show manual banner when all auto-fix attempts fail
-         */
-        function showManualBanner(testUrl, responseCode) {
+        function showWarningBanner(testUrl, responseCode) {
             $('#sb-health-warning').remove();
-            var $banner = $('<div id="sb-health-warning" class="notice notice-error sb-health-banner">' +
-                '<h3>⚠️ ' + __('permalink_error_title', '단축 링크가 작동하지 않습니다!') + '</h3>' +
-                '<p>' + __('auto_fix_failed', '자동 복구에 실패했습니다. 수동으로 퍼마링크 설정이 필요합니다.') + '</p>' +
-                '<p><a href="' + sbAdmin.adminUrl + 'options-permalink.php" class="button button-primary">' +
-                __('go_to_permalinks', '퍼마링크 설정으로 이동') + ' →</a></p>' +
+            var $banner = $('<div id="sb-health-warning" class="notice notice-warning sb-health-banner">' +
+                '<h3>⚠️ ' + __('health_warning_title', '서버에서 링크에 접근할 수 없습니다') + '</h3>' +
+                '<p>' + __('health_warning_message', '단축 링크가 정상적으로 작동하지 않을 수 있습니다. 서버 상태를 확인해주세요.') + '</p>' +
                 '<p class="sb-health-details"><small>테스트 URL: ' + testUrl + ' (응답 코드: ' + responseCode + ')</small></p>' +
                 '<button type="button" class="notice-dismiss"><span class="screen-reader-text">' + __('dismiss', 'Dismiss') + '</span></button>' +
                 '</div>');
@@ -346,81 +325,7 @@
             });
         }
 
-        /**
-         * Attempt to flush rewrite rules
-         */
-        function attemptAutoFix(testUrl, responseCode) {
-            if (retryCount >= maxRetries) {
-                showAutoFixOverlay(false);
-                showManualBanner(testUrl, responseCode);
-                return;
-            }
-
-            showAutoFixOverlay(true);
-
-            $.ajax({
-                url: sbAdmin.ajaxUrl,
-                method: 'POST',
-                data: {
-                    action: 'sb_flush_rewrite_rules',
-                    nonce: sbAdmin.ajaxNonce
-                },
-                success: function (response) {
-                    if (response.success) {
-                        // Wait 1 second then re-check
-                        var waitTime = retryCount === 0 ? 1000 : 2000;
-                        setTimeout(function () {
-                            recheckHealth(testUrl, responseCode);
-                        }, waitTime);
-                    } else {
-                        // Permission denied or other error - show manual banner
-                        showAutoFixOverlay(false);
-                        showManualBanner(testUrl, responseCode);
-                    }
-                },
-                error: function () {
-                    showAutoFixOverlay(false);
-                    showManualBanner(testUrl, responseCode);
-                }
-            });
-        }
-
-        /**
-         * Re-check health after auto-fix attempt
-         */
-        function recheckHealth(originalTestUrl, originalCode) {
-            $.ajax({
-                url: sbAdmin.ajaxUrl,
-                method: 'POST',
-                data: {
-                    action: 'sb_health_check',
-                    nonce: sbAdmin.ajaxNonce
-                },
-                success: function (response) {
-                    if (response.success) {
-                        if (response.data.status === 'ok' || response.data.status === 'no_links') {
-                            // Success! Hide overlay and show success toast
-                            showAutoFixOverlay(false);
-                            SB_UI.showToast(__('auto_fix_success', '✅ 자동 복구 완료!'), 'success');
-                        } else if (response.data.status === 'error_404') {
-                            // Still failing, retry
-                            retryCount++;
-                            attemptAutoFix(response.data.test_url, response.data.code);
-                        } else {
-                            // Connection error or other - show manual banner
-                            showAutoFixOverlay(false);
-                            showManualBanner(originalTestUrl, originalCode);
-                        }
-                    }
-                },
-                error: function () {
-                    showAutoFixOverlay(false);
-                    showManualBanner(originalTestUrl, originalCode);
-                }
-            });
-        }
-
-        // Initial health check
+        // Health check AJAX call
         $.ajax({
             url: sbAdmin.ajaxUrl,
             method: 'POST',
@@ -433,8 +338,8 @@
                     $('#sb-health-warning').remove();
 
                     if (response.data.status === 'error_404') {
-                        // v3.0.8: Auto-fix instead of showing banner immediately
-                        attemptAutoFix(response.data.test_url, response.data.code);
+                        // v4.0.0: 간단한 경고만 표시 (auto-fix 시도 없음)
+                        showWarningBanner(response.data.test_url, response.data.code);
                     }
                     // status 'ok', 'no_links', 'connection_error' - no action needed
                 }

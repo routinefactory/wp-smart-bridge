@@ -14,7 +14,7 @@
 
 1. [Releases](https://github.com/routinefactory/wp-smart-bridge/releases)에서 최신 버전 다운로드
 2. 워드프레스 관리자 → 플러그인 → 새로 추가 → 플러그인 업로드
-3. 활성화 후 **설정 → 퍼마링크 → 변경사항 저장** 클릭
+3. 활성화 완료! 바로 사용 가능합니다 ✅
 
 ## 🚀 빠른 시작
 

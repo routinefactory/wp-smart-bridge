@@ -39,7 +39,7 @@ class SB_Admin_Ajax
             'sb_get_dashboard_stats' => 'ajax_get_dashboard_stats',
             'sb_migrate_daily_stats' => 'ajax_migrate_daily_stats', // v2.9.27
             'sb_restore_backup_chunk' => 'ajax_restore_backup_chunk', // v3.0.0 Scalability
-            'sb_flush_rewrite_rules' => 'ajax_flush_rewrite_rules', // v3.0.8 Auto-fix permalinks
+            // 'sb_flush_rewrite_rules' => 'ajax_flush_rewrite_rules', // v4.0.0: 파라미터 방식으로 불필요
             'sb_generate_static_backup' => 'ajax_generate_static_backup', // v3.4.0 Static HTML backup
         ];
 
@@ -287,30 +287,15 @@ class SB_Admin_Ajax
     /**
      * v3.0.8: 퍼마링크 규칙 자동 재생성 (Auto-fix)
      * 
-     * 404 에러 감지 시 프론트엔드에서 자동으로 호출하여
-     * flush_rewrite_rules()를 실행합니다.
-     * 
-     * 보안: manage_options 권한 필요 (관리자 전용)
+     * @deprecated v4.0.0 파라미터 방식(?go=slug)으로 더 이상 필요 없음
+     * 이 메소드는 호환성을 위해 유지하되 호출되지 않음
      */
     public static function ajax_flush_rewrite_rules()
     {
-        check_ajax_referer('sb_admin_nonce', 'nonce');
-
-        // 관리자 권한 필수 (flush_rewrite_rules는 민감한 작업)
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error([
-                'message' => '관리자 권한이 필요합니다.',
-                'can_auto_fix' => false
-            ]);
-        }
-
-        // WordPress 내장 함수로 퍼마링크 규칙 재생성
-        // v3.0.9: Use hard flush (true) to immediately update .htaccess/rules
-        flush_rewrite_rules(true);
-
+        // v4.0.0: 파라미터 방식으로 rewrite rules 불필요
         wp_send_json_success([
-            'message' => '퍼마링크 규칙이 재생성되었습니다.',
-            'flushed' => true
+            'message' => 'v4.0.0: 파라미터 방식으로 퍼마링크 규칙 재생성이 필요 없습니다.',
+            'deprecated' => true
         ]);
     }
 
@@ -530,7 +515,8 @@ class SB_Admin_Ajax
 
             // 4. 캐시 및 Rewrite 규칙 초기화
             wp_cache_flush();
-            flush_rewrite_rules();
+            // v4.0.0: 파라미터 방식으로 flush_rewrite_rules 불필요
+            // flush_rewrite_rules();
 
             wp_send_json_success(['message' => '초기화가 완료되었습니다.']);
 

@@ -79,5 +79,5 @@ delete_option('sb_version');
 delete_option('sb_settings');
 delete_option('sb_first_install_notice'); // 설치 안내 배너 상태
 
-// 4. Rewrite 규칙 플러시
-flush_rewrite_rules();
+// 4. v4.0.0: 파라미터 방식으로 Rewrite 규칙 플러시 불필요
+// flush_rewrite_rules();
