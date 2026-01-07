@@ -40,6 +40,7 @@ class SB_Admin_Ajax
             'sb_migrate_daily_stats' => 'ajax_migrate_daily_stats', // v2.9.27
             'sb_restore_backup_chunk' => 'ajax_restore_backup_chunk', // v3.0.0 Scalability
             'sb_flush_rewrite_rules' => 'ajax_flush_rewrite_rules', // v3.0.8 Auto-fix permalinks
+            'sb_generate_static_backup' => 'ajax_generate_static_backup', // v3.4.0 Static HTML backup
         ];
 
         foreach ($actions as $action => $method) {
@@ -917,6 +918,29 @@ class SB_Admin_Ajax
             'platform' => $platform,
             'created_at' => current_time('c'),
         ]);
+    }
+
+    /**
+     * 정적 HTML 백업 생성 AJAX (v3.4.0)
+     * 
+     * 배치 처리: JS에서 반복 호출하여 대용량 링크도 안정적으로 처리
+     */
+    public static function ajax_generate_static_backup()
+    {
+        self::check_permission();
+
+        $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+        $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 1000;
+        $file_id = isset($_POST['file_id']) ? sanitize_text_field($_POST['file_id']) : '';
+        $total_links = isset($_POST['total_links']) ? intval($_POST['total_links']) : 0;
+
+        $result = SB_Backup::generate_static_backup($offset, $limit, $file_id, $total_links);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
     }
 }
 

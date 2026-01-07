@@ -1580,6 +1580,77 @@
                 }
             });
         });
+
+        // 9.9 Static HTML Backup (v3.4.0)
+        $('#sb-generate-static-backup').on('click', function () {
+            var $btn = $(this);
+            var $progress = $('#sb-static-backup-progress');
+            var $bar = $('#sb-static-backup-bar');
+            var $status = $('#sb-static-backup-status');
+            var $result = $('#sb-static-backup-result');
+
+            if (!confirm('정적 HTML 백업을 생성하시겠습니까?\n링크 수에 따라 시간이 소요될 수 있습니다.')) {
+                return;
+            }
+
+            // UI 초기화
+            $btn.prop('disabled', true);
+            $progress.show();
+            $result.hide().empty();
+            $bar.css('width', '0%');
+            $status.text('초기화 중...');
+
+            var fileId = '';
+            var offset = 0;
+            var limit = 1000;
+            var total = 0;
+
+            function processBatch() {
+                $.post(sbAdmin.ajaxUrl, {
+                    action: 'sb_generate_static_backup',
+                    nonce: sbAdmin.ajaxNonce,
+                    offset: offset,
+                    limit: limit,
+                    file_id: fileId,
+                    total_links: total
+                }).done(function (res) {
+                    if (res.success) {
+                        fileId = res.data.file_id;
+                        total = parseInt(res.data.total) || 0;
+                        offset = parseInt(res.data.offset) || 0;
+
+                        var percent = total > 0 ? Math.min(100, Math.round((offset / total) * 100)) : 100;
+                        $bar.css('width', percent + '%');
+                        $status.text(offset + ' / ' + total + ' 처리 완료 (' + percent + '%)');
+
+                        if (!res.data.finished) {
+                            processBatch();
+                        } else {
+                            $btn.prop('disabled', false);
+                            $status.text('백업 완료! 총 ' + total + '개 링크');
+                            $bar.css('width', '100%');
+
+                            var html = '<a href="' + res.data.download_url + '" class="button button-primary" download>';
+                            html += '<span class="dashicons dashicons-download" style="margin-top:4px;"></span> ';
+                            html += '백업 파일 다운로드 (.zip)</a>';
+                            html += '<p class="description" style="margin-top:10px;">';
+                            html += 'sb-assets/loader.js 수정으로 전체 업데이트 가능!</p>';
+                            $result.html(html).show();
+                        }
+                    } else {
+                        $btn.prop('disabled', false);
+                        $status.text('오류: ' + (res.data.message || 'Unknown'));
+                        $bar.css('background', '#d63638');
+                    }
+                }).fail(function () {
+                    $btn.prop('disabled', false);
+                    $status.text('서버 통신 오류');
+                    $bar.css('background', '#d63638');
+                });
+            }
+
+            processBatch();
+        });
     }
 
     // Initialize Settings Logic

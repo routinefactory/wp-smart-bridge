@@ -425,4 +425,211 @@ class SB_Backup
             wp_send_json_error($result);
         }
     }
+
+    // =========================================================================
+    // 정적 HTML 백업 기능 (v3.4.0)
+    // =========================================================================
+
+    /**
+     * 정적 HTML 백업 생성 (배치 처리)
+     * 
+     * @param int $offset 시작 위치
+     * @param int $limit 배치 크기
+     * @param string $file_id 파일 식별자
+     * @param int $total_links 전체 링크 수 (첫 배치에서 계산)
+     * @return array 결과 데이터
+     */
+    public static function generate_static_backup($offset = 0, $limit = 1000, $file_id = '', $total_links = 0)
+    {
+        // ZipArchive 체크
+        if (!class_exists('ZipArchive')) {
+            return array(
+                'success' => false,
+                'message' => 'ZipArchive PHP extension is not available on this server.'
+            );
+        }
+
+        // 파일 ID 생성 (첫 배치)
+        if (empty($file_id)) {
+            $file_id = 'sb_static_' . date('Ymd_His') . '_' . wp_generate_password(6, false);
+        }
+
+        // 업로드 디렉토리 설정
+        $upload_dir = wp_upload_dir();
+        $backup_dir = $upload_dir['basedir'] . '/sb-static-backups';
+        $backup_url = $upload_dir['baseurl'] . '/sb-static-backups';
+
+        // 디렉토리 생성
+        if (!file_exists($backup_dir)) {
+            wp_mkdir_p($backup_dir);
+        }
+
+        // 보안: 디렉토리 접근 제한
+        $htaccess_path = $backup_dir . '/.htaccess';
+        if (!file_exists($htaccess_path)) {
+            file_put_contents($htaccess_path, "Options -Indexes\n");
+        }
+
+        $zip_path = $backup_dir . '/' . $file_id . '.zip';
+        $zip_url = $backup_url . '/' . $file_id . '.zip';
+
+        // ZIP 열기
+        $zip = new ZipArchive();
+        if ($offset === 0) {
+            $result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        } else {
+            $result = $zip->open($zip_path, ZipArchive::CREATE);
+        }
+
+        if ($result !== true) {
+            return array(
+                'success' => false,
+                'message' => 'Failed to create ZIP file. Error code: ' . $result
+            );
+        }
+
+        // 시간 제한 해제
+        if (function_exists('set_time_limit')) {
+            set_time_limit(0);
+        }
+
+        // 링크 조회 (직접 SQL로 성능 최적화)
+        global $wpdb;
+        $post_type = SB_Post_Type::POST_TYPE;
+
+        $query = $wpdb->prepare(
+            "SELECT p.post_name, pm.meta_value as target_url 
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+             WHERE p.post_type = %s 
+             AND p.post_status = 'publish'
+             AND pm.meta_key = 'sb_target_url'
+             LIMIT %d OFFSET %d",
+            $post_type,
+            $limit,
+            $offset
+        );
+        $links = $wpdb->get_results($query);
+
+        // 첫 배치: 전체 카운트 및 공통 에셋 추가
+        if ($offset === 0 && $total_links === 0) {
+            $count_query = $wpdb->prepare(
+                "SELECT COUNT(p.ID) 
+                 FROM {$wpdb->posts} p
+                 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+                 WHERE p.post_type = %s 
+                 AND p.post_status = 'publish'
+                 AND pm.meta_key = 'sb_target_url'",
+                $post_type
+            );
+            $total_links = (int) $wpdb->get_var($count_query);
+
+            // 공통 에셋 추가
+            $assets = self::get_static_assets();
+            $zip->addFromString('sb-assets/loader.js', $assets['loader_js']);
+            $zip->addFromString('sb-assets/style.css', $assets['style_css']);
+            $zip->addFromString('index.html', $assets['root_html']);
+        }
+
+        // 링크별 HTML 생성
+        $processed = 0;
+        foreach ($links as $link) {
+            if (!empty($link->post_name) && !empty($link->target_url)) {
+                $html = self::generate_static_html($link->target_url);
+                $zip->addFromString('go/' . $link->post_name . '/index.html', $html);
+                $processed++;
+            }
+        }
+
+        $zip->close();
+
+        // 완료 여부 확인
+        $next_offset = $offset + $limit;
+        $is_finished = ($next_offset >= $total_links) || ($total_links === 0);
+
+        return array(
+            'success' => true,
+            'offset' => $next_offset,
+            'processed' => $processed,
+            'total' => $total_links,
+            'file_id' => $file_id,
+            'finished' => $is_finished,
+            'download_url' => $is_finished ? $zip_url : null
+        );
+    }
+
+    /**
+     * 정적 HTML 템플릿 생성 (Smart Template)
+     * 
+     * @param string $target_url 리다이렉트 대상 URL
+     * @return string HTML 내용
+     */
+    private static function generate_static_html($target_url)
+    {
+        $safe_url = esc_url($target_url);
+
+        // 단순 문자열 연결 (Heredoc 사용 안함)
+        $html = '<!DOCTYPE html>';
+        $html .= '<html lang="ko">';
+        $html .= '<head>';
+        $html .= '<meta charset="UTF-8">';
+        $html .= '<meta name="viewport" content="width=device-width,initial-scale=1.0">';
+        $html .= '<meta name="robots" content="noindex,nofollow">';
+        $html .= '<link rel="stylesheet" href="../../sb-assets/style.css">';
+        $html .= '<script src="../../sb-assets/loader.js" data-target="' . $safe_url . '"></script>';
+        $html .= '<noscript>';
+        $html .= '<meta http-equiv="refresh" content="0;url=' . $safe_url . '">';
+        $html .= '</noscript>';
+        $html .= '</head>';
+        $html .= '<body>';
+        $html .= '<div class="sb-redirect-container">';
+        $html .= '<p class="sb-redirect-message">Redirecting...</p>';
+        $html .= '<p class="sb-redirect-link"><a href="' . $safe_url . '">' . $safe_url . '</a></p>';
+        $html .= '</div>';
+        $html .= '</body>';
+        $html .= '</html>';
+
+        return $html;
+    }
+
+    /**
+     * 공통 에셋 생성 (중앙 수정 가능)
+     * 
+     * @return array 에셋 배열 (loader_js, style_css, root_html)
+     */
+    private static function get_static_assets()
+    {
+        // Loader.js - 즉시 리다이렉트
+        $loader_js = '(function(){';
+        $loader_js .= 'var s=document.currentScript;';
+        $loader_js .= 'var t=s?s.getAttribute("data-target"):null;';
+        $loader_js .= 'if(t){window.location.replace(t);}';
+        $loader_js .= '})();';
+
+        // Style.css - 커스터마이징 가능
+        $style_css = '/* Smart Bridge Static Backup Styles */';
+        $style_css .= 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+        $style_css .= 'display:flex;justify-content:center;align-items:center;min-height:100vh;';
+        $style_css .= 'margin:0;background:#f5f5f5;}';
+        $style_css .= '.sb-redirect-container{text-align:center;padding:40px;';
+        $style_css .= 'background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);}';
+        $style_css .= '.sb-redirect-message{font-size:18px;color:#333;margin:0 0 10px;}';
+        $style_css .= '.sb-redirect-link{font-size:14px;color:#666;}';
+        $style_css .= '.sb-redirect-link a{color:#0073aa;text-decoration:none;}';
+
+        // Root index.html - 직접 접근 방지
+        $root_html = '<!DOCTYPE html><html><head>';
+        $root_html .= '<meta charset="UTF-8">';
+        $root_html .= '<title>Access Denied</title>';
+        $root_html .= '</head><body>';
+        $root_html .= '<h1>Direct Access Forbidden</h1>';
+        $root_html .= '<p>This directory is for redirect links only.</p>';
+        $root_html .= '</body></html>';
+
+        return array(
+            'loader_js' => $loader_js,
+            'style_css' => $style_css,
+            'root_html' => $root_html
+        );
+    }
 }

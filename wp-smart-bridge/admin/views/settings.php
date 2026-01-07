@@ -259,6 +259,34 @@ if (!defined('ABSPATH')) {
             </button>
         </div>
 
+        <!-- 재난 복구 키트 (v3.4.0) -->
+        <div class="sb-backup-section"
+            style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-left: 4px solid #2271b1;">
+            <h4 style="margin-top: 0;">
+                <span class="dashicons dashicons-shield" style="color: #2271b1;"></span>
+                <?php _e('재난 복구 키트 (Static HTML Backup)', 'sb'); ?>
+            </h4>
+            <p class="description">
+                <?php _e('모든 링크를 정적 HTML 파일로 변환하여 ZIP으로 다운로드합니다.', 'sb'); ?><br>
+                <?php _e('Github Pages, S3 등에 업로드하면 플러그인 없이도 링크가 작동합니다.', 'sb'); ?><br>
+                <strong><?php _e('중앙 수정 가능: sb-assets/loader.js 하나만 수정하면 전체 업데이트!', 'sb'); ?></strong>
+            </p>
+            <div style="margin-top: 15px;">
+                <button type="button" id="sb-generate-static-backup" class="button button-primary button-hero">
+                    <span class="dashicons dashicons-database-export" style="margin-top: 5px;"></span>
+                    <?php _e('정적 HTML 백업 생성', 'sb'); ?>
+                </button>
+            </div>
+            <div id="sb-static-backup-progress" style="display: none; margin-top: 15px;">
+                <div style="background: #e0e0e0; height: 20px; border-radius: 4px; overflow: hidden;">
+                    <div id="sb-static-backup-bar"
+                        style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <p id="sb-static-backup-status" style="margin: 10px 0 0; color: #666;"></p>
+            </div>
+            <div id="sb-static-backup-result" style="display: none; margin-top: 15px;"></div>
+        </div>
+
         <hr class="sb-divider">
 
         <!-- 백업 복원 -->
