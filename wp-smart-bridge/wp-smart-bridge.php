@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('SB_VERSION', '3.1.1');
+define('SB_VERSION', '3.1.2');
 define('SB_PLUGIN_FILE', __FILE__);
 define('SB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SB_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -96,6 +96,10 @@ class WP_Smart_Bridge
         add_action('init', [$this, 'init']);
 
         add_action('rest_api_init', [$this, 'init_rest_api']);
+
+        // v3.1.1: Bypass 3rd-party auth plugins (e.g., miniOrange)
+        // Priority 0 to run BEFORE other authentication checks
+        add_filter('rest_authentication_errors', ['SB_Rest_API', 'bypass_authentication'], 0);
 
         // 플러그인 로드 완료
         add_action('plugins_loaded', [$this, 'on_plugins_loaded']);

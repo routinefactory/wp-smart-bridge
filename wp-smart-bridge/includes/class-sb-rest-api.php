@@ -93,6 +93,60 @@ class SB_Rest_API
     }
 
     /**
+     * 타사 인증 플러그인 우회 (miniOrange 등)
+     * 
+     * 외부 보안 플러그인이 모든 REST API 요청을 차단하는 경우,
+     * Smart Bridge 엔드포인트에 대해서는 우회하도록 설정합니다.
+     * 
+     * 동작 원리:
+     * - rest_authentication_errors 필터에 우선순위 0으로 등록
+     * - Smart Bridge 경로(/sb/v1/links)인 경우 true(인증됨) 리턴
+     * - 이후 Smart Bridge 내부의 permission_callback에서 HMAC 인증 수행
+     * 
+     * 보안 강화 (v3.1.2):
+     * - 단순 문자열 포함 여부가 아닌, URL 경로 또는 rest_route 파라미터를 정확히 검사하여
+     *   다른 플러그인에 대한 우회 공격(Query Parameter Pollution) 방지
+     * 
+     * @param mixed $result 현재 인증 결과 (WP_Error, true, null)
+     * @return mixed
+     */
+    public static function bypass_authentication($result)
+    {
+        // 이미 에러가 있거나 인증된 경우 패스
+        if (!empty($result)) {
+            return $result;
+        }
+
+        // Method Check
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return $result;
+        }
+
+        $is_sb_endpoint = false;
+
+        // 1. Check REST Route Parameter (Plain Permalinks)
+        if (isset($_GET['rest_route'])) {
+            if (strpos($_GET['rest_route'], '/' . self::NAMESPACE . '/links') === 0) {
+                $is_sb_endpoint = true;
+            }
+        }
+        // 2. Check URL Path (Pretty Permalinks)
+        else {
+            $request_uri = $_SERVER['REQUEST_URI'];
+            $path = parse_url($request_uri, PHP_URL_PATH);
+            if ($path && strpos($path, '/' . self::NAMESPACE . '/links') !== false) {
+                $is_sb_endpoint = true;
+            }
+        }
+
+        if ($is_sb_endpoint) {
+            return true; // 인증 성공으로 처리하여 타사 플러그인 차단 회피
+        }
+
+        return $result;
+    }
+
+    /**
      * 링크 생성 권한 확인 (HMAC 인증)
      */
     public static function check_create_permission(WP_REST_Request $request)
