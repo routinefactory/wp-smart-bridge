@@ -1034,7 +1034,11 @@
         var dateTime = click.visited_at || '';
         var datePart = dateTime.split(' ')[0] || '';  // YYYY-MM-DD
         var timePart = dateTime.split(' ')[1] || '';
-        var today = new Date().toISOString().slice(0, 10);
+        // v3.1.0: Use local timezone for "today" check instead of UTC
+        var now = new Date();
+        var today = now.getFullYear() + '-' +
+            String(now.getMonth() + 1).padStart(2, '0') + '-' +
+            String(now.getDate()).padStart(2, '0');
         var displayTime = (datePart === today) ? timePart.substring(0, 5) : datePart.substring(5) + ' ' + timePart.substring(0, 5);
 
         // Safe HTML construction JQuery
@@ -1325,13 +1329,16 @@
         // 9.1 Generate API Key
         $('#sb-generate-key').on('click', function () {
             var $btn = $(this);
-            $btn.prop('disabled', true).addClass('sb-spin');
+            var originalText = $btn.html();
+            // v3.1.0: Show visible loading state
+            $btn.prop('disabled', true)
+                .html('<span class="dashicons dashicons-update sb-spin"></span> ' + __('generating', '발급 중...'));
 
             $.post(sbAdmin.ajaxUrl, {
                 action: 'sb_generate_api_key',
                 nonce: sbAdmin.ajaxNonce
             }, function (response) {
-                $btn.prop('disabled', false).removeClass('sb-spin');
+                $btn.prop('disabled', false).html(originalText);
                 if (response.success) {
                     $('#sb-new-api-key').text(response.data.api_key);
                     $('#sb-new-secret-key').text(response.data.secret_key);
@@ -1348,7 +1355,7 @@
                     SB_UI.showToast(response.data.message || 'Error executing request', 'error');
                 }
             }).fail(function () {
-                $btn.prop('disabled', false).removeClass('sb-spin');
+                $btn.prop('disabled', false).html(originalText);
                 SB_UI.showToast('Network Error', 'error');
             });
         });

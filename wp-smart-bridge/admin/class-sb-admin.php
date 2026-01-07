@@ -264,6 +264,7 @@ class SB_Admin
             'auto_fix_failed' => __('자동 복구에 실패했습니다. 수동으로 퍼마링크 설정이 필요합니다.', 'sb'),
             'permalink_error_title' => __('단축 링크가 작동하지 않습니다!', 'sb'),
             'go_to_permalinks' => __('퍼마링크 설정으로 이동', 'sb'),
+            'generating' => __('발급 중...', 'sb'),
         ]);
     }
 
