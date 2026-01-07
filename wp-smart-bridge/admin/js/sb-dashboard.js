@@ -23,15 +23,35 @@
         $('.sb-section-toggle').on('click', function () {
             var targetId = $(this).data('target');
             var $content = $('#' + targetId);
+            var $toggle = $(this);
 
             if ($content.hasClass('collapsed')) {
                 $content.removeClass('collapsed');
-                $(this).removeClass('collapsed');
+                $toggle.removeClass('collapsed');
+
+                // v3.0.7: Trigger Chart.js resize after CSS transition completes
+                // Chart.js needs visible container to calculate dimensions
+                setTimeout(function () {
+                    // Map target IDs to relevant canvas IDs
+                    var targetToCharts = {
+                        'sb-referer-content': ['sb-referer-chart', 'sb-referer-groups-chart'],
+                        'sb-device-content': ['sb-device-chart']
+                    };
+
+                    var chartIds = targetToCharts[targetId];
+                    if (chartIds && typeof SB_Chart !== 'undefined' && typeof SB_Chart.resizeCharts === 'function') {
+                        SB_Chart.resizeCharts(chartIds);
+                    } else if (chartIds) {
+                        // Fallback: Trigger window resize
+                        $(window).trigger('resize');
+                    }
+                }, 350); // Slightly longer than CSS transition (300ms)
             } else {
                 $content.addClass('collapsed');
-                $(this).addClass('collapsed');
+                $toggle.addClass('collapsed');
             }
         });
+
 
         // Advanced Toggle for OS/Browser
         $('#sb-toggle-advanced-device').on('click', function () {
@@ -43,11 +63,21 @@
                 $btn.removeClass('expanded');
                 $btn.find('span:last').text(typeof sb_i18n !== 'undefined' ? sb_i18n.toggle_advanced_show : 'Show Details');
             } else {
-                $content.slideDown(200);
+                $content.slideDown(200, function () {
+                    // v3.0.7: Trigger Chart.js resize after slide animation completes
+                    // Chart.js needs visible container to calculate dimensions
+                    if (typeof SB_Chart !== 'undefined' && typeof SB_Chart.resizeCharts === 'function') {
+                        SB_Chart.resizeCharts(['sb-os-chart', 'sb-browser-chart']);
+                    } else {
+                        // Fallback: Trigger window resize event to force Chart.js recalculation
+                        $(window).trigger('resize');
+                    }
+                });
                 $btn.addClass('expanded');
                 $btn.find('span:last').text(typeof sb_i18n !== 'undefined' ? sb_i18n.toggle_advanced_hide : 'Hide Details');
             }
         });
+
 
         // Smooth Scroll for Smart CTA links
         function smoothScroll(targetId) {

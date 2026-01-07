@@ -642,7 +642,11 @@ class SB_Admin_Ajax
         }
 
         $range = isset($_POST['range']) ? sanitize_text_field($_POST['range']) : '30d';
-        $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : 'all';
+        $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : '';
+        // v3.0.7: Normalize 'all' to null/empty so analytics methods don't apply platform filter
+        if ($platform === 'all' || $platform === '') {
+            $platform = null;
+        }
 
         // 날짜 범위 계산
         if ($range === 'custom') {

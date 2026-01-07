@@ -573,7 +573,35 @@ var SB_Chart = (function ($) {
             });
         },
 
-        getPlatformColor: getPlatformColor
+        getPlatformColor: getPlatformColor,
+
+        /**
+         * v3.0.7: Resize charts by canvas IDs
+         * Used when charts in collapsed sections become visible.
+         * Chart.js needs visible containers to calculate dimensions.
+         * 
+         * @param {Array} canvasIds Array of canvas element IDs to resize
+         */
+        resizeCharts: function (canvasIds) {
+            if (!canvasIds || !Array.isArray(canvasIds)) return;
+
+            // Map canvas IDs to instance keys
+            var idToInstance = {
+                'sb-os-chart': 'os',
+                'sb-browser-chart': 'browser',
+                'sb-device-chart': 'device',
+                'sb-referer-chart': 'referer',
+                'sb-referer-groups-chart': 'refererGroups'
+            };
+
+            canvasIds.forEach(function (canvasId) {
+                var instanceKey = idToInstance[canvasId];
+                if (instanceKey && instances[instanceKey]) {
+                    instances[instanceKey].resize();
+                }
+            });
+        }
     };
+
 
 })(jQuery);

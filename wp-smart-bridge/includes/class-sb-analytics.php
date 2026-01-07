@@ -741,7 +741,8 @@ class SB_Analytics
 
             $post = $posts_map[$result->link_id];
             $slug = $post->post_title;
-            $group_id = get_post_meta($post->ID, 'link_group', true);
+            // v3.0.7: Cast to int for safe array key lookup
+            $group_id = (int) get_post_meta($post->ID, 'link_group', true);
 
             $links[] = [
                 'id' => $post->ID,
@@ -750,10 +751,11 @@ class SB_Analytics
                 'short_link' => SB_Helpers::get_short_link_url($post->post_name),
                 'target_url' => get_post_meta($post->ID, 'target_url', true),
                 'platform' => get_post_meta($post->ID, 'platform', true) ?: ($platform ?: ''),
-                'group_name' => isset($groups_map[$group_id]) ? $groups_map[$group_id]['name'] : '',
-                'group_color' => isset($groups_map[$group_id]) ? $groups_map[$group_id]['color'] : '',
+                'group_name' => ($group_id && isset($groups_map[$group_id])) ? $groups_map[$group_id]['name'] : '',
+                'group_color' => ($group_id && isset($groups_map[$group_id])) ? $groups_map[$group_id]['color'] : '',
                 'clicks' => (int) $result->clicks,
             ];
+
         }
 
         set_transient($cache_key, $links, self::CACHE_EXPIRATION);

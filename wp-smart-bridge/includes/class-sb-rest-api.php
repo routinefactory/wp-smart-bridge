@@ -290,6 +290,12 @@ class SB_Rest_API
         $start_date = $request->get_param('start_date');
         $end_date = $request->get_param('end_date');
         $platform_filter = $request->get_param('platform_filter');
+        // v3.0.7: Accept both 'platform' (from JS getFilterParams) and 'platform_filter'
+        $platform_filter = $request->get_param('platform') ?: $platform_filter;
+        // v3.0.7: Normalize 'all' to null so analytics methods don't apply platform filter
+        if ($platform_filter === 'all' || $platform_filter === '') {
+            $platform_filter = null;
+        }
 
         if ($start_date && $end_date) {
             $date_range = [

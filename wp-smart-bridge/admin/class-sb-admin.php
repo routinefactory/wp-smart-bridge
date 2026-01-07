@@ -180,6 +180,17 @@ class SB_Admin
             'error_occurred' => __('오류가 발생했습니다.', 'sb'),
             'loading' => __('로딩 중...', 'sb'),
             'no_data' => __('데이터 없음', 'sb'),
+            // Dynamic Dashboard Labels (v3.0.7)
+            'today_total_clicks' => __('오늘 전체 클릭', 'sb'),
+            'today_unique_visitors' => __('오늘 고유 클릭 (UV)', 'sb'),
+            'yesterday_total_clicks' => __('어제 전체 클릭', 'sb'),
+            'yesterday_unique_visitors' => __('어제 고유 클릭 (UV)', 'sb'),
+            'period_total_clicks' => __('선택 기간 전체 클릭', 'sb'),
+            'period_unique_visitors' => __('선택 기간 고유 클릭 (UV)', 'sb'),
+            'today' => __('📅 Today', 'sb'),
+            'yesterday' => __('📅 Yesterday', 'sb'),
+            'selected_period' => __('📅 Selected Period', 'sb'),
+
             'new_version' => __('새 버전({version})이 있습니다! 다운로드 페이지로 이동하시겠습니까?', 'sb'),
             'group_name_placeholder' => __('새 그룹 이름', 'sb'),
             'group_name_empty' => __('그룹 이름을 입력해주세요.', 'sb'),
