@@ -144,8 +144,7 @@ class SB_Backup
     private static function add_assets_to_zip($zip)
     {
         // 1. Loader.js
-        $loader_js = <<<JS
-(function() {
+        $loader_js = "(function() {
     var script = document.currentScript;
     var targetUrl = script.getAttribute('data-target');
     
@@ -153,8 +152,7 @@ class SB_Backup
     if (targetUrl) {
         window.location.replace(targetUrl);
     }
-})();
-JS;
+})();";
         $zip->addFromString('sb-assets/loader.js', $loader_js);
 
         // 2. Style.css (Optional, 현재는 비워둠)
@@ -173,22 +171,20 @@ JS;
         $safe_url = esc_url($target_url);
 
         // 초경량 템플릿: Loader.js 위임 + Noscript Fallback
-        return <<<HTML
-<!DOCTYPE html>
+        return '<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <script src="../../sb-assets/loader.js" data-target="{$safe_url}"></script>
+    <script src="../../sb-assets/loader.js" data-target="' . $safe_url . '"></script>
     <noscript>
-        <meta http-equiv="refresh" content="0;url={$safe_url}">
+        <meta http-equiv="refresh" content="0;url=' . $safe_url . '">
     </noscript>
 </head>
 <body>
-    <p>Redirecting to <a href="{$safe_url}">{$safe_url}</a>...</p>
+    <p>Redirecting to <a href="' . $safe_url . '">' . $safe_url . '</a>...</p>
 </body>
-</html>
-HTML;
+</html>';
     }
 }
