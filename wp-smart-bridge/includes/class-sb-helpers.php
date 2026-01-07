@@ -24,12 +24,13 @@ class SB_Helpers
 
 
     /**
-     * Base62 문자셋
+     * Base36 문자셋 (소문자 + 숫자)
+     * v3.2.0: 대소문자 혼용 시 워드프레스 충돌 방지 위해 Base62 -> Base36 변경
      */
-    const BASE62_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const SLUG_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
     /**
-     * Base62 고유 Slug 생성
+     * Base36 고유 Slug 생성
      * 
      * @param int $length Slug 길이 (기본값: self::DEFAULT_SLUG_LENGTH)
      * @param int $max_retries 최대 재시도 횟수 (기본값: self::MAX_SLUG_RETRIES)
@@ -49,14 +50,14 @@ class SB_Helpers
     }
 
     /**
-     * 랜덤 문자열 생성 (Base62)
+     * 랜덤 문자열 생성 (Base36)
      * 
      * @param int $length 문자열 길이
      * @return string 랜덤 문자열
      */
     public static function generate_random_string($length = 6)
     {
-        $chars = self::BASE62_CHARS;
+        $chars = self::SLUG_CHARS;
         $chars_length = strlen($chars);
         $result = '';
 
@@ -82,8 +83,7 @@ class SB_Helpers
         $count = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->posts} 
              WHERE post_type = %s 
-             AND post_name = %s 
-             AND post_status != 'trash'",
+             AND post_name = %s",
             SB_Post_Type::POST_TYPE,
             $slug
         ));

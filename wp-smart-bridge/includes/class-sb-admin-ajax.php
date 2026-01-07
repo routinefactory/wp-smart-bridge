@@ -891,8 +891,13 @@ class SB_Admin_Ajax
         }
 
         // 7. Race Condition Check
+        // 워드프레스는 슬러그 저장 시 자동으로 sanitize_title()을 수행합니다. (예: 대문자 -> 소문자 변환)
+        // 따라서 생성된 슬러그($slug)와 저장된 슬러그($final_slug)를 단순 비교하면 대소문자 차이로 인해 실패할 수 있습니다.
+        // 이를 방지하기 위해 sanitize_title($slug)와 비교합니다.
         $final_slug = get_post_field('post_name', $post_id);
-        if ($final_slug !== $slug) {
+
+        if ($final_slug !== sanitize_title($slug) && $final_slug !== $slug) {
+            // 진짜 충돌 발생 (suffix가 붙음, 예: abcde-2)
             wp_delete_post($post_id, true);
             status_header(409);
             wp_send_json([
@@ -903,10 +908,11 @@ class SB_Admin_Ajax
         }
 
         // 8. 성공 응답 (REST API 포맷 유지 - data 래퍼 없이 직접 출력)
+        // 중요: 클라이언트에게는 실제로 저장된 $final_slug를 반환해야 합니다. (대소문자 변경 반영)
         wp_send_json([
             'success' => true,
-            'short_link' => SB_Helpers::get_short_link_url($slug),
-            'slug' => $slug,
+            'short_link' => SB_Helpers::get_short_link_url($final_slug),
+            'slug' => $final_slug,
             'target_url' => $target_url,
             'platform' => $platform,
             'created_at' => current_time('c'),
