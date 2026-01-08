@@ -1313,10 +1313,60 @@
                     $modal.removeClass('sb-hidden').addClass('sb-show');
                     $('body').addClass('sb-modal-open');
 
-                    // Reload page after modal close to update list
-                    $modal.find('.sb-close-modal').one('click', function () {
-                        window.location.reload();
+                    // v3.1.2 UX Fix: Dynamic append without reload
+                    $modal.find('.sb-close-modal').off('click').on('click', function () {
+                        $modal.removeClass('sb-show').addClass('sb-hidden');
+                        $('body').removeClass('sb-modal-open');
                     });
+
+                    // 1. Remove 'No Keys' placeholder if exists
+                    var $tbody = $('#sb-api-keys-list');
+                    $tbody.find('.sb-no-keys').remove();
+
+                    // 2. Construct New Row
+                    var r = response.data;
+                    var $tr = $('<tr data-key-id="' + r.id + '"></tr>');
+
+                    // API Key Column
+                    var $td1 = $('<td></td>');
+                    $td1.append($('<code class="sb-api-key"></code>').text(r.api_key));
+                    $td1.append(' ');
+                    $td1.append($('<button type="button" class="button button-small sb-copy-btn"><span class="dashicons dashicons-clipboard"></span></button>').attr('data-copy', r.api_key));
+                    $tr.append($td1);
+
+                    // Secret Key Column
+                    var $td2 = $('<td></td>');
+                    $td2.append('<code class="sb-secret-key sb-masked">••••••••••••••••</code> ');
+                    $td2.append($('<code class="sb-secret-key sb-revealed sb-hidden"></code>').text(r.secret_key));
+                    $td2.append(' <button type="button" class="button button-small sb-toggle-secret"><span class="dashicons dashicons-visibility"></span></button> ');
+                    $td2.append($('<button type="button" class="button button-small sb-copy-btn"><span class="dashicons dashicons-clipboard"></span></button>').attr('data-copy', r.secret_key));
+                    $tr.append($td2);
+
+                    // Status Column
+                    var activeLabel = (typeof sb_i18n !== 'undefined' && sb_i18n.active) ? sb_i18n.active : '활성';
+                    var $td3 = $('<td><span class="sb-status sb-status-active"><span class="dashicons dashicons-yes"></span> ' + activeLabel + '</span></td>');
+                    $tr.append($td3);
+
+                    // Date Column
+                    var noHistoryLabel = (typeof sb_i18n !== 'undefined' && sb_i18n.no_history) ? sb_i18n.no_history : '사용 기록 없음';
+                    var $td4 = $('<td><span class="sb-muted">' + noHistoryLabel + '</span></td>');
+                    $tr.append($td4);
+
+                    // Action Column
+                    var deleteLabel = (typeof sb_i18n !== 'undefined' && sb_i18n.delete) ? sb_i18n.delete : '삭제';
+                    var $td5 = $('<td></td>');
+                    $td5.append($('<button type="button" class="button button-small button-link-delete sb-delete-key"></button>')
+                        .attr('data-key-id', r.id)
+                        .text(deleteLabel));
+                    $tr.append($td5);
+
+                    // 3. Prepend to list (DESC order)
+                    $tbody.prepend($tr);
+
+                    // Highlight effect
+                    $tr.css('background-color', '#fffadd');
+                    setTimeout(function () { $tr.css('background-color', ''); }, 2000);
+
                 } else {
                     SB_UI.showToast(response.data.message || 'Error executing request', 'error');
                 }

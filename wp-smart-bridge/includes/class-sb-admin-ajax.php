@@ -79,8 +79,12 @@ class SB_Admin_Ajax
 
         if ($result) {
             wp_send_json_success([
+                'id' => (int) $result, // $result is insert_id
                 'api_key' => $api_key,
                 'secret_key' => $secret_key,
+                'status' => 'active',
+                'created_at' => current_time('mysql'),
+                'last_used_at' => null,
                 'message' => 'API 키가 생성되었습니다.',
             ]);
         } else {
