@@ -69,6 +69,12 @@ class SB_Post_Type
 
         // 클릭 수 정렬 쿼리 처리
         add_action('pre_get_posts', [__CLASS__, 'handle_click_count_sorting']);
+
+        // Row Actions 필터 (단축 링크 열기 버튼 추가)
+        add_filter('post_row_actions', [__CLASS__, 'add_row_actions'], 10, 2);
+
+        // 고급 필터 UI
+        add_action('restrict_manage_posts', [__CLASS__, 'render_filter_dropdowns']);
     }
 
     /**
@@ -272,7 +278,11 @@ class SB_Post_Type
         $new_columns['title'] = 'Slug';
         $new_columns['target_url'] = __('타겟 URL', 'sb');
         $new_columns['platform'] = __('플랫폼', 'sb');
-        $new_columns['click_count'] = __('클릭 수', 'sb');
+        // 4개 통계 컬럼 (플랫폼과 생성일 사이)
+        $new_columns['today_pv'] = __('오늘 PV', 'sb');
+        $new_columns['today_uv'] = __('오늘 UV', 'sb');
+        $new_columns['total_pv'] = __('누적 PV', 'sb');
+        $new_columns['total_uv'] = __('누적 UV', 'sb');
         $new_columns['date'] = __('생성일', 'sb');
 
         return $new_columns;
@@ -296,9 +306,33 @@ class SB_Post_Type
                     esc_html($platform) . '</span>';
                 break;
 
-            case 'click_count':
+            case 'today_pv':
+                $analytics = new SB_Analytics();
+                $count = $analytics->get_link_today_clicks($post_id);
+                echo $count > 0
+                    ? '<strong class="sb-stat-pv">' . number_format($count) . '</strong>'
+                    : '<span class="sb-text-muted">0</span>';
+                break;
+
+            case 'today_uv':
+                $analytics = new SB_Analytics();
+                $count = $analytics->get_link_today_uv($post_id);
+                echo $count > 0
+                    ? '<strong class="sb-stat-uv">' . number_format($count) . '</strong>'
+                    : '<span class="sb-text-muted">0</span>';
+                break;
+
+            case 'total_pv':
                 $count = (int) get_post_meta($post_id, 'click_count', true);
-                echo '<strong>' . number_format($count) . '</strong>';
+                echo '<strong class="sb-stat-pv">' . number_format($count) . '</strong>';
+                break;
+
+            case 'total_uv':
+                $analytics = new SB_Analytics();
+                $count = $analytics->get_link_total_uv($post_id);
+                echo $count > 0
+                    ? '<strong class="sb-stat-uv">' . number_format($count) . '</strong>'
+                    : '<span class="sb-text-muted">0</span>';
                 break;
         }
     }
@@ -308,12 +342,15 @@ class SB_Post_Type
      */
     public static function sortable_columns($columns)
     {
-        $columns['click_count'] = 'click_count';
+        // 누적 PV는 click_count 메타키로 정렬 가능
+        $columns['total_pv'] = 'total_pv';
         return $columns;
     }
 
     /**
-     * 클릭 수 정렬을 위한 쿼리 수정
+     * 쿼리 수정 (정렬 + 필터)
+     * 
+     * @note v3.1.0: 고급 필터 기능 추가 (플랫폼, 클릭수, 생성일)
      */
     public static function handle_click_count_sorting($query)
     {
@@ -325,11 +362,178 @@ class SB_Post_Type
             return;
         }
 
+        // =====================
+        // 1. 필터 처리
+        // =====================
+        $meta_query = $query->get('meta_query') ?: [];
+
+        // 플랫폼 필터
+        if (!empty($_GET['sb_platform'])) {
+            $meta_query[] = [
+                'key' => 'platform',
+                'value' => sanitize_text_field($_GET['sb_platform']),
+            ];
+        }
+
+        // 클릭수 필터
+        if (!empty($_GET['sb_clicks'])) {
+            $clicks = sanitize_text_field($_GET['sb_clicks']);
+
+            switch ($clicks) {
+                case '0':
+                    $meta_query[] = [
+                        'relation' => 'OR',
+                        ['key' => 'click_count', 'compare' => 'NOT EXISTS'],
+                        ['key' => 'click_count', 'value' => '0', 'compare' => '='],
+                    ];
+                    break;
+                case '1-100':
+                    $meta_query[] = [
+                        'key' => 'click_count',
+                        'value' => [1, 100],
+                        'type' => 'NUMERIC',
+                        'compare' => 'BETWEEN',
+                    ];
+                    break;
+                case '100-1000':
+                    $meta_query[] = [
+                        'key' => 'click_count',
+                        'value' => [100, 1000],
+                        'type' => 'NUMERIC',
+                        'compare' => 'BETWEEN',
+                    ];
+                    break;
+                case '1000+':
+                    $meta_query[] = [
+                        'key' => 'click_count',
+                        'value' => 1000,
+                        'type' => 'NUMERIC',
+                        'compare' => '>=',
+                    ];
+                    break;
+            }
+        }
+
+        if (!empty($meta_query)) {
+            $meta_query['relation'] = 'AND';
+            $query->set('meta_query', $meta_query);
+        }
+
+        // 생성일 필터
+        if (!empty($_GET['sb_date_range'])) {
+            $range = sanitize_text_field($_GET['sb_date_range']);
+            $date_query = [];
+
+            switch ($range) {
+                case 'today':
+                    $date_query = ['after' => 'today', 'inclusive' => true];
+                    break;
+                case '7d':
+                    $date_query = ['after' => '7 days ago'];
+                    break;
+                case '30d':
+                    $date_query = ['after' => '30 days ago'];
+                    break;
+                case '90d':
+                    $date_query = ['after' => '90 days ago'];
+                    break;
+            }
+
+            if (!empty($date_query)) {
+                $query->set('date_query', [$date_query]);
+            }
+        }
+
+        // =====================
+        // 2. 정렬 처리 (기존 로직)
+        // =====================
         $orderby = $query->get('orderby');
 
-        if ($orderby === 'click_count') {
+        // total_pv 정렬 (click_count 메타키 사용)
+        if ($orderby === 'total_pv') {
             $query->set('meta_key', 'click_count');
             $query->set('orderby', 'meta_value_num');
         }
+    }
+
+    /**
+     * 필터 드롭다운 UI 렌더링
+     * 
+     * @param string $post_type 현재 포스트 타입
+     */
+    public static function render_filter_dropdowns($post_type)
+    {
+        if ($post_type !== self::POST_TYPE) {
+            return;
+        }
+
+        global $wpdb;
+
+        // 현재 선택값 가져오기
+        $current_platform = isset($_GET['sb_platform']) ? sanitize_text_field($_GET['sb_platform']) : '';
+        $current_clicks = isset($_GET['sb_clicks']) ? sanitize_text_field($_GET['sb_clicks']) : '';
+        $current_date_range = isset($_GET['sb_date_range']) ? sanitize_text_field($_GET['sb_date_range']) : '';
+
+        // DB에서 사용 중인 플랫폼 목록 조회
+        $platforms = $wpdb->get_col("
+            SELECT DISTINCT meta_value 
+            FROM {$wpdb->postmeta} 
+            WHERE meta_key = 'platform' AND meta_value != ''
+            ORDER BY meta_value
+        ");
+
+        ?>
+        <select name="sb_platform" class="sb-admin-filter">
+            <option value=""><?php _e('모든 플랫폼', 'sb'); ?></option>
+            <?php foreach ($platforms as $platform): ?>
+                <option value="<?php echo esc_attr($platform); ?>" <?php selected($current_platform, $platform); ?>>
+                    <?php echo esc_html($platform); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+
+        <select name="sb_clicks" class="sb-admin-filter">
+            <option value=""><?php _e('모든 클릭수', 'sb'); ?></option>
+            <option value="0" <?php selected($current_clicks, '0'); ?>><?php _e('0회', 'sb'); ?></option>
+            <option value="1-100" <?php selected($current_clicks, '1-100'); ?>><?php _e('1-100회', 'sb'); ?></option>
+            <option value="100-1000" <?php selected($current_clicks, '100-1000'); ?>><?php _e('100-1,000회', 'sb'); ?></option>
+            <option value="1000+" <?php selected($current_clicks, '1000+'); ?>><?php _e('1,000회+', 'sb'); ?></option>
+        </select>
+
+        <select name="sb_date_range" class="sb-admin-filter">
+            <option value=""><?php _e('전체 기간', 'sb'); ?></option>
+            <option value="today" <?php selected($current_date_range, 'today'); ?>><?php _e('오늘', 'sb'); ?></option>
+            <option value="7d" <?php selected($current_date_range, '7d'); ?>><?php _e('최근 7일', 'sb'); ?></option>
+            <option value="30d" <?php selected($current_date_range, '30d'); ?>><?php _e('최근 30일', 'sb'); ?></option>
+            <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
+        </select>
+        <?php
+    }
+
+    /**
+     * 행 액션에 '단축 링크 열기' 버튼 추가
+     * 
+     * @param array   $actions 기존 액션 배열
+     * @param WP_Post $post    포스트 객체
+     * @return array 수정된 액션 배열
+     */
+    public static function add_row_actions($actions, $post)
+    {
+        if ($post->post_type !== self::POST_TYPE) {
+            return $actions;
+        }
+
+        $short_link = SB_Helpers::get_short_link_url($post->post_title);
+
+        // '단축 링크 열기' 액션 추가 (맨 앞에 배치)
+        $new_actions = [];
+        $new_actions['view_shortlink'] = sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer" class="sb-action-shortlink" aria-label="%s">%s</a>',
+            esc_url($short_link),
+            esc_attr__('단축 링크를 새 탭에서 열기', 'sb'),
+            __('단축 링크 열기', 'sb')
+        );
+
+        return array_merge($new_actions, $actions);
     }
 }

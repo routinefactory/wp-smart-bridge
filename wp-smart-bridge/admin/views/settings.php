@@ -105,6 +105,23 @@ if (!defined('ABSPATH')) {
         </table>
     </div>
 
+    <!-- 데이터 최적화 (v2.9.27) -->
+    <div class="sb-settings-section">
+        <h2><span class="dashicons dashicons-performance"></span> <?php _e('데이터 최적화', 'sb'); ?></h2>
+        <p class="description">
+            <?php _e('대시보드 로딩 속도를 획기적으로 개선하기 위해 과거 로그 데이터를 일별 요약 테이블로 변환합니다.', 'sb'); ?><br>
+            <?php _e('데이터가 많을 경우 시간이 소요될 수 있습니다. (진행 중 페이지를 닫지 마세요)', 'sb'); ?>
+        </p>
+
+        <div class="sb-optimization-actions">
+            <button type="button" id="sb-migrate-stats" class="button button-secondary">
+                <span class="dashicons dashicons-performance"></span>
+                <?php _e('데이터 마이그레이션 시작', 'sb'); ?>
+            </button>
+            <span id="sb-migrate-status" class="sb-status-text sb-ml-10" style="display:none;"></span>
+        </div>
+    </div>
+
     <!-- 일반 설정 -->
     <div class="sb-settings-section">
         <h2><span class="dashicons dashicons-admin-settings"></span> <?php _e('일반 설정', 'sb'); ?></h2>
@@ -136,22 +153,6 @@ if (!defined('ABSPATH')) {
         </form>
     </div>
 
-    <!-- 데이터 최적화 (v2.9.27) -->
-    <div class="sb-settings-section">
-        <h2><span class="dashicons dashicons-performance"></span> <?php _e('데이터 최적화', 'sb'); ?></h2>
-        <p class="description">
-            <?php _e('대시보드 로딩 속도를 획기적으로 개선하기 위해 과거 로그 데이터를 일별 요약 테이블로 변환합니다.', 'sb'); ?><br>
-            <?php _e('데이터가 많을 경우 시간이 소요될 수 있습니다. (진행 중 페이지를 닫지 마세요)', 'sb'); ?>
-        </p>
-
-        <div class="sb-optimization-actions">
-            <button type="button" id="sb-migrate-stats" class="button button-secondary">
-                <span class="dashicons dashicons-performance"></span>
-                <?php _e('데이터 마이그레이션 시작', 'sb'); ?>
-            </button>
-            <span id="sb-migrate-status" class="sb-status-text sb-ml-10" style="display:none;"></span>
-        </div>
-    </div>
 
     <!-- 커스텀 리다이렉션 템플릿 -->
     <div class="sb-settings-section">

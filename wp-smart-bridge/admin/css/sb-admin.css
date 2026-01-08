@@ -2139,17 +2139,21 @@ Realtime Feed Styles
 }
 
 .post-type-sb_link .column-platform {
-    width: 12%;
-    text-align: center;
-}
-
-.post-type-sb_link .column-click_count {
     width: 10%;
     text-align: center;
 }
 
+/* Statistics Columns (4 columns) */
+.post-type-sb_link .column-today_pv,
+.post-type-sb_link .column-today_uv,
+.post-type-sb_link .column-total_pv,
+.post-type-sb_link .column-total_uv {
+    width: 7%;
+    text-align: center;
+}
+
 .post-type-sb_link .column-date {
-    width: 15%;
+    width: 12%;
 }
 
 /* Platform badges in list table */
@@ -2194,10 +2198,31 @@ Realtime Feed Styles
     background: #6B7280;
 }
 
-/* Click count styling */
-.post-type-sb_link .column-click_count strong {
+/* PV/UV Statistics Styling */
+.post-type-sb_link .sb-stat-pv {
     font-size: 14px;
+    font-weight: 700;
     color: var(--sb-primary, #667eea);
+}
+
+.post-type-sb_link .sb-stat-uv {
+    font-size: 14px;
+    font-weight: 700;
+    color: #22c55e;
+}
+
+.post-type-sb_link .sb-text-muted {
+    color: #9ca3af;
+}
+
+/* Shortlink Action Button */
+.post-type-sb_link .sb-action-shortlink {
+    color: #667eea !important;
+    font-weight: 600;
+}
+
+.post-type-sb_link .sb-action-shortlink:hover {
+    color: #5a67d8 !important;
 }
 
 /* Target URL truncation */
@@ -2224,7 +2249,10 @@ Realtime Feed Styles
 @media screen and (max-width: 782px) {
 
     .post-type-sb_link .column-target_url,
-    .post-type-sb_link .column-platform {
+    .post-type-sb_link .column-platform,
+    .post-type-sb_link .column-today_pv,
+    .post-type-sb_link .column-today_uv,
+    .post-type-sb_link .column-total_uv {
         display: none;
     }
 
@@ -2232,9 +2260,36 @@ Realtime Feed Styles
         width: 60%;
     }
 
-    .post-type-sb_link .column-click_count {
+    .post-type-sb_link .column-total_pv {
         width: 20%;
     }
+}
+
+/* ===================================
+   Admin Filter Dropdowns
+   =================================== */
+.post-type-sb_link .sb-admin-filter {
+    min-width: 130px;
+    margin-right: 6px;
+    padding: 6px 10px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 13px;
+    background: #fff;
+    vertical-align: middle;
+}
+
+.post-type-sb_link .sb-admin-filter:focus {
+    border-color: var(--sb-primary, #667eea);
+    box-shadow: 0 0 0 1px var(--sb-primary, #667eea);
+    outline: none;
+}
+
+.post-type-sb_link .tablenav .actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 /* ===================================
