@@ -2489,24 +2489,28 @@ Realtime Feed Styles
 }
 
 /* ===================================
-   Admin Filter UI
-   =================================== */
-/* ===================================
    Link Management (Post List) UI Improvements
    =================================== */
 
-/* Filter Bar Reconstruction */
+/* Container & Layout Stability */
 .post-type-sb_link .tablenav .actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px;
     height: auto;
     padding: 0;
     margin: 4px 0;
+    flex-wrap: nowrap;
+}
+
+.post-type-sb_link .tablenav .alignleft.actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .post-type-sb_link .sb-filter-bar {
-    display: flex;
+    display: inline-flex;
     align-items: center;
 }
 
@@ -2526,7 +2530,6 @@ Realtime Feed Styles
     align-items: center;
     gap: 10px;
     flex-direction: row !important;
-    /* Force horizontal alignment */
     white-space: nowrap;
 }
 
@@ -2557,13 +2560,7 @@ Realtime Feed Styles
     background-color: #fff !important;
 }
 
-/* Integrated Filter Button Styling */
-.post-type-sb_link .sb-filter-btn-item {
-    margin-left: 5px;
-    border-left: 1px solid var(--sb-border);
-    padding-left: 15px;
-}
-
+/* Default WP Filter Button Styling */
 .post-type-sb_link #post-query-submit {
     background: var(--sb-gradient-primary) !important;
     border: none !important;
@@ -2577,16 +2574,14 @@ Realtime Feed Styles
     transition: all 0.2s ease !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
     font-size: 13px !important;
+    margin: 0 0 0 -5px !important;
+    /* Pull closer to the filters */
 }
 
 .post-type-sb_link #post-query-submit:hover {
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
     filter: brightness(1.1);
-}
-
-.post-type-sb_link #post-query-submit:active {
-    transform: translateY(0) !important;
 }
 
 /* Search Box Restoration & Premium Styling */
@@ -2626,12 +2621,6 @@ Realtime Feed Styles
     font-size: 13px !important;
 }
 
-.post-type-sb_link #search-submit:hover {
-    background: var(--sb-bg-light) !important;
-    border-color: var(--sb-primary) !important;
-    color: var(--sb-primary) !important;
-}
-
 /* Table Header UX Improvements */
 .post-type-sb_link .wp-list-table th.sortable a,
 .post-type-sb_link .wp-list-table th.sorted a {
@@ -2658,6 +2647,47 @@ Realtime Feed Styles
     .post-type-sb_link .sb-filter-group {
         gap: 10px;
         padding: 6px 10px;
+    }
+}
+
+@media (max-width: 900px) {
+    .post-type-sb_link .tablenav .actions {
+        flex-wrap: wrap;
+        /* Allow wrapping on medium screens */
+    }
+}
+
+@media (max-width: 782px) {
+    .post-type-sb_link .tablenav .actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .post-type-sb_link .tablenav .alignleft.actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .post-type-sb_link .sb-filter-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .post-type-sb_link .sb-filter-item {
+        justify-content: space-between;
+    }
+
+    .post-type-sb_link #post-query-submit {
+        margin: 5px 0 0 0 !important;
+    }
+
+    .post-type-sb_link .search-box input[type="search"] {
+        width: 100% !important;
+    }
+
+    .post-type-sb_link .search-box input[type="search"]:focus {
+        width: 100% !important;
     }
 }
 
