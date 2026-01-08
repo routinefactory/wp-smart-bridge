@@ -591,86 +591,67 @@ class SB_Backup
     /**
      * loader.js 생성 (라우팅 + 리다이렉트 로직)
      * 
-     * URL에서 ?go=slug 파라미터를 추출하고
-     * links.json에서 해당 타겟 URL을 찾아 리다이렉트
+     * v4.0.7: 커스텀 템플릿 지원
+     * - URL에서 ?go=slug 파라미터 추출
+     * - links.json에서 타겟 URL 조회
+     * - [data-sb-target] 속성을 가진 요소에 href 설정
      * 
      * @return string JavaScript 코드
      */
     private static function generate_loader_js()
     {
         $js = "/**\n";
-        $js .= " * Smart Bridge Static Backup - Loader v4.0.0\n";
+        $js .= " * Smart Bridge Static Backup - Loader v4.0.7\n";
         $js .= " */\n";
         $js .= "(function() {\n";
-        $js .= "  'use strict';\n";
-        $js .= "\n";
-        $js .= "  // URL에서 슬러그 추출\n";
+        $js .= "  'use strict';\n\n";
+
+        // URL 파라미터 추출
         $js .= "  var params = new URLSearchParams(window.location.search);\n";
-        $js .= "  var slug = params.get('go');\n";
-        $js .= "\n";
+        $js .= "  var slug = params.get('go');\n\n";
+
         $js .= "  if (!slug) {\n";
         $js .= "    showNotFound();\n";
         $js .= "    return;\n";
-        $js .= "  }\n";
-        $js .= "\n";
-        $js .= "  // links.json 로드\n";
+        $js .= "  }\n\n";
+
+        // links.json 로드
         $js .= "  fetch('links.json')\n";
-        $js .= "    .then(function(response) {\n";
-        $js .= "      if (!response.ok) throw new Error('Network error');\n";
-        $js .= "      return response.json();\n";
-        $js .= "    })\n";
+        $js .= "    .then(function(r) { return r.ok ? r.json() : Promise.reject('Network'); })\n";
         $js .= "    .then(function(links) {\n";
         $js .= "      var target = links[slug];\n";
         $js .= "      if (target) {\n";
-        $js .= "        showBridge(target);\n";
+        $js .= "        setupRedirect(target);\n";
         $js .= "      } else {\n";
         $js .= "        showNotFound();\n";
         $js .= "      }\n";
         $js .= "    })\n";
-        $js .= "    .catch(function(err) {\n";
-        $js .= "      console.error('Error loading links:', err);\n";
-        $js .= "      showNotFound();\n";
-        $js .= "    });\n";
-        $js .= "\n";
-        $js .= "  function showBridge(targetUrl) {\n";
-        $js .= "    var config = window.SB_CONFIG || { delay: 2000, showCountdown: true };\n";
-        $js .= "    var delay = config.delay || 2000;\n";
-        $js .= "\n";
-        $js .= "    // 메시지 표시\n";
-        $js .= "    var msgEl = document.querySelector('.sb-message');\n";
-        $js .= "    if (msgEl && config.message) msgEl.textContent = config.message;\n";
-        $js .= "\n";
-        $js .= "    // 링크 표시\n";
-        $js .= "    var linkEl = document.querySelector('.sb-link');\n";
-        $js .= "    if (linkEl) linkEl.innerHTML = '<a href=\"' + targetUrl + '\">' + targetUrl + '</a>';\n";
-        $js .= "\n";
-        $js .= "    // 카운트다운\n";
-        $js .= "    if (config.showCountdown) {\n";
-        $js .= "      var countEl = document.querySelector('.sb-countdown');\n";
-        $js .= "      var sec = Math.ceil(delay / 1000);\n";
-        $js .= "      if (countEl) countEl.textContent = sec;\n";
-        $js .= "      var iv = setInterval(function() {\n";
-        $js .= "        sec--;\n";
-        $js .= "        if (countEl) countEl.textContent = sec;\n";
-        $js .= "        if (sec <= 0) clearInterval(iv);\n";
-        $js .= "      }, 1000);\n";
-        $js .= "    }\n";
-        $js .= "\n";
-        $js .= "    // 리다이렉트\n";
+        $js .= "    .catch(function() { showNotFound(); });\n\n";
+
+        // 리다이렉트 설정 함수
+        $js .= "  function setupRedirect(targetUrl) {\n";
+        $js .= "    var config = window.SB_CONFIG || { delay: 2000 };\n";
+        $js .= "    var delay = config.delay || 2000;\n\n";
+
+        // data-sb-target 속성을 가진 모든 요소에 href 설정
+        $js .= "    // [data-sb-target] 요소에 타겟 URL 설정\n";
+        $js .= "    var targets = document.querySelectorAll('[data-sb-target]');\n";
+        $js .= "    targets.forEach(function(el) {\n";
+        $js .= "      el.href = targetUrl;\n";
+        $js .= "    });\n\n";
+
+        // 리다이렉트 타이머
+        $js .= "    // 딜레이 후 리다이렉트\n";
         $js .= "    setTimeout(function() {\n";
         $js .= "      window.location.replace(targetUrl);\n";
         $js .= "    }, delay);\n";
-        $js .= "  }\n";
-        $js .= "\n";
+        $js .= "  }\n\n";
+
+        // 404 처리
         $js .= "  function showNotFound() {\n";
         $js .= "    var config = window.SB_CONFIG || {};\n";
-        $js .= "    var container = document.querySelector('.sb-redirect-container');\n";
-        $js .= "    if (container) {\n";
-        $js .= "      container.innerHTML = '<h2>404</h2><p>' + (config.notFoundMessage || 'Link not found') + '</p>';\n";
-        $js .= "    }\n";
-        $js .= "    if (config.notFoundUrl) {\n";
-        $js .= "      window.location.href = config.notFoundUrl;\n";
-        $js .= "    }\n";
+        $js .= "    var msg = config.notFoundMessage || '404 - Link not found';\n";
+        $js .= "    document.body.innerHTML = '<div style=\"text-align:center;margin-top:100px;font-family:sans-serif\"><h2>' + msg + '</h2></div>';\n";
         $js .= "  }\n";
         $js .= "})();\n";
 
@@ -680,108 +661,65 @@ class SB_Backup
     /**
      * style.css 생성 (브릿지 페이지 스타일)
      * 
+     * v4.0.7: 커스텀 템플릿에 inline <style> 포함
+     * 이 파일은 하위 호환성/fallback 용도로 최소화
+     * 
      * @return string CSS 코드
      */
     private static function generate_style_css()
     {
-        $css = "/**\n";
-        $css .= " * Smart Bridge Static Backup - Style v4.0.0\n";
-        $css .= " */\n";
-        $css .= "* { box-sizing: border-box; }\n";
-        $css .= "\n";
-        $css .= "body {\n";
-        $css .= "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n";
-        $css .= "  display: flex;\n";
-        $css .= "  justify-content: center;\n";
-        $css .= "  align-items: center;\n";
-        $css .= "  min-height: 100vh;\n";
-        $css .= "  margin: 0;\n";
-        $css .= "  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-redirect-container {\n";
-        $css .= "  text-align: center;\n";
-        $css .= "  padding: 50px 40px;\n";
-        $css .= "  max-width: 400px;\n";
-        $css .= "  background: rgba(255, 255, 255, 0.95);\n";
-        $css .= "  border-radius: 16px;\n";
-        $css .= "  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-spinner {\n";
-        $css .= "  width: 50px;\n";
-        $css .= "  height: 50px;\n";
-        $css .= "  margin: 0 auto 20px;\n";
-        $css .= "  border: 4px solid #e0e0e0;\n";
-        $css .= "  border-top-color: #667eea;\n";
-        $css .= "  border-radius: 50%;\n";
-        $css .= "  animation: sb-spin 1s linear infinite;\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= "@keyframes sb-spin {\n";
-        $css .= "  to { transform: rotate(360deg); }\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-countdown {\n";
-        $css .= "  font-size: 48px;\n";
-        $css .= "  font-weight: 700;\n";
-        $css .= "  color: #667eea;\n";
-        $css .= "  margin: 0 0 10px;\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-message {\n";
-        $css .= "  font-size: 16px;\n";
-        $css .= "  color: #666;\n";
-        $css .= "  margin: 0 0 20px;\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-link {\n";
-        $css .= "  font-size: 13px;\n";
-        $css .= "  color: #999;\n";
-        $css .= "  word-break: break-all;\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-link a {\n";
-        $css .= "  color: #667eea;\n";
-        $css .= "  text-decoration: none;\n";
-        $css .= "}\n";
-        $css .= "\n";
-        $css .= ".sb-link a:hover {\n";
-        $css .= "  text-decoration: underline;\n";
-        $css .= "}\n";
-
-        return $css;
+        return "/**\n * Smart Bridge Static Backup - Style v4.0.7\n * Styles are embedded in index.html (custom template)\n */\n";
     }
 
     /**
      * index.html 생성 (라우터 페이지)
      * 
-     * ?go=slug 파라미터를 받아 loader.js가 처리
+     * v4.0.7: 커스텀 템플릿 지원
+     * - sb_redirect_template 옵션에서 사용자 템플릿 로드
+     * - {{TARGET_URL}} → data-sb-target 속성으로 변환
+     * - loader.js가 동적으로 href 설정
      * 
      * @return string HTML 코드
      */
     private static function generate_index_html()
     {
-        $html = "<!DOCTYPE html>\n";
-        $html .= "<html lang=\"ko\">\n";
-        $html .= "<head>\n";
-        $html .= "  <meta charset=\"UTF-8\">\n";
-        $html .= "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
-        $html .= "  <meta name=\"robots\" content=\"noindex, nofollow\">\n";
-        $html .= "  <title>Redirecting...</title>\n";
-        $html .= "  <link rel=\"stylesheet\" href=\"style.css\">\n";
-        $html .= "</head>\n";
-        $html .= "<body>\n";
-        $html .= "  <div class=\"sb-redirect-container\">\n";
-        $html .= "    <div class=\"sb-spinner\"></div>\n";
-        $html .= "    <p class=\"sb-countdown\">...</p>\n";
-        $html .= "    <p class=\"sb-message\">Loading...</p>\n";
-        $html .= "    <p class=\"sb-link\"></p>\n";
-        $html .= "  </div>\n";
-        $html .= "  <script src=\"config.js\"></script>\n";
-        $html .= "  <script src=\"loader.js\"></script>\n";
-        $html .= "</body>\n";
-        $html .= "</html>\n";
+        // 1. 커스텀 템플릿 로드
+        $template = get_option('sb_redirect_template', '');
+        if (empty($template)) {
+            $template = SB_Helpers::get_default_redirect_template();
+        }
+
+        // 2. 설정값
+        $settings = get_option('sb_settings', []);
+        $delay = isset($settings['redirect_delay']) ? floatval($settings['redirect_delay']) : 2;
+
+        // 3. {{TARGET_URL}} → data-sb-target 속성 추가 (정규식)
+        // <a href="{{TARGET_URL}}" ...> → <a href="javascript:void(0)" data-sb-target ...>
+        $html = preg_replace(
+            '/(<a[^>]*)\s*href=["\']?\{\{TARGET_URL\}\}["\']?([^>]*>)/i',
+            '$1 href="javascript:void(0)" data-sb-target$2',
+            $template
+        );
+
+        // 4. Fallback: 정규식 실패 시 단순 치환
+        if (strpos($html, '{{TARGET_URL}}') !== false) {
+            $html = str_replace('{{TARGET_URL}}', 'javascript:void(0)', $html);
+        }
+
+        // 5. 나머지 플레이스홀더 치환
+        $html = str_replace([
+            '{{DELAY_SECONDS}}',
+            '{{COUNTDOWN_ID}}',
+            '{{COUNTDOWN_SCRIPT}}',
+        ], [
+            number_format($delay, 1),
+            'countdown',
+            '<script src="config.js"></script><script src="loader.js"></script>',
+        ], $html);
+
+        // 6. Quote escaping 처리 (DB 저장 시 이스케이핑된 경우 복원)
+        $html = stripslashes($html);
+        $html = htmlspecialchars_decode($html, ENT_QUOTES);
 
         return $html;
     }
