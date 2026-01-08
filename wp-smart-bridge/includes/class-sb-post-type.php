@@ -581,46 +581,46 @@ class SB_Post_Type
         ");
 
         ?>
-                ?>
-                <div class="sb-filter-bar">
-                    <span class="sb-filter-item">
-                        <label><?php _e('플랫폼', 'sb'); ?></label>
-                        <select name="sb_platform" class="sb-admin-filter">
-                            <option value=""><?php _e('모든 플랫폼', 'sb'); ?></option>
-                            <?php foreach ($platforms as $platform): ?>
-                                    <option value="<?php echo esc_attr($platform); ?>" <?php selected($current_platform, $platform); ?>>
-                                        <?php echo esc_html($platform); ?>
-                                    </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </span>
+        ?>
+        <div class="sb-filter-bar">
+            <span class="sb-filter-item">
+                <label><?php _e('플랫폼', 'sb'); ?></label>
+                <select name="sb_platform" class="sb-admin-filter">
+                    <option value=""><?php _e('모든 플랫폼', 'sb'); ?></option>
+                    <?php foreach ($platforms as $platform): ?>
+                        <option value="<?php echo esc_attr($platform); ?>" <?php selected($current_platform, $platform); ?>>
+                            <?php echo esc_html($platform); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </span>
 
-                    <span class="sb-filter-item">
-                        <label><?php _e('클릭수', 'sb'); ?></label>
-                        <select name="sb_clicks" class="sb-admin-filter">
-                            <option value=""><?php _e('모든 클릭수', 'sb'); ?></option>
-                            <option value="0" <?php selected($current_clicks, '0'); ?>><?php _e('0회', 'sb'); ?></option>
-                            <option value="1-100" <?php selected($current_clicks, '1-100'); ?>><?php _e('1-100회', 'sb'); ?></option>
-                            <option value="100-1000" <?php selected($current_clicks, '100-1000'); ?>><?php _e('100-1,000회', 'sb'); ?>
-                            </option>
-                            <option value="1000+" <?php selected($current_clicks, '1000+'); ?>><?php _e('1,000회+', 'sb'); ?></option>
-                        </select>
-                    </span>
+            <span class="sb-filter-item">
+                <label><?php _e('클릭수', 'sb'); ?></label>
+                <select name="sb_clicks" class="sb-admin-filter">
+                    <option value=""><?php _e('모든 클릭수', 'sb'); ?></option>
+                    <option value="0" <?php selected($current_clicks, '0'); ?>><?php _e('0회', 'sb'); ?></option>
+                    <option value="1-100" <?php selected($current_clicks, '1-100'); ?>><?php _e('1-100회', 'sb'); ?></option>
+                    <option value="100-1000" <?php selected($current_clicks, '100-1000'); ?>><?php _e('100-1,000회', 'sb'); ?>
+                    </option>
+                    <option value="1000+" <?php selected($current_clicks, '1000+'); ?>><?php _e('1,000회+', 'sb'); ?></option>
+                </select>
+            </span>
 
-                    <span class="sb-filter-item">
-                        <label><?php _e('생성일', 'sb'); ?></label>
-                        <select name="sb_date_range" class="sb-admin-filter">
-                            <option value=""><?php _e('전체 기간', 'sb'); ?></option>
-                            <option value="today" <?php selected($current_date_range, 'today'); ?>><?php _e('오늘', 'sb'); ?></option>
-                            <option value="7d" <?php selected($current_date_range, '7d'); ?>><?php _e('최근 7일', 'sb'); ?></option>
-                            <option value="30d" <?php selected($current_date_range, '30d'); ?>><?php _e('최근 30일', 'sb'); ?></option>
-                            <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
-                        </select>
-                    </span>
+            <span class="sb-filter-item">
+                <label><?php _e('생성일', 'sb'); ?></label>
+                <select name="sb_date_range" class="sb-admin-filter">
+                    <option value=""><?php _e('전체 기간', 'sb'); ?></option>
+                    <option value="today" <?php selected($current_date_range, 'today'); ?>><?php _e('오늘', 'sb'); ?></option>
+                    <option value="7d" <?php selected($current_date_range, '7d'); ?>><?php _e('최근 7일', 'sb'); ?></option>
+                    <option value="30d" <?php selected($current_date_range, '30d'); ?>><?php _e('최근 30일', 'sb'); ?></option>
+                    <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
+                </select>
+            </span>
 
-                    <button type="submit" class="button button-secondary"><?php _e('필터 적용', 'sb'); ?></button>
-                </div>
-                <?php
+            <button type="submit" class="button button-secondary"><?php _e('필터 적용', 'sb'); ?></button>
+        </div>
+        <?php
     }
 
     /**
