@@ -325,7 +325,25 @@ class SB_Analytics
 
         $cache_key = 'sb_dt_' . md5($start_date . $end_date . serialize($platform));
         $cached = get_transient($cache_key);
+        $today_date = current_time('Y-m-d');
+
+        // Hybrid Cache Strategy: Use cache but ensure 'Today' is realtime
         if (false !== $cached) {
+            $last_index = count($cached) - 1;
+            if ($last_index >= 0 && $cached[$last_index]['date'] === $today_date) {
+                // Re-fetch today's data to ensure consistency with Summary Cards
+                $log_table = $wpdb->prefix . 'sb_analytics_logs';
+                $sql = "SELECT COUNT(*) FROM $log_table WHERE visited_at >= %s AND visited_at <= %s";
+                $params = [$today_date . ' 00:00:00', $today_date . ' 23:59:59'];
+
+                if ($platform) {
+                    $sql .= " AND platform = %s";
+                    $params[] = $platform;
+                }
+
+                $today_clicks = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+                $cached[$last_index]['clicks'] = $today_clicks;
+            }
             return $cached;
         }
 
@@ -335,7 +353,6 @@ class SB_Analytics
         if (empty($platform)) {
             $stats_table = $wpdb->prefix . 'sb_daily_stats';
             $log_table = $wpdb->prefix . 'sb_analytics_logs';
-            $today_date = current_time('Y-m-d');
 
             // 1. Historical
             $hist_end = ($end_date >= $today_date) ? date('Y-m-d', strtotime('-1 day', strtotime($today_date))) : $end_date;
@@ -430,7 +447,36 @@ class SB_Analytics
 
         $cache_key = 'sb_wt_' . md5($weeks . serialize($platform));
         $cached = get_transient($cache_key);
+
+        // Hybrid Cache: Update current week
         if (false !== $cached) {
+            $last_index = count($cached) - 1;
+            $current_week_label = (new DateTime('now', wp_timezone()))->format('o') . '-W' . (new DateTime('now', wp_timezone()))->format('W');
+
+            if ($last_index >= 0 && $cached[$last_index]['week'] === $current_week_label) {
+                $log_table = $wpdb->prefix . 'sb_analytics_logs';
+
+                // Calculate start of current week (Monday)
+                $now = new DateTime('now', wp_timezone());
+                $week_start = clone $now;
+                // If today is Monday (1), subtract 0 days. If Sunday (7), subtract 6 days.
+                // ISO-8601 weeks start on Monday.
+                $day_of_week = $week_start->format('N'); // 1 (Mon) - 7 (Sun)
+                $week_start->modify('-' . ($day_of_week - 1) . ' days')->setTime(0, 0, 0);
+                $week_end = clone $week_start;
+                $week_end->modify('+6 days')->setTime(23, 59, 59);
+
+                $sql = "SELECT COUNT(*) FROM $log_table WHERE visited_at BETWEEN %s AND %s";
+                $params = [$week_start->format('Y-m-d H:i:s'), $week_end->format('Y-m-d H:i:s')];
+
+                if ($platform) {
+                    $sql .= " AND platform = %s";
+                    $params[] = $platform;
+                }
+
+                $current_clicks = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+                $cached[$last_index]['clicks'] = $current_clicks;
+            }
             return $cached;
         }
 
@@ -526,7 +572,29 @@ class SB_Analytics
 
         $cache_key = 'sb_mt_' . md5($months . serialize($platform));
         $cached = get_transient($cache_key);
+
+        // Hybrid Cache: Update current month
         if (false !== $cached) {
+            $last_index = count($cached) - 1;
+            $current_month_label = (new DateTime('now', wp_timezone()))->format('Y-m');
+
+            if ($last_index >= 0 && $cached[$last_index]['month'] === $current_month_label) {
+                $log_table = $wpdb->prefix . 'sb_analytics_logs';
+                $now = new DateTime('now', wp_timezone());
+                $month_start = $now->format('Y-m-01 00:00:00');
+                $month_end = $now->format('Y-m-t 23:59:59');
+
+                $sql = "SELECT COUNT(*) FROM $log_table WHERE visited_at BETWEEN %s AND %s";
+                $params = [$month_start, $month_end];
+
+                if ($platform) {
+                    $sql .= " AND platform = %s";
+                    $params[] = $platform;
+                }
+
+                $current_clicks = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
+                $cached[$last_index]['clicks'] = $current_clicks;
+            }
             return $cached;
         }
 
