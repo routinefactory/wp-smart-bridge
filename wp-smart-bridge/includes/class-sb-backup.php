@@ -601,9 +601,9 @@ class SB_Backup
     private static function generate_loader_js()
     {
         $js = "/**\n";
-        $js .= " * Smart Bridge Static Backup - Loader v4.0.7\n";
+        $js .= " * Smart Bridge Static Backup - Loader v4.0.8\n";
         $js .= " */\n";
-        $js .= "(function() {\n";
+        $js .= "document.addEventListener('DOMContentLoaded', function() {\n";
         $js .= "  'use strict';\n\n";
 
         // URL 파라미터 추출
@@ -653,7 +653,7 @@ class SB_Backup
         $js .= "    var msg = config.notFoundMessage || '404 - Link not found';\n";
         $js .= "    document.body.innerHTML = '<div style=\"text-align:center;margin-top:100px;font-family:sans-serif\"><h2>' + msg + '</h2></div>';\n";
         $js .= "  }\n";
-        $js .= "})();\n";
+        $js .= "});\n";
 
         return $js;
     }
