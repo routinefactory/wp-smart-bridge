@@ -115,6 +115,7 @@ tests/_output/
 tests/_support/_generated/
 .phpunit.result.cache
 tests/
+wp-smart-bridge/tests/
 
 # Codeception
 codeception.yml
