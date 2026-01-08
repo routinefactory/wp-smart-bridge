@@ -376,6 +376,32 @@
             }
         });
 
+        // ------------------------------------
+        // v4.1.3: 3-State Sorting Toggle (ASC -> DESC -> RESET)
+        // ------------------------------------
+        $('body.post-type-sb_link .wp-list-table th.sortable a, body.post-type-sb_link .wp-list-table th.sorted a').on('click', function (e) {
+            var href = $(this).attr('href');
+            if (!href) return;
+
+            // Extract params from current URL and target href
+            var currentUrl = new URL(window.location.href);
+            var targetUrl = new URL(href, window.location.origin);
+
+            var currentOrderBy = currentUrl.searchParams.get('orderby');
+            var currentOrder = currentUrl.searchParams.get('order') || 'asc'; // WP defaults to asc usually if omitted but sorted
+
+            var targetOrderBy = targetUrl.searchParams.get('orderby');
+
+            // Logic: If we are currently sorting by this column in DESC order, 
+            // the next click (which WP makes ASC) should instead RESET sorting.
+            if (currentOrderBy === targetOrderBy && currentOrder.toLowerCase() === 'desc') {
+                e.preventDefault();
+                currentUrl.searchParams.delete('orderby');
+                currentUrl.searchParams.delete('order');
+                window.location.href = currentUrl.toString();
+            }
+        });
+
         $('#sb-date-range').on('change', function () {
             if ($(this).val() === 'custom') {
                 $('.sb-custom-dates').slideDown();

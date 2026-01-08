@@ -361,7 +361,14 @@ class SB_Post_Type
     /**
      * 쿼리 수정 (정렬 + 필터)
      * 
-     * @note v3.1.0: 고급 필터 기능 추가 (플랫폼, 클릭수, 생성일)
+     * @note v3.1.0: 고급 필터 기능 추가
+     * @note v4.1.3: LEFT JOIN 방식 정렬 (0값 포함)
+     */
+    /**
+     * 쿼리 수정 (정렬 + 필터)
+     * 
+     * @note v3.1.0: 고급 필터 기능 추가
+     * @note v4.1.3: LEFT JOIN 방식 정렬 (0값 포함)
      */
     public static function handle_click_count_sorting($query)
     {
@@ -374,7 +381,7 @@ class SB_Post_Type
         }
 
         // =====================
-        // 1. 필터 처리
+        // 1. 필터 처리 (기존 유지)
         // =====================
         $meta_query = $query->get('meta_query') ?: [];
 
@@ -456,55 +463,95 @@ class SB_Post_Type
         }
 
         // =====================
-        // 2. 정렬 처리
+        // 2. 정렬 처리 (LEFT JOIN 개선)
         // =====================
         $orderby = $query->get('orderby');
+        $valid_columns = ['total_pv', 'total_uv', 'today_pv', 'today_uv'];
 
-        if ($orderby === 'total_pv') {
-            $query->set('meta_key', 'click_count');
-            $query->set('orderby', 'meta_value_num');
-        } elseif ($orderby === 'total_uv') {
-            $query->set('meta_key', 'stats_total_uv');
-            $query->set('orderby', 'meta_value_num');
-        } elseif ($orderby === 'today_pv') {
-            // 날짜 기반 메타 (count|date) 정렬
-            $query->set('meta_key', 'stats_today_pv');
-            $query->set('orderby', 'meta_value');
-            add_filter('posts_orderby', [__CLASS__, 'orderby_today_stats'], 10, 2);
-        } elseif ($orderby === 'today_uv') {
-            // 날짜 기반 메타 (count|date) 정렬
-            $query->set('meta_key', 'stats_today_uv');
-            $query->set('orderby', 'meta_value');
-            add_filter('posts_orderby', [__CLASS__, 'orderby_today_stats'], 10, 2);
+        if (in_array($orderby, $valid_columns)) {
+            // WordPress 기본 meta_key 사용 시 INNER JOIN 발생으로 0값 행 사라짐 방지
+            add_filter('posts_join', [__CLASS__, 'join_stats_meta'], 10, 2);
+            add_filter('posts_orderby', [__CLASS__, 'orderby_stats_meta'], 10, 2);
         }
     }
 
     /**
-     * 오늘 통계 정렬 필터 (날짜 확인 로직 포함)
+     * 통계 정렬을 위한 LEFT JOIN (0값 포함)
      * 
-     * 메타 값이 'COUNT|DATE' 형식이므로, DATE가 오늘인 경우에만 COUNT로 정렬하고
-     * 날짜가 다르거나 없으면 0으로 취급하여 정렬합니다.
+     * @since 4.1.3
      */
-    public static function orderby_today_stats($orderby_sql, $query)
+    public static function join_stats_meta($join, $query)
     {
         global $wpdb;
 
-        // 필터 해제 (한 번만 적용)
-        remove_filter('posts_orderby', [__CLASS__, 'orderby_today_stats'], 10);
+        if (!$query->is_main_query() || $query->get('post_type') !== self::POST_TYPE) {
+            return $join;
+        }
 
-        $today = current_time('Y-m-d');
-        $order = $query->get('order'); // ASC or DESC
+        $orderby = $query->get('orderby');
+        $meta_key = '';
 
-        // meta_value가 JOIN된 테이블의 컬럼명 찾기
-        // 통상적으로 $wpdb->postmeta 테이블이 JOIN 됨.
-        // 안전하게 wp_postmeta의 meta_value를 참조.
-        // 注意: WP_Query가 테이블 알리아스를 바꿀 수 있음 (mt1 등).
-        // 하지만 단일 meta_query의 경우 보통 wp_postmeta 그대로 사용됨.
-        $table = $wpdb->postmeta;
+        switch ($orderby) {
+            case 'total_pv':
+                $meta_key = 'click_count';
+                break;
+            case 'total_uv':
+                $meta_key = 'stats_total_uv';
+                break;
+            case 'today_pv':
+                $meta_key = 'stats_today_pv';
+                break;
+            case 'today_uv':
+                $meta_key = 'stats_today_uv';
+                break;
+            default:
+                return $join;
+        }
 
-        // SQL: 오늘 날짜가 포함된 경우 숫자 추출, 아니면 0
-        // CAST(meta_value AS UNSIGNED)는 문자열 앞의 숫자만 추출함 ('15|...' -> 15)
-        return "CAST($table.meta_value AS UNSIGNED) * ($table.meta_value LIKE '%|$today') $order, " . $orderby_sql;
+        // alias: sb_stats_meta
+        $join .= " LEFT JOIN {$wpdb->postmeta} AS sb_stats_meta ON ({$wpdb->posts}.ID = sb_stats_meta.post_id AND sb_stats_meta.meta_key = '{$meta_key}') ";
+
+        return $join;
+    }
+
+    /**
+     * 통계 정렬 ORDER BY 절 생성 (NULL -> 0 처리)
+     * 
+     * @since 4.1.3
+     */
+    public static function orderby_stats_meta($orderby_sql, $query)
+    {
+        global $wpdb;
+
+        if (!$query->is_main_query() || $query->get('post_type') !== self::POST_TYPE) {
+            return $orderby_sql;
+        }
+
+        $orderby = $query->get('orderby');
+        $order = strtoupper($query->get('order')) === 'DESC' ? 'DESC' : 'ASC';
+        $today_date = current_time('Y-m-d');
+
+        switch ($orderby) {
+            case 'total_pv':
+            case 'total_uv':
+                // 단순 숫자형
+                $orderby_sql = "COALESCE(sb_stats_meta.meta_value+0, 0) {$order}";
+                break;
+
+            case 'today_pv':
+            case 'today_uv':
+                // 날짜 포맷 (count|date)
+                $orderby_sql = "
+                    (CASE 
+                        WHEN sb_stats_meta.meta_value IS NULL THEN 0
+                        WHEN SUBSTRING_INDEX(sb_stats_meta.meta_value, '|', -1) = '{$today_date}' THEN SUBSTRING_INDEX(sb_stats_meta.meta_value, '|', 1)+0
+                        ELSE 0 
+                    END) {$order}
+                ";
+                break;
+        }
+
+        return $orderby_sql;
     }
 
     /**
@@ -534,46 +581,46 @@ class SB_Post_Type
         ");
 
         ?>
-        ?>
-        <div class="sb-filter-bar">
-            <span class="sb-filter-item">
-                <label><?php _e('플랫폼', 'sb'); ?></label>
-                <select name="sb_platform" class="sb-admin-filter">
-                    <option value=""><?php _e('모든 플랫폼', 'sb'); ?></option>
-                    <?php foreach ($platforms as $platform): ?>
-                        <option value="<?php echo esc_attr($platform); ?>" <?php selected($current_platform, $platform); ?>>
-                            <?php echo esc_html($platform); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </span>
+                ?>
+                <div class="sb-filter-bar">
+                    <span class="sb-filter-item">
+                        <label><?php _e('플랫폼', 'sb'); ?></label>
+                        <select name="sb_platform" class="sb-admin-filter">
+                            <option value=""><?php _e('모든 플랫폼', 'sb'); ?></option>
+                            <?php foreach ($platforms as $platform): ?>
+                                    <option value="<?php echo esc_attr($platform); ?>" <?php selected($current_platform, $platform); ?>>
+                                        <?php echo esc_html($platform); ?>
+                                    </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </span>
 
-            <span class="sb-filter-item">
-                <label><?php _e('클릭수', 'sb'); ?></label>
-                <select name="sb_clicks" class="sb-admin-filter">
-                    <option value=""><?php _e('모든 클릭수', 'sb'); ?></option>
-                    <option value="0" <?php selected($current_clicks, '0'); ?>><?php _e('0회', 'sb'); ?></option>
-                    <option value="1-100" <?php selected($current_clicks, '1-100'); ?>><?php _e('1-100회', 'sb'); ?></option>
-                    <option value="100-1000" <?php selected($current_clicks, '100-1000'); ?>><?php _e('100-1,000회', 'sb'); ?>
-                    </option>
-                    <option value="1000+" <?php selected($current_clicks, '1000+'); ?>><?php _e('1,000회+', 'sb'); ?></option>
-                </select>
-            </span>
+                    <span class="sb-filter-item">
+                        <label><?php _e('클릭수', 'sb'); ?></label>
+                        <select name="sb_clicks" class="sb-admin-filter">
+                            <option value=""><?php _e('모든 클릭수', 'sb'); ?></option>
+                            <option value="0" <?php selected($current_clicks, '0'); ?>><?php _e('0회', 'sb'); ?></option>
+                            <option value="1-100" <?php selected($current_clicks, '1-100'); ?>><?php _e('1-100회', 'sb'); ?></option>
+                            <option value="100-1000" <?php selected($current_clicks, '100-1000'); ?>><?php _e('100-1,000회', 'sb'); ?>
+                            </option>
+                            <option value="1000+" <?php selected($current_clicks, '1000+'); ?>><?php _e('1,000회+', 'sb'); ?></option>
+                        </select>
+                    </span>
 
-            <span class="sb-filter-item">
-                <label><?php _e('생성일', 'sb'); ?></label>
-                <select name="sb_date_range" class="sb-admin-filter">
-                    <option value=""><?php _e('전체 기간', 'sb'); ?></option>
-                    <option value="today" <?php selected($current_date_range, 'today'); ?>><?php _e('오늘', 'sb'); ?></option>
-                    <option value="7d" <?php selected($current_date_range, '7d'); ?>><?php _e('최근 7일', 'sb'); ?></option>
-                    <option value="30d" <?php selected($current_date_range, '30d'); ?>><?php _e('최근 30일', 'sb'); ?></option>
-                    <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
-                </select>
-            </span>
+                    <span class="sb-filter-item">
+                        <label><?php _e('생성일', 'sb'); ?></label>
+                        <select name="sb_date_range" class="sb-admin-filter">
+                            <option value=""><?php _e('전체 기간', 'sb'); ?></option>
+                            <option value="today" <?php selected($current_date_range, 'today'); ?>><?php _e('오늘', 'sb'); ?></option>
+                            <option value="7d" <?php selected($current_date_range, '7d'); ?>><?php _e('최근 7일', 'sb'); ?></option>
+                            <option value="30d" <?php selected($current_date_range, '30d'); ?>><?php _e('최근 30일', 'sb'); ?></option>
+                            <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
+                        </select>
+                    </span>
 
-            <button type="submit" class="button button-secondary"><?php _e('필터 적용', 'sb'); ?></button>
-        </div>
-        <?php
+                    <button type="submit" class="button button-secondary"><?php _e('필터 적용', 'sb'); ?></button>
+                </div>
+                <?php
     }
 
     /**
