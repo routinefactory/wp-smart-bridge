@@ -619,6 +619,11 @@ class SB_Post_Type
                         <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
                     </select>
                 </div>
+
+                <div class="sb-filter-item sb-filter-btn-item">
+                    <button type="submit" name="filter_action" id="post-query-submit"
+                        class="button"><?php _e('필터', 'sb'); ?></button>
+                </div>
             </div>
         </div>
         <?php
