@@ -102,6 +102,30 @@ $output = str_replace(array_keys($replacements), array_values($replacements), $t
 $output = stripslashes($output);
 $output = htmlspecialchars_decode($output, ENT_QUOTES);
 
+/**
+ * v4.1.4 Critical Fix: Prevent Recursive Requests (The "20-30 Clicks" Bug)
+ * 
+ * ROOT CAUSE: If the template contains empty src="" or href="" attributes 
+ * (e.g. <img src=""> or <link href="">), browsers interpret this as 
+ * "Request the current URL again".
+ * 
+ * Since the current URL is the redirect endpoint, this triggers:
+ * 1. Request Page -> Log Click (+1) -> Output HTML
+ * 2. Browser sees src="" -> Requests Page Again -> Log Click (+1) -> Output HTML
+ * 3. Loop until browser gives up (approx 20-30 times)
+ * 
+ * SOLUTION: Replace empty src/href with safe alternatives.
+ */
+// 1. Replace empty src="" or src='' with a 1x1 transparent pixel
+$empty_src_pattern = '/(src\s*=\s*)(["\'])\s*\2/i';
+$pixel_data = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // Transparent GIF
+$output = preg_replace($empty_src_pattern, '$1$2' . $pixel_data . '$2', $output);
+
+// 2. Replace empty href="" or href='' with '#'
+$empty_href_pattern = '/(href\s*=\s*)(["\'])\s*\2/i';
+$output = preg_replace($empty_href_pattern, '$1$2#$2', $output);
+
+
 // 출력
 echo $output;
 exit;

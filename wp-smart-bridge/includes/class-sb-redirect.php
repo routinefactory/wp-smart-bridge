@@ -109,10 +109,25 @@ class SB_Redirect
 
         // v3.0.0 Async Logging Implementation
         // Instead of logging first then redirecting, we hand off to the async logger.
-        // The logger will:
-        // 1. Capture context
-        // 2. Redirect user (fast_cgi_finish_request)
-        // 3. Log to DB
+
+        // v4.1.4 Critical Fix: Ignore HEAD requests for logging to prevent double counting
+        // (Browsers/Bots often send HEAD before GET)
+        if (isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) === 'HEAD') {
+            // Just Redirect, Don't Log
+            if ($redirect_delay <= 0) {
+                nocache_headers();
+                header("Location: $target_url", true, 302);
+                header("Connection: close");
+                exit;
+            }
+            // For delayed (which outputs HTML), we just let it proceed but disable logging in logger?
+            // Actually, for Delayed + HEAD, we should probably just 302 immediately or exit?
+            // HEAD request should not return body.
+            nocache_headers();
+            header("Location: $target_url", true, 302);
+            exit;
+        }
+
         SB_Async_Logger::log_and_redirect($link->ID, $target_url, $redirect_delay);
         exit;
     }

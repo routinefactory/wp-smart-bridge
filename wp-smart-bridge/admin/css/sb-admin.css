@@ -2498,6 +2498,35 @@ Realtime Feed Styles
     white-space: nowrap;
 }
 
+/* Table Header UX Improvements (v4.1.4) */
+.post-type-sb_link .wp-list-table th.sortable a,
+.post-type-sb_link .wp-list-table th.sorted a {
+    display: inline-block;
+    padding: 8px 4px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: color 0.2s;
+    cursor: pointer;
+    /* Explicit pointer */
+}
+
+.post-type-sb_link .wp-list-table th.sortable:hover,
+.post-type-sb_link .wp-list-table th.sorted:hover {
+    background-color: #f0f0f1;
+    /* Light hover effect */
+}
+
+.post-type-sb_link .wp-list-table th.sortable:hover a {
+    color: #2271b1;
+    /* WP Active Blue */
+}
+
+/* Make arrows more distinct */
+.post-type-sb_link .wp-list-table th.sorted .sorting-indicator {
+    visibility: visible;
+    color: #2271b1;
+}
+
 /* Clearer Action Buttons alignment */
 .post-type-sb_link .tablenav .actions {
     display: flex;
