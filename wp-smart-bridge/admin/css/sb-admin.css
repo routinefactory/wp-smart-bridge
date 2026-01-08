@@ -2497,59 +2497,166 @@ Realtime Feed Styles
     gap: 12px;
     background: #f8f9fa;
     padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    margin-right: 10px;
+    height: auto;
+    padding: 0;
+    margin: 4px 0;
+}
+
+.post-type-sb_link .sb-filter-bar {
+    display: flex;
+    align-items: center;
+}
+
+.post-type-sb_link .sb-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: #fff;
+    padding: 6px 12px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-md);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .post-type-sb_link .sb-filter-item {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .post-type-sb_link .sb-filter-item label {
-    font-weight: 600;
-    font-size: 12px;
-    color: #50575e;
-    white-space: nowrap;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--sb-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-/* Table Header UX Improvements (v4.1.4) */
+.post-type-sb_link .sb-admin-filter {
+    border: 1px solid var(--sb-border-dark) !important;
+    border-radius: var(--sb-radius-sm) !important;
+    padding: 2px 8px !important;
+    height: 30px !important;
+    font-size: 13px !important;
+    background-color: var(--sb-bg-light) !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+.post-type-sb_link .sb-admin-filter:focus {
+    border-color: var(--sb-primary) !important;
+    box-shadow: 0 0 0 2px var(--sb-primary-alpha-10) !important;
+    outline: none !important;
+}
+
+/* Premium Filter Button Styling */
+.post-type-sb_link #post-query-submit {
+    background: var(--sb-gradient-primary) !important;
+    border: none !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    border-radius: var(--sb-radius-sm) !important;
+    padding: 0 16px !important;
+    height: 30px !important;
+    line-height: 30px !important;
+    cursor: pointer !important;
+    transition: transform 0.2s, box-shadow 0.2s !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.post-type-sb_link #post-query-submit:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.post-type-sb_link #post-query-submit:active {
+    transform: translateY(0) !important;
+}
+
+/* Search Box Restoration & Premium Styling */
+.post-type-sb_link .tablenav .search-box {
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.post-type-sb_link .search-box input[type="search"] {
+    border: 1px solid var(--sb-border-dark) !important;
+    border-radius: var(--sb-radius-md) !important;
+    padding: 6px 12px !important;
+    height: 36px !important;
+    width: 250px !important;
+    background: #fff !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.2s ease !important;
+}
+
+.post-type-sb_link .search-box input[type="search"]:focus {
+    border-color: var(--sb-primary) !important;
+    box-shadow: 0 0 0 3px var(--sb-primary-alpha-10) !important;
+    width: 300px !important;
+    /* Dynamic expansion */
+}
+
+.post-type-sb_link #search-submit {
+    background: var(--sb-bg-white) !important;
+    border: 1px solid var(--sb-border-dark) !important;
+    border-radius: var(--sb-radius-md) !important;
+    height: 36px !important;
+    padding: 0 15px !important;
+    font-weight: 600 !important;
+    color: var(--sb-text-secondary) !important;
+    transition: all 0.2s !important;
+}
+
+.post-type-sb_link #search-submit:hover {
+    background: var(--sb-bg-light) !important;
+    border-color: var(--sb-primary) !important;
+    color: var(--sb-primary) !important;
+}
+
+/* Table Header UX Improvements */
 .post-type-sb_link .wp-list-table th.sortable a,
 .post-type-sb_link .wp-list-table th.sorted a {
     display: inline-block;
-    padding: 8px 4px;
+    padding: 10px 4px;
     width: 100%;
     box-sizing: border-box;
-    transition: color 0.2s;
-    cursor: pointer;
-    /* Explicit pointer */
+    transition: all 0.2s;
 }
 
 .post-type-sb_link .wp-list-table th.sortable:hover,
 .post-type-sb_link .wp-list-table th.sorted:hover {
-    background-color: #f0f0f1;
-    /* Light hover effect */
+    background-color: var(--sb-bg-light);
 }
 
-.post-type-sb_link .wp-list-table th.sortable:hover a {
-    color: #2271b1;
-    /* WP Active Blue */
-}
-
-/* Make arrows more distinct */
 .post-type-sb_link .wp-list-table th.sorted .sorting-indicator {
     visibility: visible;
-    color: #2271b1;
+    color: var(--sb-primary);
 }
 
-/* Clearer Action Buttons alignment */
-.post-type-sb_link .tablenav .actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    height: auto;
-    padding-bottom: 4px;
+/* Mobile Responsive Adjustments */
+@media (max-width: 782px) {
+    .post-type-sb_link .tablenav .actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .post-type-sb_link .sb-filter-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .post-type-sb_link .sb-filter-item {
+        justify-content: space-between;
+    }
+
+    .post-type-sb_link .search-box input[type="search"] {
+        width: 100% !important;
+    }
+
+    .post-type-sb_link .search-box input[type="search"]:focus {
+        width: 100% !important;
+    }
 }
