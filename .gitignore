@@ -114,6 +114,7 @@ phpunit.xml.dist
 tests/_output/
 tests/_support/_generated/
 .phpunit.result.cache
+tests/
 
 # Codeception
 codeception.yml
