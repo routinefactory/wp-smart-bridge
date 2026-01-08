@@ -141,6 +141,9 @@ class SB_Redirect
 
         // 로그 저장
         SB_Database::log_click($link_id, $hashed_ip, $platform, $referer, $user_agent, $parsed_ua);
+
+        // 캐시 업데이트 (로그 저장 후 - UV 중복 체크용)
+        SB_Helpers::update_stats_cache_after_log($link_id);
     }
 
 

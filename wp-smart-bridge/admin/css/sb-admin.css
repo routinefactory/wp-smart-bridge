@@ -2470,3 +2470,40 @@ Realtime Feed Styles
     font-size: 14px;
     color: var(--sb-text-muted);
 }
+
+/* ===================================
+   Admin Filter UI
+   =================================== */
+.post-type-sb_link .sb-filter-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    margin-right: 10px;
+}
+
+.post-type-sb_link .sb-filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.post-type-sb_link .sb-filter-item label {
+    font-weight: 600;
+    font-size: 12px;
+    color: #50575e;
+    white-space: nowrap;
+}
+
+/* Clearer Action Buttons alignment */
+.post-type-sb_link .tablenav .actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    height: auto;
+    padding-bottom: 4px;
+}

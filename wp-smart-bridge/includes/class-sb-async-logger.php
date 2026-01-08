@@ -140,6 +140,10 @@ class SB_Async_Logger
             $context['user_agent'],
             $parsed_ua
         );
+
+        // 캐시 업데이트 (로그 저장 후 - UV 중복 체크용)
+        // 대시보드 데이터와 100% 일치를 위해 로그 저장 후 정확한 값을 계산하여 캐싱
+        SB_Helpers::update_stats_cache_after_log($context['link_id']);
     }
 
     /**

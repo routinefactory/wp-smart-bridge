@@ -565,4 +565,71 @@ class SB_Helpers
 현재 템플릿:
 [아래에 현재 템플릿 붙여넣기]';
     }
+
+    /**
+     * 통계 캐시 업데이트 (로그 저장 후 호출)
+     * 
+     * 대시보드와 100% 데이터 일치를 보장하기 위해
+     * 증분 방식이 아닌, 로그 테이블의 실제 Count를 조회하여 저장합니다.
+     * 
+     * @param int $post_id 링크 ID
+     */
+    public static function update_stats_cache_after_log($post_id)
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $today = current_time('Y-m-d');
+
+        // 1. 오늘 PV (정확한 Count)
+        // 로깅 직후이므로 방금 저장된 로그가 포함됨
+        $today_pv = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table 
+             WHERE link_id = %d AND DATE(visited_at) = %s",
+            $post_id,
+            $today
+        ));
+        update_post_meta($post_id, 'stats_today_pv', $today_pv . '|' . $today);
+
+        // 2. 오늘 UV (정확한 Count)
+        $today_uv = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT visitor_ip) FROM $table 
+             WHERE link_id = %d AND DATE(visited_at) = %s",
+            $post_id,
+            $today
+        ));
+        update_post_meta($post_id, 'stats_today_uv', $today_uv . '|' . $today);
+
+        // 3. 누적 UV (정확한 Count)
+        $total_uv = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT visitor_ip) FROM $table WHERE link_id = %d",
+            $post_id
+        ));
+        update_post_meta($post_id, 'stats_total_uv', $total_uv);
+
+        // 메타 캐시 초기화 (즉시 반영을 위해)
+        wp_cache_delete($post_id, 'post_meta');
+    }
+
+    /**
+     * 오늘 통계 읽기 (날짜 체크 포함)
+     * 
+     * @param int $post_id 링크 ID
+     * @param string $meta_key 메타 키 (stats_today_pv, stats_today_uv)
+     * @return int 통계 값 (날짜가 다르면 0 반환)
+     */
+    public static function get_today_stat($post_id, $meta_key)
+    {
+        $raw = get_post_meta($post_id, $meta_key, true);
+
+        // 데이터가 없거나 형식이 잘못된 경우 0
+        if (!$raw || strpos($raw, '|') === false) {
+            return 0;
+        }
+
+        list($count, $date) = explode('|', $raw);
+        $today = current_time('Y-m-d');
+
+        // 날짜가 오늘인 경우에만 값 반환, 아니면 0 (자동 리셋 효과)
+        return ($date === $today) ? intval($count) : 0;
+    }
 }
