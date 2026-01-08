@@ -260,7 +260,7 @@ if (!defined('ABSPATH')) {
         <div class="sb-section-content" id="sb-referer-content">
             <div class="sb-charts-grid">
                 <div class="sb-chart-box">
-                    <h3><?php _e('🔗 유입 경로 TOP 10', 'sb'); ?></h3>
+                    <h3><?php _e('🔗 유입 경로 TOP 100', 'sb'); ?></h3>
                     <div class="sb-chart-container">
                         <canvas id="sb-referer-chart"></canvas>
                     </div>

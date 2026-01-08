@@ -454,11 +454,12 @@ class SB_Rest_API
         $analytics = new SB_Analytics();
 
         $data = [
+            // v3.1.0: Increased from TOP 10 to TOP 100 for detailed referrer analysis
             'top_referers' => $analytics->get_referer_stats(
                 $date_range['start'],
                 $date_range['end'],
                 $platform_filter,
-                10
+                100
             ),
             'referer_groups' => $analytics->get_referer_groups(
                 $date_range['start'],

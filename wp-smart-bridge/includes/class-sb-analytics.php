@@ -1173,16 +1173,17 @@ class SB_Analytics
      * @param int $limit 개수
      * @return array 리퍼러별 클릭수
      */
-    public function get_referer_stats($start_date, $end_date, $platform = null, $limit = 10)
+    public function get_referer_stats($start_date, $end_date, $platform = null, $limit = 100)
     {
         global $wpdb;
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
+        // v3.1.0: Show full URL path (query string removed) instead of domain only
         $sql = "SELECT 
                     CASE 
                         WHEN referer IS NULL OR referer = '' THEN 'Direct'
-                        ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(referer, 'https://', ''), 'http://', ''), '/', 1), '?', 1)
+                        ELSE SUBSTRING_INDEX(REPLACE(REPLACE(referer, 'https://', ''), 'http://', ''), '?', 1)
                     END as referer_domain,
                     COUNT(*) as clicks,
                     COUNT(DISTINCT visitor_ip) as unique_visitors
@@ -1864,10 +1865,11 @@ class SB_Analytics
 
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
+        // v3.1.0: Show full URL path (query string removed) instead of domain only
         $sql = "SELECT 
                     CASE 
                         WHEN referer IS NULL OR referer = '' THEN 'Direct'
-                        ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(referer, 'https://', ''), 'http://', ''), '/', 1), '?', 1)
+                        ELSE SUBSTRING_INDEX(REPLACE(REPLACE(referer, 'https://', ''), 'http://', ''), '?', 1)
                     END as referer_domain,
                     COUNT(*) as clicks
                 FROM $table 
