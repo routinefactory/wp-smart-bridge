@@ -120,9 +120,52 @@ class SB_Redirect
                 header("Connection: close");
                 exit;
             }
-            // For delayed (which outputs HTML), we just let it proceed but disable logging in logger?
-            // Actually, for Delayed + HEAD, we should probably just 302 immediately or exit?
-            // HEAD request should not return body.
+            nocache_headers();
+            header("Location: $target_url", true, 302);
+            exit;
+        }
+
+        // v4.1.5 Fix: Ignore Browser Prefetching & Internal Health Checks
+        // 1. Browser Prefetch Headers
+        $headers = function_exists('getallheaders') ? getallheaders() : $_SERVER;
+        $is_prefetch = false;
+
+        // Normalize headers for checking
+        $check_headers = [
+            'HTTP_X_PURPOSE' => ['preview', 'prefetch'],
+            'HTTP_PURPOSE' => ['prefetch'],
+            'HTTP_SEC_PURPOSE' => ['prefetch', 'preview'],
+            'HTTP_X_MOZ' => ['prefetch'],
+            'Purpose' => ['prefetch'], // Generic
+            'Sec-Purpose' => ['prefetch', 'preview'], // Standard
+            'X-Purpose' => ['preview', 'prefetch']
+        ];
+
+        foreach ($check_headers as $header => $values) {
+            // Check formatted header (e.g. from getallheaders) or server var (e.g. HTTP_X_PURPOSE)
+            $value = null;
+            if (isset($headers[$header]))
+                $value = $headers[$header];
+            if (isset($_SERVER[$header]))
+                $value = $_SERVER[$header]; // Fallback
+
+            if ($value && in_array(strtolower($value), $values)) {
+                $is_prefetch = true;
+                break;
+            }
+        }
+
+        // 2. Internal Health Check Parameter (_sb_health)
+        // Used by SB_Admin_Ajax::ajax_health_check()
+        $is_health_check = isset($_GET['_sb_health']);
+
+        if ($is_prefetch || $is_health_check) {
+            // Skip Logging for Prefetch or Health Check
+            if ($redirect_delay <= 0) {
+                nocache_headers();
+                header("Location: $target_url", true, 302);
+                exit;
+            }
             nocache_headers();
             header("Location: $target_url", true, 302);
             exit;

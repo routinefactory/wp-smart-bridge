@@ -486,10 +486,12 @@ class SB_Admin_Ajax
             $analytics_table = $wpdb->prefix . 'sb_analytics_logs';
             $api_keys_table = $wpdb->prefix . 'sb_api_keys';
             $groups_table = $wpdb->prefix . 'sb_link_groups';
+            $stats_table = $wpdb->prefix . 'sb_daily_stats'; // v2.9.27 Added
 
             $wpdb->query("DELETE FROM $analytics_table");
             $wpdb->query("DELETE FROM $api_keys_table");
             $wpdb->query("DELETE FROM $groups_table");
+            $wpdb->query("DELETE FROM $stats_table"); // Fix: Truncate daily stats
 
             // 2. sb_link 포스트 전체 삭제 (Direct SQL로 대량 삭제 최적화)
             $wpdb->query("
@@ -514,7 +516,9 @@ class SB_Admin_Ajax
             SB_Database::commit();
 
             // 4. 캐시 및 Rewrite 규칙 초기화
-            wp_cache_flush();
+            // v3.1.2: Force clear all transients to fix persistent dashboard numbers
+            SB_Analytics::clear_all_cache();
+
             // v4.0.0: 파라미터 방식으로 flush_rewrite_rules 불필요
             // flush_rewrite_rules();
 

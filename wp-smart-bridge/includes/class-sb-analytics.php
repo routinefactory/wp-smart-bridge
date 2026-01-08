@@ -2016,4 +2016,24 @@ class SB_Analytics
 
         return $result !== false;
     }
+    /**
+     * 모든 캐시 및 Transients 강제 삭제 (Factory Reset용)
+     * 
+     * @since 3.1.2
+     */
+    public static function clear_all_cache()
+    {
+        global $wpdb;
+
+        // 1. DB에 저장된 Transients 직접 삭제 (LIKE 검색)
+        // _transient_sb_%, _transient_timeout_sb_%
+        $wpdb->query("
+            DELETE FROM $wpdb->options 
+            WHERE option_name LIKE '_transient_sb_%' 
+            OR option_name LIKE '_transient_timeout_sb_%'
+        ");
+
+        // 2. Object Cache 초기화 (메모리 캐시)
+        wp_cache_flush();
+    }
 }
