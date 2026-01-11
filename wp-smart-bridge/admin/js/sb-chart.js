@@ -25,21 +25,35 @@ var SB_Chart = (function ($) {
     }
 
     /**
-     * Dynamic Color Palette
+     * Dynamic Color Palette - Premium Design System
+     * Black, White, Yellow, Red with various opacities
      */
     function getColors() {
         return {
-            primary: getCssVar('--sb-primary') || '#667eea',
-            primaryAlpha: getCssVar('--sb-primary-alpha-10'),
-            primaryStrong: getCssVar('--sb-primary-alpha-70'),
-            secondary: getCssVar('--sb-secondary') || '#764ba2',
-            success: getCssVar('--sb-success') || '#22c55e',
-            warning: getCssVar('--sb-warning') || '#f59e0b',
-            danger: getCssVar('--sb-danger') || '#ef4444',
-            info: getCssVar('--sb-info') || '#3b82f6',
-            grey: '#6B7280',
-            previous: '#94a3b8',
-            previousAlpha: getCssVar('--sb-previous-alpha-10')
+            // Primary - Black
+            primary: getCssVar('--sb-black') || '#000000',
+            primaryAlpha: getCssVar('--sb-black-10') || 'rgba(0, 0, 0, 0.1)',
+            primaryStrong: getCssVar('--sb-black-70') || 'rgba(0, 0, 0, 0.7)',
+            
+            // Secondary - White
+            secondary: getCssVar('--sb-white') || '#ffffff',
+            secondaryAlpha: getCssVar('--sb-black-5') || 'rgba(0, 0, 0, 0.05)',
+            
+            // Accent - Yellow
+            accent: getCssVar('--sb-yellow') || '#ffd700',
+            accentAlpha: 'rgba(255, 215, 0, 0.2)',
+            accentStrong: 'rgba(255, 215, 0, 0.8)',
+            
+            // Warning - Red
+            warning: getCssVar('--sb-red') || '#dc2626',
+            warningAlpha: 'rgba(220, 38, 38, 0.2)',
+            warningStrong: 'rgba(220, 38, 38, 0.8)',
+            
+            // Grey tones
+            grey: getCssVar('--sb-black-50') || '#666666',
+            greyLight: getCssVar('--sb-black-20') || '#b3b3b3',
+            previous: getCssVar('--sb-black-30') || '#999999',
+            previousAlpha: getCssVar('--sb-black-5') || 'rgba(0, 0, 0, 0.05)'
         };
     }
 
@@ -72,8 +86,9 @@ var SB_Chart = (function ($) {
         if (!str || str === 'Unknown' || str === 'Etc') return getColors().grey;
         var hash = 0;
         for (var i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        var h = Math.abs(hash) % 360;
-        return 'hsl(' + h + ', 70%, 50%)';
+        var h = Math.abs(hash) % 3;
+        var colors = ['#000000', '#ffd700', '#dc2626']; // Black, Yellow, Red
+        return colors[h];
     }
 
     function getCommonOptions(overrides) {
@@ -170,8 +185,8 @@ var SB_Chart = (function ($) {
                     datasets: [{
                         label: typeof sb_i18n !== 'undefined' ? sb_i18n.click : 'Clicks',
                         data: data.map(function (item) { return item.clicks; }),
-                        borderColor: c.success,  // Green to differentiate from daily
-                        backgroundColor: c.successAlpha || 'rgba(34, 197, 94, 0.2)',
+                        borderColor: c.accent,  // Yellow to differentiate from daily
+                        backgroundColor: c.accentAlpha,
                         fill: true,
                         tension: 0.4,
                         pointRadius: 3,
@@ -216,8 +231,8 @@ var SB_Chart = (function ($) {
                     datasets: [{
                         label: typeof sb_i18n !== 'undefined' ? sb_i18n.click : 'Clicks',
                         data: data.map(function (item) { return item.clicks; }),
-                        borderColor: c.warning || '#f59e0b',  // Orange to differentiate
-                        backgroundColor: c.warningAlpha || 'rgba(245, 158, 11, 0.2)',
+                        borderColor: c.warning,  // Red to differentiate
+                        backgroundColor: c.warningAlpha,
                         fill: true,
                         tension: 0.4,
                         pointRadius: 3,
@@ -250,7 +265,7 @@ var SB_Chart = (function ($) {
                         backgroundColor: data.map(function (value) {
                             var max = Math.max.apply(null, data);
                             var intensity = max > 0 ? value / max : 0;
-                            return 'rgba(102, 126, 234, ' + (0.3 + intensity * 0.7) + ')';
+                            return 'rgba(0, 0, 0, ' + (0.1 + intensity * 0.7) + ')';
                         }),
                         borderRadius: 4
                     }]
@@ -363,7 +378,7 @@ var SB_Chart = (function ($) {
                     ],
                     datasets: [{
                         data: [data.Direct, data.SNS, data.Search, data.Other],
-                        backgroundColor: [c.info, c.danger, c.success, c.warning]
+                        backgroundColor: [c.primary, c.warning, c.accent, c.grey]
                     }]
                 },
                 options: {
@@ -390,7 +405,7 @@ var SB_Chart = (function ($) {
                     labels: Object.keys(data),
                     datasets: [{
                         data: Object.values(data),
-                        backgroundColor: [c.info, c.success, c.warning]
+                        backgroundColor: [c.primary, c.accent, c.warning]
                     }]
                 },
                 options: {
@@ -411,7 +426,7 @@ var SB_Chart = (function ($) {
             if (instances.os) instances.os.destroy();
             var c = getColors();
             var count = Object.keys(data).length;
-            var colors = [c.primary, c.secondary, c.warning, c.success, c.danger, c.info].slice(0, count);
+            var colors = [c.primary, c.accent, c.warning, c.grey, c.greyLight, c.previous].slice(0, count);
 
             instances.os = new Chart(ctx, {
                 type: 'doughnut',
@@ -440,7 +455,7 @@ var SB_Chart = (function ($) {
             if (instances.browser) instances.browser.destroy();
             var c = getColors();
             var count = Object.keys(data).length;
-            var colors = [c.info, c.success, c.warning, c.primary, c.secondary, c.danger].slice(0, count);
+            var colors = [c.primary, c.accent, c.warning, c.grey, c.greyLight, c.previous].slice(0, count);
 
             instances.browser = new Chart(ctx, {
                 type: 'doughnut',
@@ -477,7 +492,7 @@ var SB_Chart = (function ($) {
                         label: typeof sb_i18n !== 'undefined' ? sb_i18n.click : 'Clicks',
                         data: Object.values(data),
                         fill: true,
-                        backgroundColor: 'rgba(102, 126, 234, 0.3)',
+                        backgroundColor: c.primaryAlpha,
                         borderColor: c.primary,
                         pointBackgroundColor: c.primary
                     }]
