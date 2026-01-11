@@ -315,7 +315,7 @@ class SB_Analytics
 
     /**
      * 일별 추세 조회
-     * 
+     *
      * @param int $days 일수
      * @return array 날짜별 클릭 수 배열
      */
@@ -370,7 +370,9 @@ class SB_Analytics
             }
 
             // 2. Today
-            if ($end_date >= $today_date && $start_date <= $today_date) {
+            $include_today = ($end_date >= $today_date && $start_date <= $today_date);
+
+            if ($include_today) {
                 $today_clicks = (int) $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(*) FROM $log_table WHERE visited_at >= %s AND visited_at <= %s",
                     $today_date . ' 00:00:00',
@@ -382,8 +384,8 @@ class SB_Analytics
         } else {
             // Legacy Logic
             $table = $wpdb->prefix . 'sb_analytics_logs';
-            $sql = "SELECT DATE(visited_at) as date, COUNT(*) as clicks 
-                    FROM $table 
+            $sql = "SELECT DATE(visited_at) as date, COUNT(*) as clicks
+                    FROM $table
                     WHERE visited_at BETWEEN %s AND %s";
 
             $params = [$start_date, $end_date];

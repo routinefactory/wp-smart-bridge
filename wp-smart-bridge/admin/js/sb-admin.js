@@ -410,7 +410,32 @@
             }
         });
 
-        // 2. Update Check Handler
+        // 2. Factory Reset Handler (moved inside $(document).ready for proper DOM load)
+        $(document).on('click', '#sb-factory-reset', function () {
+            SB_UI.confirm({
+                title: sb_i18n.title_alert || '시스템 경고 (DANGER)',
+                message: sb_i18n.confirm_reset,
+                yesLabel: sb_i18n.yes,
+                noLabel: sb_i18n.no,
+                onYes: function () {
+                    // Double Safety Layer
+                    SB_UI.prompt({
+                        title: sb_i18n.title_prompt || '보안 확인',
+                        message: sb_i18n.prompt_reset,
+                        placeholder: 'RESET',
+                        onSubmit: function (val) {
+                            if (val !== 'RESET') {
+                                SB_UI.showToast(sb_i18n.cancelled || '취소되었습니다.', 'info');
+                                return;
+                            }
+                            performFactoryReset();
+                        }
+                    });
+                }
+            });
+        });
+
+        // 3. Update Check Handler
         $(document).on('click', '#sb-force-check-update', function (e) {
             e.preventDefault();
             var $btn = $(this);
@@ -445,31 +470,6 @@
             });
         });
 
-    });
-
-    // 3. Factory Reset Handler
-    $(document).on('click', '#sb-factory-reset', function () {
-        SB_UI.confirm({
-            title: sb_i18n.title_alert || '시스템 경고 (DANGER)',
-            message: sb_i18n.confirm_reset,
-            yesLabel: sb_i18n.yes,
-            noLabel: sb_i18n.no,
-            onYes: function () {
-                // Double Safety Layer
-                SB_UI.prompt({
-                    title: sb_i18n.title_prompt || '보안 확인',
-                    message: sb_i18n.prompt_reset,
-                    placeholder: 'RESET',
-                    onSubmit: function (val) {
-                        if (val !== 'RESET') {
-                            SB_UI.showToast(sb_i18n.cancelled || '취소되었습니다.', 'info');
-                            return;
-                        }
-                        performFactoryReset();
-                    }
-                });
-            }
-        });
     });
 
     // 3.1 Data Migration Handler (v2.9.27)
@@ -598,30 +598,6 @@
                 };
 
                 reader.readAsText(file);
-            }
-        });
-    });
-
-    // 6. Settings Form
-    $('#sb-settings-form').on('submit', function (e) {
-        e.preventDefault();
-        var $btn = $(this).find('button[type="submit"]');
-        var originalText = $btn.text();
-        $btn.prop('disabled', true).text(sb_i18n.loading);
-
-        $.ajax({
-            url: sbAdmin.ajaxUrl,
-            method: 'POST',
-            data: {
-                action: 'sb_save_settings',
-                nonce: sbAdmin.ajaxNonce,
-                redirect_delay: $('#sb-redirect-delay').val()
-            },
-            success: function (response) {
-                SB_UI.showToast(response.data.message, response.success ? 'success' : 'error');
-            },
-            complete: function () {
-                $btn.prop('disabled', false).text(originalText);
             }
         });
     });
@@ -1416,47 +1392,8 @@
             });
         });
 
-        // 9.4 Copy Button (Generic)
-        $(document).on('click', '.sb-copy-btn, .sb-copy-modal-key', function () {
-            var text = $(this).data('copy');
-            // For modal buttons, target ID
-            var target = $(this).data('target');
-            if (target) {
-                text = $('#' + target).text();
-            }
-
-            if (navigator.clipboard && text) {
-                navigator.clipboard.writeText(text).then(function () {
-                    SB_UI.showToast(typeof sb_i18n !== 'undefined' ? sb_i18n.copied_to_clipboard : 'Copied!', 'success');
-                }).catch(function () {
-                    prompt('Copy manually:', text);
-                });
-            } else if (text) {
-                prompt('Copy manually:', text);
-            }
-        });
-
-        // 9.5 Save General Settings
-        $('#sb-settings-form').on('submit', function (e) {
-            e.preventDefault();
-            var $btn = $(this).find('button[type="submit"]');
-            $btn.prop('disabled', true).addClass('sb-spin');
-
-            $.post(sbAdmin.ajaxUrl, {
-                action: 'sb_save_settings',
-                nonce: sbAdmin.ajaxNonce,
-                redirect_delay: $('#sb-redirect-delay').val()
-            }, function (response) {
-                $btn.prop('disabled', false).removeClass('sb-spin');
-                if (response.success) {
-                    SB_UI.showToast(response.data.message, 'success');
-                } else {
-                    SB_UI.showToast(response.data.message || 'Error', 'error');
-                }
-            });
-        });
-
-        // 9.6 Migrate Stats
+        // 9.5 Save General Settings (moved to initSettingsPage function)
+        // Note: Duplicate handler removed - the handler in initSettingsPage() is kept
         $('#sb-migrate-stats').on('click', function () {
             var $btn = $(this);
             var $status = $('#sb-migrate-status');
@@ -1700,54 +1637,81 @@
 
     /**
      * Update Top Links Table (v3.0.4)
+     *
+     * 🔍 DEBUG LOG: XSS 취약성 확인
+     * - 직접 문자열 연결로 HTML 생성하는지 확인
+     * - jQuery DOM 생성 방식 사용 여부 확인
      */
     function updateTopLinksTable(links) {
+        console.log('[DEBUG] updateTopLinksTable called with links:', links);
+        
         // Target specifically the "Today" links panel which serves as the "Filtered" view
         var $panel = $('#sb-today-links');
         var $tbody = $panel.find('tbody');
         $tbody.empty();
 
         if (!links || links.length === 0) {
-            $tbody.append('<tr><td colspan="6" class="sb-empty-state">' + __('no_data', '데이터가 없습니다.') + '</td></tr>');
+            $tbody.append($('<tr>').append(
+                $('<td>').attr('colspan', '6').addClass('sb-empty-state').text(__('no_data', '데이터가 없습니다.'))
+            ));
+            console.log('[DEBUG] No links to display');
             return;
         }
 
+        console.log('[DEBUG] Processing ' + links.length + ' links');
+        
         links.forEach(function (link, index) {
-            var row = '<tr>';
+            console.log('[DEBUG] Processing link #' + (index + 1) + ':', link);
+            
+            // XSS 취약성 수정: jQuery DOM 생성 방식 사용 (자동 이스케이프 적용)
+            var $row = $('<tr>');
 
             // # ID
-            row += '<td data-label="#">' + (index + 1) + '</td>';
+            $row.append($('<td>').attr('data-label', '#').text(index + 1));
 
             // Slug / Title
-            row += '<td data-label="Slug">';
-            row += '<strong><a href="' + link.short_link + '" target="_blank">' + link.slug + '</a></strong>';
+            var $slugCell = $('<td>').attr('data-label', 'Slug');
+            $slugCell.append($('<strong>').append(
+                $('<a>').attr('href', link.short_link).attr('target', '_blank').text(link.slug)
+            ));
             if (link.group_name) {
-                row += ' <span class="sb-group-badge" style="background-color:' + (link.group_color || '#667eea') + '">' + link.group_name + '</span>';
+                $slugCell.append(' ').append(
+                    $('<span>').addClass('sb-group-badge').css('background-color', link.group_color || '#667eea').text(link.group_name)
+                );
             }
             // v4.0.0: 파라미터 방식으로 변경
-            row += '<br><small class="sb-slug-copy" data-url="' + link.short_link + '">?go=' + link.slug + '</small>';
-            row += '</td>';
+            $slugCell.append($('<br>')).append(
+                $('<small>').addClass('sb-slug-copy').attr('data-url', link.short_link).text('?go=' + link.slug)
+            );
+            $row.append($slugCell);
 
             // Target URL
-            row += '<td data-label="' + __('target_url', '타겟 URL') + '"><a href="' + link.target_url + '" target="_blank" class="sb-target-url" title="' + link.target_url + '">';
-            row += (link.target_url.length > 40 ? link.target_url.substring(0, 40) + '...' : link.target_url);
-            row += '</a></td>';
+            var targetUrlText = link.target_url.length > 40 ? link.target_url.substring(0, 40) + '...' : link.target_url;
+            $row.append($('<td>').attr('data-label', __('target_url', '타겟 URL')).append(
+                $('<a>').attr('href', link.target_url).attr('target', '_blank').addClass('sb-target-url').attr('title', link.target_url)
+                    .text(targetUrlText)
+            ));
 
             // Platform
             var platformClass = 'sb-platform-' + (link.platform ? link.platform.toLowerCase() : 'unknown');
-            row += '<td data-label="' + __('platform', '플랫폼') + '"><span class="sb-platform-badge ' + platformClass + '">' + (link.platform || 'General') + '</span></td>';
+            $row.append($('<td>').attr('data-label', __('platform', '플랫폼')).append(
+                $('<span>').addClass('sb-platform-badge ' + platformClass).text(link.platform || 'General')
+            ));
 
             // Clicks
-            row += '<td data-label="' + __('clicks', '클릭 수') + '"><strong>' + new Intl.NumberFormat().format(link.clicks) + '</strong></td>';
+            $row.append($('<td>').attr('data-label', __('clicks', '클릭 수')).append(
+                $('<strong>').text(new Intl.NumberFormat().format(link.clicks))
+            ));
 
             // Action
-            row += '<td data-label="' + __('actions', '액션') + '">';
-            row += '<a href="' + sbAdmin.adminUrl + 'post.php?post=' + link.id + '&action=edit" class="button button-small">' + __('edit', '수정') + '</a>';
-            row += '</td>';
+            $row.append($('<td>').attr('data-label', __('actions', '액션')).append(
+                $('<a>').attr('href', sbAdmin.adminUrl + 'post.php?post=' + link.id + '&action=edit').addClass('button button-small').text(__('edit', '수정'))
+            ));
 
-            row += '</tr>';
-            $tbody.append(row);
+            $tbody.append($row);
         });
+        
+        console.log('[DEBUG] updateTopLinksTable completed');
     }
 
 })(jQuery);

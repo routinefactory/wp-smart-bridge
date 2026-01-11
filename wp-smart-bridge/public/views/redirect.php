@@ -94,13 +94,15 @@ $output = str_replace(array_keys($replacements), array_values($replacements), $t
  * ROOT CAUSE: Possible double-escaping during save operation or 
  * WordPress magic quotes / addslashes being applied multiple times.
  * 
- * SOLUTION: Decode HTML entities and remove excess slashes before output.
- * Order matters: stripslashes first, then htmlspecialchars_decode.
- * 
+ * SOLUTION: Remove excess slashes before output.
+ *
+ * SECURITY NOTE (v4.2.5): Removed htmlspecialchars_decode() to prevent XSS.
+ * The template is already sanitized with wp_kses_post() during save,
+ * so we only need to stripslashes() to handle WordPress magic quotes.
+ *
  * @see class-sb-admin-ajax.php Line 202 for template save logic
  */
 $output = stripslashes($output);
-$output = htmlspecialchars_decode($output, ENT_QUOTES);
 
 /**
  * v4.1.4 Critical Fix: Prevent Recursive Requests (The "20-30 Clicks" Bug)

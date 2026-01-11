@@ -532,8 +532,6 @@ if (!defined('ABSPATH')) {
     </div>
 </div>
 
-</div>
-
 <!-- 링크 상세 분석 모달 -->
 <div id="sb-link-detail-modal" class="sb-modal sb-hidden">
     <div class="sb-modal-overlay"></div>

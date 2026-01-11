@@ -257,11 +257,6 @@ class SB_Admin_Ajax
     {
         self::check_permission();
 
-        // v4.2.4 Security: 추가 nonce 검증
-        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'sb_admin_nonce')) {
-            wp_send_json_error(['message' => '보안 토큰이 유효하지 않습니다.']);
-        }
-
         // 1. 데이터 수신
         $chunk_data = isset($_POST['chunk_data']) ? json_decode(wp_unslash($_POST['chunk_data']), true) : [];
         $options = isset($_POST['options']) ? json_decode(wp_unslash($_POST['options']), true) : [];
@@ -480,7 +475,7 @@ class SB_Admin_Ajax
         }
 
         // 2차 확인 문자열 검증
-        $confirmation = isset($_POST['confirmation']) ? $_POST['confirmation'] : '';
+        $confirmation = isset($_POST['confirmation']) ? sanitize_text_field($_POST['confirmation']) : '';
         if ($confirmation !== 'reset') {
             wp_send_json_error(['message' => '확인 문자가 일치하지 않습니다.']);
         }
@@ -704,27 +699,34 @@ class SB_Admin_Ajax
 
         $analytics = new SB_Analytics();
 
-        // 1. Daily Trend
-        $daily_trend = $analytics->get_daily_trend($start, $end, $platform);
+        // 1. Daily Trend - 항상 최근 30일 데이터를 표시
+        // 대시보드의 "일간 추세 (최근 30일)" 그래프는 사용자가 선택한 기간과 상관없이
+        // 항상 최근 30일의 데이터를 표시해야 합니다.
+        $daily_trend_dates = SB_Helpers::get_date_range('30d');
+        $daily_trend = $analytics->get_daily_trend(
+            substr($daily_trend_dates['start'], 0, 10),
+            substr($daily_trend_dates['end'], 0, 10),
+            $platform
+        );
 
         // v3.0.4: Weekly & Monthly Trends
         $weekly_trend = $analytics->get_weekly_trend(30, $platform); // Note: Weekly/Monthly usually fixed range, but passing platform if supported
         $monthly_trend = $analytics->get_monthly_trend(30, $platform);
 
-        // 2. Hourly Stats
+        // 2. Hourly Stats - 선택한 기간의 데이터를 표시
         $clicks_by_hour = $analytics->get_clicks_by_hour($start, $end, $platform);
 
-        // 3. Platform Share
+        // 3. Platform Share - 선택한 기간의 데이터를 표시
         $platform_share = $analytics->get_platform_share($start, $end, $platform);
 
-        // 4. Summary Stats (Total, Today, Growth) - Filtered
+        // 4. Summary Stats (Total, Today, Growth) - 선택한 기간의 데이터를 표시
         // Note: For 'today' stats, we might need separate logic if range is not 'today'
         // But dashboard usually shows "Total Clicks (in range)" or "Total Clicks (All Time)"?
         // User wants filters to apply to EVERYTHING.
         // Let's get "Total Clicks in Period" and "Unique Visitors in Period"
         $period_stats = $analytics->get_period_stats($start, $end, $platform); // Need to check if this method exists or create it
 
-        // 5. Top Links (Filtered)
+        // 5. Top Links (Filtered) - 선택한 기간의 데이터를 표시
         $top_links = $analytics->get_top_links($start, $end, $platform, 5);
 
         wp_send_json_success([
@@ -751,6 +753,12 @@ class SB_Admin_Ajax
      */
     public static function ajax_realtime_feed()
     {
+        // v4.2.5 Security: 권한 검증 추가
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => '권한이 없습니다.']);
+        }
+        
         // SSE는 일반 AJAX 리턴을 사용하지 않으므로 직접 클래스 호출
         SB_Realtime::start_stream();
         exit;
