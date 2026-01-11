@@ -121,7 +121,7 @@ class SB_Post_Type
 
         $target_url = get_post_meta($post->ID, 'target_url', true);
         $platform = get_post_meta($post->ID, 'platform', true) ?: 'Etc'; // Fixed potential warnings
-        $short_link = SB_Helpers::get_short_link_url($post->post_title);
+        $short_link = SB_Helpers::get_short_link_url($post->post_name);
         $click_count = get_post_meta($post->ID, 'click_count', true) ?: 0;
 
         // UV 통계 조회
@@ -637,7 +637,7 @@ class SB_Post_Type
             return $actions;
         }
 
-        $short_link = SB_Helpers::get_short_link_url($post->post_title);
+        $short_link = SB_Helpers::get_short_link_url($post->post_name);
 
         // '단축 링크 열기' 액션 추가 (맨 앞에 배치)
         $new_actions = [];

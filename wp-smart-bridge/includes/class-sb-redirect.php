@@ -94,8 +94,8 @@ class SB_Redirect
 
         // 타겟 URL 조회
         $target_url = SB_Helpers::get_target_url($link->ID);
-
-        if (empty($target_url)) {
+        $target_url = esc_url_raw($target_url);
+        if (empty($target_url) || !SB_Helpers::validate_url($target_url)) {
             // 타겟 URL이 없으면 404
             global $wp_query;
             $wp_query->set_404();
@@ -116,12 +116,12 @@ class SB_Redirect
             // Just Redirect, Don't Log
             if ($redirect_delay <= 0) {
                 nocache_headers();
-                header("Location: $target_url", true, 302);
+                wp_redirect($target_url, 302);
                 header("Connection: close");
                 exit;
             }
             nocache_headers();
-            header("Location: $target_url", true, 302);
+            wp_redirect($target_url, 302);
             exit;
         }
 
@@ -163,11 +163,11 @@ class SB_Redirect
             // Skip Logging for Prefetch or Health Check
             if ($redirect_delay <= 0) {
                 nocache_headers();
-                header("Location: $target_url", true, 302);
+                wp_redirect($target_url, 302);
                 exit;
             }
             nocache_headers();
-            header("Location: $target_url", true, 302);
+            wp_redirect($target_url, 302);
             exit;
         }
 

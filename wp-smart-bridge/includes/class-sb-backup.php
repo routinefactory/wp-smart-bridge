@@ -56,9 +56,15 @@ class SB_Backup
             }
 
             foreach ($links as $link) {
+                $slug = get_post_field('post_name', $link->ID);
+                if (!$slug) {
+                    $slug = $link->post_title;
+                }
+
                 $backup['data']['links'][] = [
                     'id' => $link->ID,
-                    'slug' => $link->post_title,
+                    'slug' => $slug,
+                    'title' => $link->post_title,
                     'target_url' => get_post_meta($link->ID, 'target_url', true),
                     'platform' => get_post_meta($link->ID, 'platform', true),
                     'click_count' => (int) get_post_meta($link->ID, 'click_count', true),
@@ -174,13 +180,22 @@ class SB_Backup
         // 1. 링크 복원
         if (!empty($chunk_data['links'])) {
             foreach ($chunk_data['links'] as $link_data) {
-                if (SB_Helpers::slug_exists($link_data['slug'])) {
+                $slug = isset($link_data['slug']) ? $link_data['slug'] : '';
+                $title = isset($link_data['title']) ? $link_data['title'] : $slug;
+                $post_name = sanitize_title($slug);
+
+                if ($post_name === '') {
+                    continue;
+                }
+
+                if (SB_Helpers::slug_exists($post_name)) {
                     continue;
                 }
 
                 $post_id = wp_insert_post([
                     'post_type' => SB_Post_Type::POST_TYPE,
-                    'post_title' => $link_data['slug'],
+                    'post_title' => $title,
+                    'post_name' => $post_name,
                     'post_status' => $link_data['status'] ?? 'publish',
                     'post_date' => $link_data['created_at'] ?? current_time('mysql'),
                 ]);
@@ -308,11 +323,18 @@ class SB_Backup
         // 1. Links
         if (isset($backup['data']['links'])) {
             foreach ($backup['data']['links'] as $link) {
-                if (SB_Helpers::slug_exists($link['slug']))
+                $slug = isset($link['slug']) ? $link['slug'] : '';
+                $title = isset($link['title']) ? $link['title'] : $slug;
+                $post_name = sanitize_title($slug);
+                if ($post_name === '') {
+                    continue;
+                }
+                if (SB_Helpers::slug_exists($post_name))
                     continue;
                 $pid = wp_insert_post([
                     'post_type' => SB_Post_Type::POST_TYPE,
-                    'post_title' => $link['slug'],
+                    'post_title' => $title,
+                    'post_name' => $post_name,
                     'post_status' => $link['status'] ?? 'publish',
                     'post_date' => $link['created_at']
                 ]);
@@ -407,6 +429,11 @@ class SB_Backup
                     'message' => '유효하지 않은 파일 형식입니다. (감지된 타입: ' . $mime_type . ')'
                 ]);
             }
+        }
+
+        // v4.2.4 Security: 파일 업로드 검증 추가 (Path Traversal 방지)
+        if (!is_uploaded_file($file['tmp_name'])) {
+            wp_send_json_error(['message' => '파일 업로드 실패: 유효하지 않은 파일입니다.']);
         }
 
         // JSON 파일 읽기

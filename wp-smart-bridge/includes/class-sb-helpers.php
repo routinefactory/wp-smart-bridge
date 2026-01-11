@@ -306,10 +306,9 @@ class SB_Helpers
 
         // 2. Normalize Target
         // - Remove scheme
-        // - URL Decode (to prevent encoded attacks like /%67%6F/)
         // - Lowercase (for case-insensitive comparison)
+        // v4.2.4 Security: urldecode() 제거 - 인코딩된 악의 URL 검증 우회 방지
         $clean_target = preg_replace('/^(https?:\/\/|\/\/)/i', '', $url);
-        $clean_target = urldecode($clean_target);
         $clean_target = mb_strtolower($clean_target);
 
         $clean_base = mb_strtolower($clean_base);

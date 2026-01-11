@@ -257,9 +257,14 @@ class SB_Admin_Ajax
     {
         self::check_permission();
 
+        // v4.2.4 Security: 추가 nonce 검증
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'sb_admin_nonce')) {
+            wp_send_json_error(['message' => '보안 토큰이 유효하지 않습니다.']);
+        }
+
         // 1. 데이터 수신
-        $chunk_data = isset($_POST['chunk_data']) ? json_decode(stripslashes($_POST['chunk_data']), true) : [];
-        $options = isset($_POST['options']) ? json_decode(stripslashes($_POST['options']), true) : [];
+        $chunk_data = isset($_POST['chunk_data']) ? json_decode(wp_unslash($_POST['chunk_data']), true) : [];
+        $options = isset($_POST['options']) ? json_decode(wp_unslash($_POST['options']), true) : [];
 
         // ID Map이 너무 클 경우를 대비해, 클라이언트에서 보내거나 임시 저장소(Transient)를 활용할 수 있음.
         // 여기서는 클라이언트가 보내주는 방식을 가정 (Stateless).
@@ -326,7 +331,7 @@ class SB_Admin_Ajax
         }
 
         $test_post = $posts[0];
-        $slug = $test_post->post_title;
+        $slug = $test_post->post_name;
 
         // 실제 접속 URL (예: http://site.com/go/abcd)
         $test_url = SB_Helpers::get_short_link_url($slug);
@@ -867,6 +872,7 @@ class SB_Admin_Ajax
         // 6. 저장
         $post_id = wp_insert_post([
             'post_title' => $slug,
+            'post_name' => $slug,
             'post_type' => SB_Post_Type::POST_TYPE,
             'post_status' => 'publish',
             'meta_input' => [

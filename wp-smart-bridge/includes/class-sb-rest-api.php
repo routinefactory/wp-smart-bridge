@@ -269,6 +269,7 @@ class SB_Rest_API
         // 6. 워드프레스 포스트로 저장
         $post_id = wp_insert_post([
             'post_title' => $slug,
+            'post_name' => $slug,
             'post_type' => SB_Post_Type::POST_TYPE,
             'post_status' => 'publish',
             'meta_input' => [
@@ -278,11 +279,13 @@ class SB_Rest_API
             ],
         ]);
 
+        // 에러 체크: WP_Error 또는 0 반환
         // v2.9.22 Security: Verify proper slug assignment (Race Condition Check)
         // 만약 커스텀 슬러그 요청이었는데, WP가 중복으로 인해 'slug-2'로 변경했다면 실패 처리
         if ($custom_slug) {
-            $inserted_post = get_post($post_id);
-            if ($inserted_post->post_name !== $custom_slug) {
+            $inserted_post_name = get_post_field('post_name', $post_id);
+            $expected_slug = sanitize_title($custom_slug);
+            if ($inserted_post_name !== $expected_slug) {
                 // 중복 발생 (Race Condition caught)
                 wp_delete_post($post_id, true);
                 return new WP_Error(
@@ -291,6 +294,7 @@ class SB_Rest_API
                     ['status' => 409]
                 );
             }
+            $slug = $inserted_post_name;
         } else {
             // 자동 생성의 경우, 변경된 slug(post_name)를 최종 slug로 채택
             // v3.0.0 Security Fix: Strict check for race conditions
@@ -693,8 +697,8 @@ class SB_Rest_API
         $data = [
             'link_info' => [
                 'id' => $link_id,
-                'slug' => $post->post_title,
-                'short_link' => SB_Helpers::get_short_link_url($post->post_title),
+                'slug' => $post->post_name,
+                'short_link' => SB_Helpers::get_short_link_url($post->post_name),
                 'target_url' => get_post_meta($link_id, 'target_url', true),
                 'platform' => get_post_meta($link_id, 'platform', true),
                 'created_at' => $post->post_date,
@@ -782,8 +786,8 @@ class SB_Rest_API
         foreach ($query->posts as $post) {
             $links[] = [
                 'id' => $post->ID,
-                'slug' => $post->post_title,
-                'short_link' => SB_Helpers::get_short_link_url($post->post_title),
+                'slug' => $post->post_name,
+                'short_link' => SB_Helpers::get_short_link_url($post->post_name),
                 'target_url' => get_post_meta($post->ID, 'target_url', true),
                 'platform' => get_post_meta($post->ID, 'platform', true),
                 'click_count' => (int) get_post_meta($post->ID, 'click_count', true),

@@ -90,7 +90,7 @@ class SB_Groups
         $postmeta = $wpdb->postmeta;
 
         // 테이블 존재 여부 확인
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
             return [];
         }
 

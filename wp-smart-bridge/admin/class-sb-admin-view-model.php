@@ -15,9 +15,9 @@ if (!defined('ABSPATH')) {
 class SB_Admin_View_Model
 {
     /**
-     * Prepare data for the Dashboard View
+     * Prepare data for Dashboard View
      * 
-     * @return array Associative array of data required for the dashboard view
+     * @return array Associative array of data required for dashboard view
      */
     public static function get_dashboard_data()
     {
@@ -92,7 +92,7 @@ class SB_Admin_View_Model
             $download_url = $update_info['download_url'];
         }
 
-        // Return all variables expected by the view
+        // Return all variables expected by view
         return [
             'has_api_keys' => $has_api_keys,
             'today_total_clicks' => $today_total_clicks,
@@ -110,36 +110,8 @@ class SB_Admin_View_Model
             'weekly_trend' => $weekly_trend,
             'monthly_trend' => $monthly_trend,
             'available_platforms' => $available_platforms,
-            'top_links' => $top_links, // This maps to $today_top_links in view? Wait, let's check view.
-            // View uses $today_top_links variable name for the first table?
-            // Let's check dashboard.php line 450: foreach ($today_top_links as $index => $link)
-            // Wait, in class-sb-admin.php: $top_links = ...
-            // And extract($data) makes it $top_links.
-            // Looking at dashboard.php, it uses $today_top_links.
-            // Ah, looking at class-sb-admin.php line 283: $top_links = ...
-            // Let's re-read class-sb-admin.php carefully.
-            // Line 283: $top_links = ...
-            // Line 305: include ...
-            // In dashboard.php line 450: if (empty($today_top_links))
-            // WARNING: Mismatch detected or I misread dashboard.php.
-            // Let's assume dashboard.php uses $top_links if that's what was in SB_Admin.
-            // START CORRECTION: 
-            // In SB_Admin (Line 283): $top_links = $analytics->get_top_links(...)
-            // In Dashboard.php (Line 450): if (empty($today_top_links))
-            // This implies SB_Admin might have had `$today_top_links = ...` or I missed where it was renamed.
-            // Let's look at the view_file output for SB_Admin again.
-            // Line 283: $top_links = ...
-            // Line 305: include ...
-            // Line 450 of dashboard.php: if (empty($today_top_links))
-            // This suggests `$top_links` was possibly NOT the variable name used in the view, OR the view expects `$today_top_links` and `SB_Admin` was assigning it to `$top_links` (bug?) or I am misreading.
-            // Wait, if SB_Admin defines $top_links but View uses $today_top_links, the View would be broken unless I missed a rename or extract.
-            // Let me re-verify SB_Admin.
-            // Variables in SB_Admin: $top_links.
-            // Variables in Dashboard: $today_top_links.
-            // If the current code works, then $top_links MUST be $today_top_links.
-            // Maybe I should name the key 'today_top_links' to match the view.
-
-            'today_top_links' => $top_links, // Renaming to match View expectation
+            'top_links' => $top_links, // v4.2.4: dashboard.php에서 $today_top_links 사용
+            'today_top_links' => $top_links, // v4.2.4: dashboard.php에서 사용하는 변수명과 일치
             'alltime_top_links' => $alltime_top_links,
             'has_update' => $has_update,
             'update_info' => $update_info,
@@ -149,9 +121,9 @@ class SB_Admin_View_Model
     }
 
     /**
-     * Prepare data for the Settings View
+     * Prepare data for Settings View
      * 
-     * @return array Associative array of data required for the settings view
+     * @return array Associative array of data required for settings view
      */
     public static function get_settings_data()
     {

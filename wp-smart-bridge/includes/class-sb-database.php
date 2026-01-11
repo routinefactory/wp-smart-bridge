@@ -106,7 +106,7 @@ class SB_Database
         $groups_table = $wpdb->prefix . 'sb_link_groups';
         $sql_groups = "CREATE TABLE $groups_table (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            name VARCHAR(100) NOT NULL COMMENT '그룹명',
+            name VARCHAR(100) NOT NULL COMMENT 'group name',
             color VARCHAR(20) DEFAULT '#667eea' COMMENT '그룹 색상',
             description TEXT NULL COMMENT '설명',
             user_id BIGINT(20) UNSIGNED NOT NULL COMMENT '생성자 ID',

@@ -61,6 +61,12 @@ class SB_Async_Logger
      */
     public static function log_and_redirect($link_id, $target_url, $redirect_delay)
     {
+        $target_url = esc_url_raw($target_url);
+        if (empty($target_url) || !SB_Helpers::validate_url($target_url)) {
+            status_header(404);
+            exit;
+        }
+
         // 1. Capture Context BEFORE connection close
         // Some server environments might clear globals after finish_request
         $context = [
@@ -77,7 +83,7 @@ class SB_Async_Logger
             // Immediate Redirect (302)
             // Ensure no caching for the redirect logic itself
             nocache_headers();
-            header("Location: $target_url", true, 302);
+            wp_redirect($target_url, 302);
             header("Connection: close");
             header("Content-Encoding: none");
             header("Content-Length: 0");
@@ -110,8 +116,17 @@ class SB_Async_Logger
             // In Non-FPM, we must increment synchronously to ensure accuracy
             SB_Helpers::increment_click_count($context['link_id']);
 
+            // If WP-Cron is disabled, log synchronously for reliability
+            if (defined('DISABLE_WP_CRON') && DISABLE_WP_CRON) {
+                self::process_log($context);
+                exit;
+            }
+
             // Fallback: Schedule background logging
-            wp_schedule_single_event(time(), 'sb_async_log_event', [$context]);
+            $scheduled = wp_schedule_single_event(time(), 'sb_async_log_event', [$context]);
+            if (!$scheduled) {
+                self::process_log($context);
+            }
             exit;
         }
 
