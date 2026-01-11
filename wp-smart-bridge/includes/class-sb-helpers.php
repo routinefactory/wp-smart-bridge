@@ -22,6 +22,28 @@ class SB_Helpers
      */
     const MAX_SLUG_RETRIES = 3;
 
+    /**
+     * 메타 데이터 포맷 버전
+     *
+     * stats_today_pv, stats_today_uv, stats_total_uv 메타 데이터의 형식 버전
+     *
+     * @since 4.2.0
+     */
+    const META_FORMAT_VERSION = '1.0';
+
+    /**
+     * 메타 데이터 포맷 버전별 구조 정의
+     *
+     * @since 4.2.0
+     */
+    const META_FORMATS = [
+        '1.0' => [
+            'stats_today_pv' => 'count|date',
+            'stats_today_uv' => 'count|date',
+            'stats_total_uv' => 'count',
+        ],
+    ];
+
 
     /**
      * Base36 문자셋 (소문자 + 숫자)
@@ -70,7 +92,7 @@ class SB_Helpers
 
     /**
      * Slug 존재 여부 확인
-     * 
+     *
      * @param string $slug 확인할 Slug
      * @return bool 존재 여부
      */
@@ -78,17 +100,25 @@ class SB_Helpers
     {
         global $wpdb;
 
-        // v2.9.22 Fix: Check post_name (Unique Index) instead of post_title
-        // v3.0.0 Critical Fix: PHP constant must be passed as parameter, not embedded in SQL string
-        $count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->posts} 
-             WHERE post_type = %s 
-             AND post_name = %s",
-            SB_Post_Type::POST_TYPE,
-            $slug
-        ));
+        try {
+            // v2.9.22 Fix: Check post_name (Unique Index) instead of post_title
+            // v3.0.0 Critical Fix: PHP constant must be passed as parameter, not embedded in SQL string
+            $count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts}
+                 WHERE post_type = %s
+                 AND post_name = %s",
+                SB_Post_Type::POST_TYPE,
+                $slug
+            ));
 
-        return (int) $count > 0;
+            return (int) $count > 0;
+        } catch (Throwable $e) {
+            // DB 오류 발생 시 안전하게 false 반환 (슬러그가 없다고 가정)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Helpers::slug_exists() Error: ' . $e->getMessage());
+            }
+            return false;
+        }
     }
 
     /**
@@ -567,46 +597,152 @@ class SB_Helpers
 
     /**
      * 통계 캐시 업데이트 (로그 저장 후 호출)
-     * 
+     *
      * 대시보드와 100% 데이터 일치를 보장하기 위해
      * 증분 방식이 아닌, 로그 테이블의 실제 Count를 조회하여 저장합니다.
-     * 
+     *
      * @param int $post_id 링크 ID
      */
     public static function update_stats_cache_after_log($post_id)
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'sb_analytics_logs';
-        $today = current_time('Y-m-d');
+        try {
+            global $wpdb;
+            $table = $wpdb->prefix . 'sb_analytics_logs';
+            $today = current_time('Y-m-d');
 
-        // 1. 오늘 PV (정확한 Count)
-        // 로깅 직후이므로 방금 저장된 로그가 포함됨
-        $today_pv = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table 
-             WHERE link_id = %d AND DATE(visited_at) = %s",
-            $post_id,
-            $today
-        ));
-        update_post_meta($post_id, 'stats_today_pv', $today_pv . '|' . $today);
+            // 1. 오늘 PV (정확한 Count)
+            // 로깅 직후이므로 방금 저장된 로그가 포함됨
+            $today_pv = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table
+                 WHERE link_id = %d AND DATE(visited_at) = %s",
+                $post_id,
+                $today
+            ));
+            self::set_today_stat($post_id, 'stats_today_pv', $today_pv, $today);
 
-        // 2. 오늘 UV (정확한 Count)
-        $today_uv = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT visitor_ip) FROM $table 
-             WHERE link_id = %d AND DATE(visited_at) = %s",
-            $post_id,
-            $today
-        ));
-        update_post_meta($post_id, 'stats_today_uv', $today_uv . '|' . $today);
+            // 2. 오늘 UV (정확한 Count)
+            $today_uv = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(DISTINCT visitor_ip) FROM $table
+                 WHERE link_id = %d AND DATE(visited_at) = %s",
+                $post_id,
+                $today
+            ));
+            self::set_today_stat($post_id, 'stats_today_uv', $today_uv, $today);
 
-        // 3. 누적 UV (정확한 Count)
-        $total_uv = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT visitor_ip) FROM $table WHERE link_id = %d",
-            $post_id
-        ));
-        update_post_meta($post_id, 'stats_total_uv', $total_uv);
+            // 3. 누적 UV (정확한 Count)
+            $total_uv = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(DISTINCT visitor_ip) FROM $table WHERE link_id = %d",
+                $post_id
+            ));
+            update_post_meta($post_id, 'stats_total_uv', $total_uv);
 
-        // 메타 캐시 초기화 (즉시 반영을 위해)
-        wp_cache_delete($post_id, 'post_meta');
+            // 메타 캐시 초기화 (즉시 반영을 위해)
+            wp_cache_delete($post_id, 'post_meta');
+        } catch (Throwable $e) {
+            // 캐시 업데이트 실패 시 로깅만 수행 (사용자 경험에는 영향 없음)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Helpers::update_stats_cache_after_log() Error: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * 오늘 통계 저장 (버전 관리 포함)
+     *
+     * @param int $post_id 링크 ID
+     * @param string $meta_key 메타 키 (stats_today_pv, stats_today_uv)
+     * @param int $count 통계 값
+     * @param string $date 날짜 (Y-m-d)
+     * @since 4.2.0
+     */
+    public static function set_today_stat($post_id, $meta_key, $count, $date = null)
+    {
+        if ($date === null) {
+            $date = current_time('Y-m-d');
+        }
+
+        $value = self::format_today_stat($count, $date);
+        update_post_meta($post_id, $meta_key, $value);
+    }
+
+    /**
+     * 오늘 통계 포맷팅 (버전 관리)
+     *
+     * @param int $count 통계 값
+     * @param string $date 날짜 (Y-m-d)
+     * @return string 포맷팅된 값
+     * @since 4.2.0
+     */
+    public static function format_today_stat($count, $date)
+    {
+        $format = self::META_FORMATS[self::META_FORMAT_VERSION]['stats_today_pv'];
+        
+        if ($format === 'count|date') {
+            return $count . '|' . $date;
+        }
+        
+        // 향후 다른 포맷이 추가되면 여기서 처리
+        return $count . '|' . $date;
+    }
+
+    /**
+     * 메타 데이터 마이그레이션 실행
+     *
+     * @param string $from_version 이전 버전
+     * @param string $to_version 목표 버전
+     * @return bool 성공 여부
+     * @since 4.2.0
+     */
+    public static function migrate_meta_data($from_version, $to_version)
+    {
+        // 현재는 1.0 버전만 존재하므로 마이그레이션 필요 없음
+        // 향후 새로운 포맷이 추가되면 여기서 마이그레이션 로직 구현
+        return true;
+    }
+
+    /**
+     * 메타 데이터 유효성 검증
+     *
+     * @param string $meta_key 메타 키
+     * @param mixed $value 메타 값
+     * @return bool 유효 여부
+     * @since 4.2.0
+     */
+    public static function validate_meta_value($meta_key, $value)
+    {
+        $format = self::META_FORMATS[self::META_FORMAT_VERSION][$meta_key] ?? null;
+        
+        if ($format === null) {
+            return false;
+        }
+
+        if ($format === 'count|date') {
+            // "count|date" 형식 검증
+            if (!is_string($value) || strpos($value, '|') === false) {
+                return false;
+            }
+            
+            list($count, $date) = explode('|', $value, 2);
+            
+            // count가 숫자인지 확인
+            if (!is_numeric($count)) {
+                return false;
+            }
+            
+            // date가 유효한 날짜 형식인지 확인
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                return false;
+            }
+            
+            return true;
+        }
+
+        if ($format === 'count') {
+            // 단순 숫자 형식 검증
+            return is_numeric($value);
+        }
+
+        return false;
     }
 
     /**

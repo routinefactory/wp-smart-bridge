@@ -25,7 +25,7 @@ class SB_Groups
 
     /**
      * 그룹 생성
-     * 
+     *
      * @param string $name 그룹명
      * @param string $color 색상 코드 (#hex)
      * @param string|null $description 설명
@@ -34,6 +34,13 @@ class SB_Groups
     public static function create($name, $color = '#667eea', $description = null)
     {
         global $wpdb;
+
+        // 애플리케이션 레벨 참조 무결성 검증: user_id가 유효한 사용자인지 확인
+        $user_id = get_current_user_id();
+        if (!SB_Database::validate_user_exists($user_id)) {
+            error_log(sprintf('[SB_Groups] Invalid user_id: %d', $user_id));
+            return false;
+        }
 
         SB_Database::start_transaction();
 
@@ -45,7 +52,7 @@ class SB_Groups
                     'name' => sanitize_text_field($name),
                     'color' => sanitize_hex_color($color) ?: '#667eea',
                     'description' => $description ? sanitize_text_field($description) : null,
-                    'user_id' => get_current_user_id(),
+                    'user_id' => $user_id,
                     'sort_order' => self::get_next_sort_order(),
                     'created_at' => current_time('mysql'),
                 ],
@@ -196,16 +203,30 @@ class SB_Groups
 
     /**
      * 링크에 그룹 할당
-     * 
+     *
      * @param int $link_id 링크 ID
      * @param int|null $group_id 그룹 ID (null이면 해제)
      * @return bool 성공 여부
      */
     public static function assign_link($link_id, $group_id)
     {
+        // 애플리케이션 레벨 참조 무결성 검증: link_id가 유효한 포스트인지 확인
+        if (!SB_Database::validate_link_exists($link_id)) {
+            error_log(sprintf('[SB_Groups] Invalid link_id: %d', $link_id));
+            return false;
+        }
+
         if ($group_id === null) {
             return delete_post_meta($link_id, 'link_group');
         }
+
+        // 애플리케이션 레벨 참조 무결성 검증: group_id가 유효한 그룹인지 확인
+        $group = self::get($group_id);
+        if (!$group) {
+            error_log(sprintf('[SB_Groups] Invalid group_id: %d', $group_id));
+            return false;
+        }
+
         return update_post_meta($link_id, 'link_group', intval($group_id));
     }
 

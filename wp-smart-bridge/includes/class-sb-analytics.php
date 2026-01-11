@@ -2067,7 +2067,7 @@ class SB_Analytics
 
         // 4. Upsert into Stats Table
         // ON DUPLICATE KEY UPDATE를 사용하여 재집계 가능하게 함
-        $sql_insert = "INSERT INTO $stats_table 
+        $sql_insert = "INSERT INTO $stats_table
                        (stats_date, total_clicks, unique_visitors, platform_share, referers, updated_at)
                        VALUES (%s, %d, %d, %s, %s, NOW())
                        ON DUPLICATE KEY UPDATE
@@ -2077,13 +2077,22 @@ class SB_Analytics
                        referers = VALUES(referers),
                        updated_at = NOW()";
 
+        // JSON 데이터 검증 및 인코딩
+        $platform_share_json = SB_Database::validate_and_encode_json($platform_share);
+        $referers_json = SB_Database::validate_and_encode_json($referers);
+
+        if ($platform_share_json === false || $referers_json === false) {
+            error_log('[SB_Analytics] JSON encoding failed for daily stats');
+            return false;
+        }
+
         $result = $wpdb->query($wpdb->prepare(
             $sql_insert,
             $date,
             $basic_stats->total_clicks,
             $basic_stats->unique_visitors,
-            json_encode($platform_share, JSON_UNESCAPED_UNICODE),
-            json_encode($referers, JSON_UNESCAPED_UNICODE)
+            $platform_share_json,
+            $referers_json
         ));
 
         return $result !== false;

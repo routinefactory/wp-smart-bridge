@@ -1,7 +1,7 @@
 <?php
 /**
  * 데이터베이스 테이블 관리 클래스
- * 
+ *
  * @package WP_Smart_Bridge
  * @since 2.5.0
  */
@@ -12,6 +12,43 @@ if (!defined('ABSPATH')) {
 
 class SB_Database
 {
+    /**
+     * 데이터베이스 스키마 버전
+     *
+     * 스키마 변경 시 이 버전을 증가시키고 마이그레이션 함수를 추가하세요.
+     *
+     * @since 4.2.0
+     */
+    const DB_VERSION = '4.2.0';
+
+    /**
+     * 메타 데이터 포맷 버전
+     *
+     * stats_today_pv, stats_today_uv, stats_total_uv 메타 데이터의 형식 버전
+     *
+     * @since 4.2.0
+     */
+    const META_FORMAT_VERSION = '1.0';
+
+    /**
+     * API 키 상태 상수
+     *
+     * @since 4.2.0
+     */
+    const API_STATUS_ACTIVE = 'active';
+    const API_STATUS_INACTIVE = 'inactive';
+    const API_STATUS_REVOKED = 'revoked';
+
+    /**
+     * 유효한 API 키 상태 목록
+     *
+     * @since 4.2.0
+     */
+    const VALID_API_STATUSES = [
+        self::API_STATUS_ACTIVE,
+        self::API_STATUS_INACTIVE,
+        self::API_STATUS_REVOKED
+    ];
 
     /**
      * 커스텀 테이블 생성
@@ -63,8 +100,6 @@ class SB_Database
             user_agent VARCHAR(500) DEFAULT NULL COMMENT '브라우저 정보',
             visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '클릭 시간',
             PRIMARY KEY  (id),
-            KEY idx_link_id (link_id),
-            KEY idx_visited_at (visited_at),
             KEY idx_platform (platform),
             KEY idx_device (device),
             KEY idx_os (os),
@@ -89,7 +124,7 @@ class SB_Database
             user_id BIGINT(20) UNSIGNED NOT NULL COMMENT 'wp_users.ID',
             api_key VARCHAR(100) NOT NULL COMMENT '공개 키 (sb_live_xxx)',
             secret_key VARCHAR(100) NOT NULL COMMENT '비밀 키 (서명 생성용)',
-            status ENUM('active', 'inactive') DEFAULT 'active',
+            status VARCHAR(20) DEFAULT 'active' COMMENT 'API 키 상태 (active/inactive/revoked)',
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_used_at DATETIME NULL,
             PRIMARY KEY  (id),
@@ -154,6 +189,52 @@ class SB_Database
         dbDelta($sql_api_keys);
         dbDelta($sql_groups);
         dbDelta($sql_stats);
+
+        // 데이터베이스 버전 저장 및 마이그레이션 실행
+        self::update_db_version();
+    }
+
+    /**
+     * 데이터베이스 버전 업데이트 및 마이그레이션 실행
+     *
+     * @since 4.2.0
+     */
+    private static function update_db_version()
+    {
+        $current_version = get_option('sb_db_version', '0.0.0');
+
+        if (version_compare($current_version, self::DB_VERSION, '<')) {
+            // 마이그레이션 실행
+            self::run_migrations($current_version);
+
+            // 버전 업데이트
+            update_option('sb_db_version', self::DB_VERSION);
+        }
+    }
+
+    /**
+     * 데이터베이스 마이그레이션 실행
+     *
+     * @param string $from_version 이전 버전
+     * @since 4.2.0
+     */
+    private static function run_migrations($from_version)
+    {
+        global $wpdb;
+
+        // 4.2.0 이전 버전에서 마이그레이션
+        if (version_compare($from_version, '4.2.0', '<')) {
+            // ENUM 타입을 VARCHAR로 변경 (dbDelta가 자동 처리)
+            // 단일 인덱스 제거 (dbDelta가 자동 처리)
+            
+            // 기존 ENUM 값 검증 및 변환
+            $api_keys_table = $wpdb->prefix . 'sb_api_keys';
+            $wpdb->query("
+                UPDATE $api_keys_table
+                SET status = 'active'
+                WHERE status NOT IN ('active', 'inactive', 'revoked')
+            ");
+        }
     }
 
     /**
@@ -187,6 +268,12 @@ class SB_Database
     {
         global $wpdb;
 
+        // 애플리케이션 레벨 참조 무결성 검증: link_id가 유효한 포스트인지 확인
+        if (!self::validate_link_exists($link_id)) {
+            error_log(sprintf('[SB_Database] Invalid link_id: %d', $link_id));
+            return false;
+        }
+
         $table = $wpdb->prefix . 'sb_analytics_logs';
 
         $result = $wpdb->insert(
@@ -209,6 +296,45 @@ class SB_Database
     }
 
     /**
+     * 링크 포스트 존재 여부 검증 (애플리케이션 레벨 참조 무결성)
+     *
+     * @param int $link_id 링크 포스트 ID
+     * @return bool 존재 여부
+     * @since 4.2.0
+     */
+    public static function validate_link_exists($link_id)
+    {
+        global $wpdb;
+
+        $post = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE ID = %d AND post_type = 'sb_link' AND post_status IN ('publish', 'draft', 'trash')",
+            $link_id
+        ));
+
+        return !empty($post);
+    }
+
+    /**
+     * 사용자 존재 여부 검증 (애플리케이션 레벨 참조 무결성)
+     *
+     * @param int $user_id 사용자 ID
+     * @return bool 존재 여부
+     * @since 4.2.0
+     */
+    public static function validate_user_exists($user_id)
+    {
+        global $wpdb;
+
+        $user = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->users} WHERE ID = %d",
+            $user_id
+        ));
+
+        return !empty($user);
+    }
+
+    /**
      * API 키 저장
      * 
      * @param int $user_id 사용자 ID
@@ -220,6 +346,12 @@ class SB_Database
     {
         global $wpdb;
 
+        // 애플리케이션 레벨 참조 무결성 검증: user_id가 유효한 사용자인지 확인
+        if (!self::validate_user_exists($user_id)) {
+            error_log(sprintf('[SB_Database] Invalid user_id: %d', $user_id));
+            return false;
+        }
+
         $table = $wpdb->prefix . 'sb_api_keys';
 
         $result = $wpdb->insert(
@@ -228,7 +360,7 @@ class SB_Database
                 'user_id' => $user_id,
                 'api_key' => $api_key,
                 'secret_key' => $secret_key,
-                'status' => 'active',
+                'status' => self::API_STATUS_ACTIVE,
                 'created_at' => current_time('mysql'),
             ],
             ['%d', '%s', '%s', '%s', '%s']
@@ -250,8 +382,9 @@ class SB_Database
         $table = $wpdb->prefix . 'sb_api_keys';
 
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT secret_key FROM $table WHERE api_key = %s AND status = 'active'",
-            $api_key
+            "SELECT secret_key FROM $table WHERE api_key = %s AND status = %s",
+            $api_key,
+            self::API_STATUS_ACTIVE
         ));
     }
 
@@ -304,6 +437,12 @@ class SB_Database
     {
         global $wpdb;
 
+        // 상태 값 검증
+        if (!in_array($status, self::VALID_API_STATUSES, true)) {
+            error_log(sprintf('[SB_Database] Invalid API status: %s', $status));
+            return false;
+        }
+
         $table = $wpdb->prefix . 'sb_api_keys';
 
         return $wpdb->update(
@@ -313,6 +452,18 @@ class SB_Database
             ['%s'],
             ['%d']
         ) !== false;
+    }
+
+    /**
+     * 유효한 API 키 상태인지 검증
+     *
+     * @param string $status 상태 값
+     * @return bool 유효 여부
+     * @since 4.2.0
+     */
+    public static function is_valid_api_status($status)
+    {
+        return in_array($status, self::VALID_API_STATUSES, true);
     }
 
     /**
@@ -378,5 +529,122 @@ class SB_Database
     {
         global $wpdb;
         return $wpdb->query('ROLLBACK') !== false;
+    }
+
+    /**
+     * JSON 데이터 검증 및 저장
+     *
+     * @param mixed $data JSON으로 변환할 데이터
+     * @return string|false 유효한 JSON 문자열 또는 false
+     * @since 4.2.0
+     */
+    public static function validate_and_encode_json($data)
+    {
+        if (empty($data)) {
+            return null;
+        }
+
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+
+        // JSON 유효성 검증
+        if ($json === false || json_last_error() !== JSON_ERROR_NONE) {
+            error_log(sprintf('[SB_Database] JSON encode error: %s', json_last_error_msg()));
+            return false;
+        }
+
+        return $json;
+    }
+
+    /**
+     * JSON 데이터 디코딩
+     *
+     * @param string $json JSON 문자열
+     * @return mixed|null 디코딩된 데이터 또는 null
+     * @since 4.2.0
+     */
+    public static function decode_json($json)
+    {
+        if (empty($json)) {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+
+        // JSON 유효성 검증
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log(sprintf('[SB_Database] JSON decode error: %s', json_last_error_msg()));
+            return null;
+        }
+
+        return $data;
+    }
+
+    /**
+     * 일별 통계 저장 (JSON 검증 포함)
+     *
+     * @param string $stats_date 통계 날짜 (Y-m-d)
+     * @param int $total_clicks 총 클릭 수
+     * @param int $unique_visitors 고유 방문자 수
+     * @param array $platform_share 플랫폼별 비율 데이터
+     * @param array $referers 리퍼러 데이터
+     * @return bool 성공 여부
+     * @since 4.2.0
+     */
+    public static function save_daily_stats($stats_date, $total_clicks, $unique_visitors, $platform_share = [], $referers = [])
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_daily_stats';
+
+        // JSON 데이터 검증 및 인코딩
+        $platform_share_json = self::validate_and_encode_json($platform_share);
+        $referers_json = self::validate_and_encode_json($referers);
+
+        if ($platform_share_json === false || $referers_json === false) {
+            return false;
+        }
+
+        $result = $wpdb->replace(
+            $table,
+            [
+                'stats_date' => $stats_date,
+                'total_clicks' => $total_clicks,
+                'unique_visitors' => $unique_visitors,
+                'platform_share' => $platform_share_json,
+                'referers' => $referers_json,
+            ],
+            ['%s', '%d', '%d', '%s', '%s']
+        );
+
+        return $result !== false;
+    }
+
+    /**
+     * 일별 통계 조회
+     *
+     * @param string $stats_date 통계 날짜 (Y-m-d)
+     * @return array|null 통계 데이터
+     * @since 4.2.0
+     */
+    public static function get_daily_stats($stats_date)
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_daily_stats';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE stats_date = %s",
+            $stats_date
+        ), ARRAY_A);
+
+        if (!$row) {
+            return null;
+        }
+
+        // JSON 데이터 디코딩
+        $row['platform_share'] = self::decode_json($row['platform_share']);
+        $row['referers'] = self::decode_json($row['referers']);
+
+        return $row;
     }
 }

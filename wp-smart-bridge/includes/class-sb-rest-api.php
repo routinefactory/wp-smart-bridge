@@ -206,7 +206,7 @@ class SB_Rest_API
 
     /**
      * 링크 생성 API (EXE 전용)
-     * 
+     *
      * @param WP_REST_Request $request REST 요청
      * @return WP_REST_Response|WP_Error 응답
      */
@@ -279,8 +279,24 @@ class SB_Rest_API
             ],
         ]);
 
-        // 에러 체크: WP_Error 또는 0 반환
-        // v2.9.22 Security: Verify proper slug assignment (Race Condition Check)
+        // 6.1. 에러 체크: WP_Error 또는 0 반환 (wp_insert_post 직후에 체크)
+        if (is_wp_error($post_id)) {
+            return new WP_Error(
+                'db_error',
+                'Failed to save link: ' . $post_id->get_error_message(),
+                ['status' => 500]
+            );
+        }
+
+        if ($post_id === 0) {
+            return new WP_Error(
+                'db_error',
+                'Failed to create link: wp_insert_post returned 0',
+                ['status' => 500]
+            );
+        }
+
+        // 6.2. 슬러그 충돌 체크 (Race Condition Check)
         // 만약 커스텀 슬러그 요청이었는데, WP가 중복으로 인해 'slug-2'로 변경했다면 실패 처리
         if ($custom_slug) {
             $inserted_post_name = get_post_field('post_name', $post_id);
@@ -309,23 +325,6 @@ class SB_Rest_API
                     ['status' => 409]
                 );
             }
-        }
-
-        // 에러 체크: WP_Error 또는 0 반환
-        if (is_wp_error($post_id)) {
-            return new WP_Error(
-                'db_error',
-                'Failed to save link: ' . $post_id->get_error_message(),
-                ['status' => 500]
-            );
-        }
-
-        if ($post_id === 0) {
-            return new WP_Error(
-                'db_error',
-                'Failed to create link: wp_insert_post returned 0',
-                ['status' => 500]
-            );
         }
 
         // 7. 성공 응답
@@ -373,77 +372,89 @@ class SB_Rest_API
 
     /**
      * 통계 조회 API (Dashboard용) - 필터 정합성 개선
-     * 
+     *
      * @param WP_REST_Request $request REST 요청
      * @return WP_REST_Response 응답
      */
     public static function get_stats(WP_REST_Request $request)
     {
-        $params = self::parse_date_params($request);
-        $date_range = $params['date_range'];
-        $platform_filter = $params['platform'];
+        try {
+            $params = self::parse_date_params($request);
+            $date_range = $params['date_range'];
+            $platform_filter = $params['platform'];
 
-        $analytics = new SB_Analytics();
+            $analytics = new SB_Analytics();
 
-        // ✅ 모든 데이터에 필터 일괄 적용
-        $data = [
-            // 선택 기간 + 플랫폼 필터 적용된 클릭/UV
-            'total_clicks' => $analytics->get_total_clicks(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            ),
-            'unique_visitors' => $analytics->get_unique_visitors(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            ),
-            // ✅ 동적 증감률 (선택 기간 vs 이전 동일 기간)
-            'growth_rate_data' => $analytics->get_dynamic_growth_rate(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            ),
-            'growth_rate' => $analytics->get_dynamic_growth_rate(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            )['rate'],
-            'active_links' => $analytics->get_active_links_count(),
-            'clicks_by_hour' => $analytics->get_clicks_by_hour(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            ),
-            // ✅ 플랫폼 점유율도 필터 적용
-            'platform_share' => $analytics->get_platform_share_filtered(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            ),
-            'daily_trend' => $analytics->get_daily_trend(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter
-            ),
-            'top_links' => $analytics->get_top_links(
-                $date_range['start'],
-                $date_range['end'],
-                $platform_filter,
-                20
-            ),
-            // 필터 정보 반환 (프론트엔드 확인용)
-            'filter_info' => [
-                'start_date' => $date_range['start'],
-                'end_date' => $date_range['end'],
-                'platform' => $platform_filter,
-            ],
-        ];
+            // ✅ 모든 데이터에 필터 일괄 적용
+            $data = [
+                // 선택 기간 + 플랫폼 필터 적용된 클릭/UV
+                'total_clicks' => $analytics->get_total_clicks(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                ),
+                'unique_visitors' => $analytics->get_unique_visitors(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                ),
+                // ✅ 동적 증감률 (선택 기간 vs 이전 동일 기간)
+                'growth_rate_data' => $analytics->get_dynamic_growth_rate(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                ),
+                'growth_rate' => $analytics->get_dynamic_growth_rate(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                )['rate'],
+                'active_links' => $analytics->get_active_links_count(),
+                'clicks_by_hour' => $analytics->get_clicks_by_hour(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                ),
+                // ✅ 플랫폼 점유율도 필터 적용
+                'platform_share' => $analytics->get_platform_share_filtered(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                ),
+                'daily_trend' => $analytics->get_daily_trend(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter
+                ),
+                'top_links' => $analytics->get_top_links(
+                    $date_range['start'],
+                    $date_range['end'],
+                    $platform_filter,
+                    20
+                ),
+                // 필터 정보 반환 (프론트엔드 확인용)
+                'filter_info' => [
+                    'start_date' => $date_range['start'],
+                    'end_date' => $date_range['end'],
+                    'platform' => $platform_filter,
+                ],
+            ];
 
-        return new WP_REST_Response([
-            'success' => true,
-            'data' => $data,
-        ], 200);
+            return new WP_REST_Response([
+                'success' => true,
+                'data' => $data,
+            ], 200);
+        } catch (Throwable $e) {
+            // 에러 로깅
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Rest_API::get_stats() Error: ' . $e->getMessage());
+            }
+            return new WP_Error(
+                'stats_error',
+                'Failed to retrieve statistics',
+                ['status' => 500]
+            );
+        }
     }
 
     /**

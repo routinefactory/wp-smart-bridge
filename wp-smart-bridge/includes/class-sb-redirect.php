@@ -89,6 +89,10 @@ class SB_Redirect
             global $wp_query;
             $wp_query->set_404();
             status_header(404);
+            // 에러 로깅 추가
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Redirect::handle_redirect() - Link not found for slug: ' . $slug);
+            }
             return;
         }
 
@@ -100,6 +104,10 @@ class SB_Redirect
             global $wp_query;
             $wp_query->set_404();
             status_header(404);
+            // 에러 로깅 추가
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Redirect::handle_redirect() - Invalid target URL for link ID: ' . $link->ID);
+            }
             return;
         }
 
@@ -177,31 +185,38 @@ class SB_Redirect
 
     /**
      * 클릭 로깅 (동기식 - Fallback or Delayed Redirect용)
-     * 
+     *
      * @param int $link_id 링크 ID
      */
     public static function log_click_sync($link_id)
     {
-        // 방문자 정보 수집
-        // v3.0.0 Refactor: Use consolidated SB_Helpers::get_client_ip()
-        $visitor_ip = SB_Helpers::get_client_ip();
-        $hashed_ip = SB_Helpers::hash_ip($visitor_ip);
-        $platform = SB_Helpers::get_platform($link_id);
-        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : null;
-        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : null;
+        try {
+            // 방문자 정보 수집
+            // v3.0.0 Refactor: Use consolidated SB_Helpers::get_client_ip()
+            $visitor_ip = SB_Helpers::get_client_ip();
+            $hashed_ip = SB_Helpers::hash_ip($visitor_ip);
+            $platform = SB_Helpers::get_platform($link_id);
+            $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : null;
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : null;
 
-        // v2.9.22: Log-time UA Parsing (Scalability Fix)
-        // v2.9.24 Optimization: Static call to reduce memory overhead
-        $parsed_ua = [];
-        if ($user_agent) {
-            $parsed_ua = SB_Analytics::parse_user_agent($user_agent); // User-Agent 파싱
+            // v2.9.22: Log-time UA Parsing (Scalability Fix)
+            // v2.9.24 Optimization: Static call to reduce memory overhead
+            $parsed_ua = [];
+            if ($user_agent) {
+                $parsed_ua = SB_Analytics::parse_user_agent($user_agent); // User-Agent 파싱
+            }
+
+            // 로그 저장
+            SB_Database::log_click($link_id, $hashed_ip, $platform, $referer, $user_agent, $parsed_ua);
+
+            // 캐시 업데이트 (로그 저장 후 - UV 중복 체크용)
+            SB_Helpers::update_stats_cache_after_log($link_id);
+        } catch (Throwable $e) {
+            // 로깅 실패 시 에러 기록 (사용자 경험에는 영향 없음)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Redirect::log_click_sync() Error: ' . $e->getMessage());
+            }
         }
-
-        // 로그 저장
-        SB_Database::log_click($link_id, $hashed_ip, $platform, $referer, $user_agent, $parsed_ua);
-
-        // 캐시 업데이트 (로그 저장 후 - UV 중복 체크용)
-        SB_Helpers::update_stats_cache_after_log($link_id);
     }
 
 

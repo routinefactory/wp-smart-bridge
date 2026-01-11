@@ -282,8 +282,12 @@ class SB_Admin_Ajax
                 'message' => 'Chunk restored',
                 'stats' => $stats
             ]);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             SB_Database::rollback();
+            // 에러 로깅 추가
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Admin_Ajax::ajax_restore_backup_chunk() Error: ' . $e->getMessage() . ' | Stack: ' . $e->getTraceAsString());
+            }
             wp_send_json_error(['message' => '복원 중 오류 발생: ' . $e->getMessage()]);
         }
     }
@@ -480,6 +484,9 @@ class SB_Admin_Ajax
             wp_send_json_error(['message' => '확인 문자가 일치하지 않습니다.']);
         }
 
+        // 요청 ID 생성 (디버깅용)
+        $request_id = uniqid('sb_reset_', true);
+
         global $wpdb;
 
         // 트랜잭션 시작 (v3.0.0 Update)
@@ -528,11 +535,11 @@ class SB_Admin_Ajax
 
             wp_send_json_success(['message' => '초기화가 완료되었습니다.']);
 
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             // 실패 시 롤백
             SB_Database::rollback();
-            // 에러 로그 기록
-            error_log('[Smart Bridge] Factory Reset Failed: ' . $e->getMessage());
+            // 에러 로그 기록 (요청 ID 및 스택 트레이스 포함)
+            error_log('[Smart Bridge] Factory Reset Failed | Request ID: ' . $request_id . ' | Error: ' . $e->getMessage() . ' | Stack: ' . $e->getTraceAsString());
             wp_send_json_error(['message' => '초기화 중 오류가 발생했습니다. 데이터가 복원되었습니다.']);
         }
     }
@@ -699,18 +706,18 @@ class SB_Admin_Ajax
 
         $analytics = new SB_Analytics();
 
-        // 1. Daily Trend - 항상 최근 30일 데이터를 표시
-        // 대시보드의 "일간 추세 (최근 30일)" 그래프는 사용자가 선택한 기간과 상관없이
-        // 항상 최근 30일의 데이터를 표시해야 합니다.
-        $daily_trend_dates = SB_Helpers::get_date_range('30d');
+        // 1. Daily Trend - 사용자가 선택한 기간에 맞게 데이터를 표시
+        // 기간 필터에 따라 그래프 범위가 동적으로 변경되도록 수정
+        // "오늘" 선택 시 오늘만, "어제" 선택 시 어제만 표시
         $daily_trend = $analytics->get_daily_trend(
-            substr($daily_trend_dates['start'], 0, 10),
-            substr($daily_trend_dates['end'], 0, 10),
+            substr($start, 0, 10),
+            substr($end, 0, 10),
             $platform
         );
 
-        // v3.0.4: Weekly & Monthly Trends
-        $weekly_trend = $analytics->get_weekly_trend(30, $platform); // Note: Weekly/Monthly usually fixed range, but passing platform if supported
+        // v3.0.4: Weekly & Monthly Trends - 고정된 범위 유지 (30주, 30개월)
+        // 주간/월간 추세는 사용자 기간과 상관없이 고정된 범위를 표시하되, 플랫폼 필터는 적용
+        $weekly_trend = $analytics->get_weekly_trend(30, $platform);
         $monthly_trend = $analytics->get_monthly_trend(30, $platform);
 
         // 2. Hourly Stats - 선택한 기간의 데이터를 표시
@@ -839,7 +846,7 @@ class SB_Admin_Ajax
             wp_send_json_error([
                 'message' => $auth->get_error_message(),
                 'code' => $auth->get_error_code()
-            ], 403); // Status code setting is tricky in admin-ajax, but WP sends 200 usually. We rely on JSON 'success': false
+            ], 403);
         }
 
         // 2. 요청 파싱
@@ -891,8 +898,8 @@ class SB_Admin_Ajax
         ]);
 
         if (is_wp_error($post_id) || $post_id === 0) {
-            status_header(500);
             wp_send_json([
+                'success' => false,
                 'code' => 'db_error',
                 'message' => 'Failed to save link',
                 'data' => ['status' => 500]
@@ -908,8 +915,8 @@ class SB_Admin_Ajax
         if ($final_slug !== sanitize_title($slug) && $final_slug !== $slug) {
             // 진짜 충돌 발생 (suffix가 붙음, 예: abcde-2)
             wp_delete_post($post_id, true);
-            status_header(409);
             wp_send_json([
+                'success' => false,
                 'code' => 'conflict',
                 'message' => 'Slug collision detected',
                 'data' => ['status' => 409]

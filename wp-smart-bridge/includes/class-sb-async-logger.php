@@ -138,27 +138,35 @@ class SB_Async_Logger
      */
     private static function process_log($context)
     {
-        // Dispatch to Analytics
-        $hashed_ip = SB_Helpers::hash_ip($context['visitor_ip']);
+        try {
+            // Dispatch to Analytics
+            $hashed_ip = SB_Helpers::hash_ip($context['visitor_ip']);
 
-        // Parse UA (Heavy Operation)
-        $parsed_ua = [];
-        if ($context['user_agent']) {
-            $parsed_ua = SB_Analytics::parse_user_agent($context['user_agent']);
+            // Parse UA (Heavy Operation)
+            $parsed_ua = [];
+            if ($context['user_agent']) {
+                $parsed_ua = SB_Analytics::parse_user_agent($context['user_agent']);
+            }
+
+            SB_Database::log_click(
+                $context['link_id'],
+                $hashed_ip,
+                $context['platform'],
+                $context['referer'],
+                $context['user_agent'],
+                $parsed_ua
+            );
+
+            // 캐시 업데이트 (로그 저장 후 - UV 중복 체크용)
+            // 대시보드 데이터와 100% 일치를 위해 로그 저장 후 정확한 값을 계산하여 캐싱
+            SB_Helpers::update_stats_cache_after_log($context['link_id']);
+        } catch (Throwable $e) {
+            // 에러를 로깅하지만 사용자 경험에 영향을 주지 않음
+            // (이미 리다이렉트가 완료된 상태이므로)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Async_Logger::process_log() Error: ' . $e->getMessage());
+            }
         }
-
-        SB_Database::log_click(
-            $context['link_id'],
-            $hashed_ip,
-            $context['platform'],
-            $context['referer'],
-            $context['user_agent'],
-            $parsed_ua
-        );
-
-        // 캐시 업데이트 (로그 저장 후 - UV 중복 체크용)
-        // 대시보드 데이터와 100% 일치를 위해 로그 저장 후 정확한 값을 계산하여 캐싱
-        SB_Helpers::update_stats_cache_after_log($context['link_id']);
     }
 
     /**
