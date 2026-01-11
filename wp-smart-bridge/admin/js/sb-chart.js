@@ -98,10 +98,10 @@ var SB_Chart = (function ($) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    titleColor: getCssVar('--sb-text-main') || '#1e1e1e',
-                    bodyColor: getCssVar('--sb-text-secondary') || '#50575e',
-                    borderColor: getCssVar('--sb-border') || '#e2e4e7',
+                    backgroundColor: 'rgba(26, 26, 26, 0.95)',
+                    titleColor: 'rgba(255, 255, 255, 0.95)',
+                    bodyColor: 'rgba(255, 255, 255, 0.75)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
                     borderWidth: 1,
                     cornerRadius: 8,
                     padding: 12,
@@ -112,10 +112,14 @@ var SB_Chart = (function ($) {
                 }
             },
             scales: {
-                x: { grid: { display: false } },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: 'rgba(255, 255, 255, 0.55)' }
+                },
                 y: {
                     beginAtZero: true,
-                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: 'rgba(255, 255, 255, 0.55)' }
                 }
             }
         }, overrides || {});
@@ -298,13 +302,22 @@ var SB_Chart = (function ($) {
                         data: values,
                         backgroundColor: labels.map(getPlatformColor),
                         borderWidth: 2,
-                        borderColor: '#fff'
+                        borderColor: 'rgba(0, 0, 0, 0.3)'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { padding: 20 } } }
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                color: 'rgba(255, 255, 255, 0.75)',
+                                font: { size: 13 }
+                            }
+                        }
+                    }
                 }
             });
         },
