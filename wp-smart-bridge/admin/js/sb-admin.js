@@ -2890,34 +2890,36 @@
     }
 
     // 링크 관리 탭에서만 실행
-    if ($('body').hasClass('post-type-sb_link')) {
-        // "새 링크 추가" 버튼 클릭 이벤트
-        $(document).on('click', '#sb-open-add-link-modal', function(e) {
-            e.preventDefault();
-            openAddLinkModal();
-        });
-        
-        // 모달 창 닫기 버튼 클릭 이벤트
-        $(document).on('click', '#sb-add-link-modal .sb-modal-close, #sb-add-link-modal .sb-modal-overlay, #sb-modal-cancel', function(e) {
-            e.preventDefault();
-            closeAddLinkModal();
-        });
-        
-        // 폼 제출 이벤트
-        $(document).on('click', '#sb-modal-submit', function(e) {
-            e.preventDefault();
-            createLinkFromAdmin();
-        });
-        
-        // ESC 키로 모달 창 닫기
-        $(document).on('keydown', function(e) {
-            if (e.key === 'Escape') {
-                var $modal = $('#sb-add-link-modal');
-                if ($modal.hasClass('sb-show')) {
-                    closeAddLinkModal();
+    $(document).ready(function() {
+        if ($('body').hasClass('post-type-sb_link')) {
+            // "새 링크 추가" 버튼 클릭 이벤트
+            $(document).on('click', '#sb-open-add-link-modal', function(e) {
+                e.preventDefault();
+                openAddLinkModal();
+            });
+            
+            // 모달 창 닫기 버튼 클릭 이벤트
+            $(document).on('click', '#sb-add-link-modal .sb-modal-close, #sb-add-link-modal .sb-modal-overlay, #sb-modal-cancel', function(e) {
+                e.preventDefault();
+                closeAddLinkModal();
+            });
+            
+            // 폼 제출 이벤트
+            $(document).on('click', '#sb-modal-submit', function(e) {
+                e.preventDefault();
+                createLinkFromAdmin();
+            });
+            
+            // ESC 키로 모달 창 닫기
+            $(document).on('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    var $modal = $('#sb-add-link-modal');
+                    if ($modal.hasClass('sb-show')) {
+                        closeAddLinkModal();
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
+    });
 
 })(jQuery);
