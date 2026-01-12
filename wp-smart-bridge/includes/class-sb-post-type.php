@@ -604,7 +604,7 @@ class SB_Post_Type
         <div class="sb-filter-bar">
             <div class="sb-filter-header">
                 <h2 class="sb-filter-title"><?php _e('링크 관리', 'sb'); ?></h2>
-                <a href="<?php echo admin_url('admin.php?page=smart-bridge'); ?>" class="button button-primary sb-add-link-btn">
+                <a href="#" class="button button-primary sb-add-link-btn" id="sb-open-add-link-modal">
                     <span class="dashicons dashicons-plus"></span>
                     <?php _e('새 링크 추가', 'sb'); ?>
                 </a>
@@ -689,6 +689,54 @@ class SB_Post_Type
                     <button type="submit" id="sb_bulk_apply" class="button button-primary">
                         <?php _e('적용', 'sb'); ?>
                     </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 링크 추가 모달 -->
+        <div id="sb-add-link-modal" class="sb-modal sb-hidden">
+            <div class="sb-modal-overlay"></div>
+            <div class="sb-modal-content">
+                <div class="sb-modal-header">
+                    <h2><?php _e('새 링크 추가', 'sb'); ?></h2>
+                    <button type="button" class="sb-modal-close" aria-label="<?php esc_attr_e('닫기', 'sb'); ?>">&times;</button>
+                </div>
+                <div class="sb-modal-body">
+                    <form id="sb-add-link-form">
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="sb_modal_target_url"><?php _e('타겟 URL', 'sb'); ?></label></th>
+                                <td>
+                                    <input type="url" id="sb_modal_target_url" name="target_url" class="large-text" required placeholder="https://example.com">
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><label for="sb_modal_slug"><?php _e('Slug (선택사항)', 'sb'); ?></label></th>
+                                <td>
+                                    <input type="text" id="sb_modal_slug" name="slug" class="large-text" placeholder="자동 생성됨">
+                                    <p class="description">
+                                        <?php _e('비워있으면 자동으로 생성됩니다.', 'sb'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><label for="sb_modal_platform"><?php _e('플랫폼 (선택사항)', 'sb'); ?></label></th>
+                                <td>
+                                    <select id="sb_modal_platform" name="platform" class="large-text">
+                                        <option value=""><?php _e('자동 감지', 'sb'); ?></option>
+                                        <option value="Coupang"><?php _e('쿠팡', 'sb'); ?></option>
+                                        <option value="Naver"><?php _e('네이버', 'sb'); ?></option>
+                                        <option value="Kakao"><?php _e('카카오', 'sb'); ?></option>
+                                        <option value="Etc"><?php _e('기타', 'sb'); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                    </form>
+                </div>
+                <div class="sb-modal-footer">
+                    <button type="button" id="sb-modal-cancel" class="button button-secondary"><?php _e('취소', 'sb'); ?></button>
+                    <button type="button" id="sb-modal-submit" class="button button-primary"><?php _e('생성', 'sb'); ?></button>
                 </div>
             </div>
         </div>

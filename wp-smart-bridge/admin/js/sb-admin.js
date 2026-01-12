@@ -2797,4 +2797,127 @@
         }
     });
 
+    // =========================================================================
+    // 링크 관리 탭: 새 링크 추가 모달 창 기능
+    // =========================================================================
+
+    /**
+     * 새 링크 추가 모달 창 열기
+     */
+    function openAddLinkModal() {
+        // 폼 초기화
+        $('#sb-add-link-form')[0].reset();
+        
+        // 모달 창 표시
+        SB_UI.openModal('#sb-add-link-modal');
+    }
+
+    /**
+     * 새 링크 추가 모달 창 닫기
+     */
+    function closeAddLinkModal() {
+        SB_UI.closeModal('#sb-add-link-modal');
+    }
+
+    /**
+     * 링크 생성 처리
+     */
+    function createLinkFromAdmin() {
+        var $form = $('#sb-add-link-form');
+        var $submitBtn = $('#sb-modal-submit');
+        
+        // 폼 데이터 수집
+        var targetUrl = $('#sb_modal_target_url').val().trim();
+        var slug = $('#sb_modal_slug').val().trim();
+        var platform = $('#sb_modal_platform').val().trim();
+        
+        // 유효성 검증
+        if (!targetUrl) {
+            SB_UI.showToast('타겟 URL을 입력해주세요.', 'error');
+            return;
+        }
+        
+        if (targetUrl.length > 2083) {
+            SB_UI.showToast('URL이 너무 깁니다. 최대 2083바이트까지 허용됩니다.', 'error');
+            return;
+        }
+        
+        // URL 형식 검증
+        try {
+            new URL(targetUrl);
+        } catch (e) {
+            SB_UI.showToast('유효하지 않은 URL 형식입니다.', 'error');
+            return;
+        }
+        
+        // 로딩 상태 표시
+        $submitBtn.prop('disabled', true).text('생성 중...');
+        
+        // AJAX 요청
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_create_link_from_admin',
+                nonce: sbAdmin.ajaxNonce,
+                target_url: targetUrl,
+                slug: slug,
+                platform: platform
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast('링크가 성공적으로 생성되었습니다!', 'success');
+                    
+                    // 모달 창 닫기
+                    closeAddLinkModal();
+                    
+                    // 페이지 새로고침 (새 링크가 목록에 표시되도록)
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    SB_UI.showToast('링크 생성 실패: ' + (response.data.message || '알 수 없는 오류'), 'error');
+                }
+            },
+            error: function() {
+                SB_UI.showToast('서버 통신 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+            },
+            complete: function() {
+                // 로딩 상태 해제
+                $submitBtn.prop('disabled', false).text('생성');
+            }
+        });
+    }
+
+    // 링크 관리 탭에서만 실행
+    if ($('body').hasClass('post-type-sb_link')) {
+        // "새 링크 추가" 버튼 클릭 이벤트
+        $(document).on('click', '#sb-open-add-link-modal', function(e) {
+            e.preventDefault();
+            openAddLinkModal();
+        });
+        
+        // 모달 창 닫기 버튼 클릭 이벤트
+        $(document).on('click', '#sb-add-link-modal .sb-modal-close, #sb-add-link-modal .sb-modal-overlay, #sb-modal-cancel', function(e) {
+            e.preventDefault();
+            closeAddLinkModal();
+        });
+        
+        // 폼 제출 이벤트
+        $(document).on('click', '#sb-modal-submit', function(e) {
+            e.preventDefault();
+            createLinkFromAdmin();
+        });
+        
+        // ESC 키로 모달 창 닫기
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var $modal = $('#sb-add-link-modal');
+                if ($modal.hasClass('sb-show')) {
+                    closeAddLinkModal();
+                }
+            }
+        });
+    }
+
 })(jQuery);

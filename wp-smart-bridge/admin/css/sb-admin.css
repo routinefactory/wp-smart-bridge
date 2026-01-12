@@ -2844,6 +2844,14 @@ Realtime Feed Styles
     align-self: center;
 }
 
+/* 정렬 해제 버튼 높이 통일 */
+.post-type-sb_link .sb-filter-btn-item .button {
+    height: 32px !important;
+    line-height: 30px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+}
+
 .post-type-sb_link #post-query-submit:hover {
     background: #2563eb !important;
     border-color: #2563eb !important;
@@ -2862,7 +2870,7 @@ Realtime Feed Styles
 .post-type-sb_link .search-box input[type="search"] {
     border: 1px solid #d1d5db !important;
     border-radius: 6px !important;
-    padding: 5px 12px !important;
+    padding: 4px 12px !important;
     height: 32px !important;
     width: 100% !important;
     background: #fff !important;
@@ -2885,6 +2893,7 @@ Realtime Feed Styles
     color: #374151 !important;
     transition: all 0.2s ease !important;
     font-size: 13px !important;
+    line-height: 30px !important;
 }
 
 .post-type-sb_link #search-submit:hover {
@@ -3593,7 +3602,8 @@ textarea {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    height: 32px;
+    padding: 0 12px;
     background: var(--sb-bg-light);
     border-radius: 6px;
     border: 1px solid var(--sb-border);
@@ -4012,6 +4022,47 @@ textarea {
 
     .sb-codemirror-wrapper .CodeMirror-scroll {
         max-height: 400px;
+    }
+
+    /* ========================================
+       링크 관리 탭: 새 링크 추가 모달 창 (v4.4.0)
+       ======================================== */
+
+    /* 모달 창 숨김 상태 */
+    .sb-hidden {
+        display: none !important;
+    }
+
+    /* 모달 창 표시 상태 */
+    .sb-show {
+        display: flex !important;
+    }
+
+    /* 모달 창 푸터 */
+    .sb-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding-top: 20px;
+        border-top: 1px solid var(--sb-border);
+        margin-top: 20px;
+    }
+
+    /* 모바일 최적화 */
+    @media (max-width: 782px) {
+        .sb-modal-content {
+            width: 95%;
+            padding: 20px;
+        }
+
+        .sb-modal-footer {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sb-modal-footer .button {
+            width: 100%;
+        }
     }
 }
 

@@ -46,6 +46,8 @@ class SB_Admin_Ajax
             'sb_bulk_delete_links' => 'ajax_bulk_delete_links',
             'sb_bulk_update_platform' => 'ajax_bulk_update_platform',
             'sb_get_filtered_link_count' => 'ajax_get_filtered_link_count',
+            // Link Management Tab: 새 링크 추가 모달 창 (v4.4.0)
+            'sb_create_link_from_admin' => 'ajax_create_link_from_admin',
             // P3 기능 개선: 업데이트 및 롤백
             'sb_check_update' => 'ajax_check_update',
             'sb_download_update' => 'ajax_download_update',
@@ -1383,6 +1385,118 @@ class SB_Admin_Ajax
         wp_send_json_success([
             'message' => sprintf('%d개의 오래된 백업 파일이 삭제되었습니다.', $deleted_count),
             'deleted_count' => $deleted_count
+        ]);
+    }
+
+    // ========================================
+    // Link Management Tab: 새 링크 추가 모달 창 (v4.4.0)
+    // ========================================
+
+    /**
+     * 관리자 페이지에서 링크 생성 AJAX
+     *
+     * @since v4.4.0
+     */
+    public static function ajax_create_link_from_admin()
+    {
+        self::check_permission();
+
+        // 1. 요청 파라미터 수집
+        $target_url = isset($_POST['target_url']) ? esc_url_raw($_POST['target_url']) : '';
+        $custom_slug = isset($_POST['slug']) ? sanitize_text_field($_POST['slug']) : '';
+        $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : '';
+
+        // 2. URL 검증
+        if (empty($target_url)) {
+            wp_send_json_error(['message' => '타겟 URL을 입력해주세요.']);
+        }
+
+        // URL 길이 검증 (v4.4.0: 2083 bytes 제한)
+        $url_length = strlen($target_url);
+        if ($url_length > 2083) {
+            wp_send_json_error([
+                'message' => sprintf('URL이 너무 깁니다. 최대 2083바이트까지 허용됩니다. 현재: %d바이트', $url_length)
+            ]);
+        }
+
+        // URL 형식 검증
+        if (!filter_var($target_url, FILTER_VALIDATE_URL)) {
+            wp_send_json_error(['message' => '유효하지 않은 URL 형식입니다.']);
+        }
+
+        // 3. Slug 처리
+        if (!empty($custom_slug)) {
+            // 사용자 지정 슬러그 검증
+            if (!preg_match('/^[a-zA-Z0-9\-_]+$/', $custom_slug)) {
+                wp_send_json_error(['message' => '슬러그는 영문, 숫자, 하이픈(-), 언더스코어(_)만 허용됩니다.']);
+            }
+            
+            // 슬러그 중복 검사
+            $existing = get_page_by_path($custom_slug, OBJECT, SB_Post_Type::POST_TYPE);
+            if ($existing) {
+                wp_send_json_error(['message' => '이미 존재하는 슬러그입니다. 다른 슬러그를 사용해주세요.']);
+            }
+            
+            $slug = $custom_slug;
+        } else {
+            // 자동 슬러그 생성
+            $slug = SB_Helpers::generate_unique_slug(SB_Helpers::DEFAULT_SLUG_LENGTH, SB_Helpers::MAX_SLUG_RETRIES);
+            if (!$slug) {
+                wp_send_json_error(['message' => '슬러그 생성에 실패했습니다. 다시 시도해주세요.']);
+            }
+        }
+
+        // 4. 플랫폼 감지 (사용자가 지정하지 않은 경우)
+        if (empty($platform)) {
+            $platform = SB_Helpers::detect_platform($target_url);
+        }
+
+        // 5. 포스트 생성
+        $post_id = wp_insert_post([
+            'post_title' => $slug,
+            'post_name' => $slug,
+            'post_type' => SB_Post_Type::POST_TYPE,
+            'post_status' => 'publish',
+            'meta_input' => [
+                'target_url' => $target_url,
+                'platform' => $platform,
+                'click_count' => 0,
+            ],
+        ]);
+
+        if (is_wp_error($post_id) || $post_id === 0) {
+            wp_send_json_error(['message' => '링크 생성에 실패했습니다.']);
+        }
+
+        // 6. URL 무결성 검증 (v4.4.0)
+        $saved_url = get_post_meta($post_id, 'target_url', true);
+        if ($saved_url !== $target_url) {
+            // URL이 잘렸거나 변경됨
+            error_log(sprintf(
+                '[SB_Admin_Ajax] URL integrity check failed. Original length: %d bytes, Saved length: %d bytes. Diff: %d bytes.',
+                strlen($target_url),
+                strlen($saved_url),
+                strlen($target_url) - strlen($saved_url)
+            ));
+            
+            // 데이터베이스 문제일 가능성이 있으므로 포스트 삭제 후 에러 반환
+            wp_delete_post($post_id, true);
+            wp_send_json_error(['message' => 'URL 저장 중 오류가 발생했습니다. 다시 시도해주세요.']);
+        }
+
+        // 7. 플랫폼 캐시 삭제
+        SB_Helpers::clear_platforms_cache();
+
+        // 8. 성공 응답
+        $short_link = SB_Helpers::get_short_link_url($slug);
+        
+        wp_send_json_success([
+            'message' => '링크가 성공적으로 생성되었습니다!',
+            'short_link' => $short_link,
+            'slug' => $slug,
+            'target_url' => $target_url,
+            'platform' => $platform,
+            'created_at' => current_time('c'),
         ]);
     }
 }
