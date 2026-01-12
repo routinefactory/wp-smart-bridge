@@ -259,8 +259,10 @@ class SB_Redirect
         nocache_headers();
         header('X-Robots-Tag: noindex, nofollow');
 
-        // 변수가 템플릿에서 사용 가능하도록 설정
-        $target_url = esc_url($target_url);
+        // v4.4.0 URL 무결성 보장: esc_url() 대신 esc_url_raw() 사용
+        // esc_url()는 특수 문자를 인코딩하거나 변경할 수 있어
+        // 쿠팡 링크와 같은 긴 URL의 자동 리다이렉트가 제대로 작동하지 않는 문제를 방지
+        $target_url = esc_url_raw($target_url);
         $delay = floatval($delay);
 
         // 리다이렉트 페이지 템플릿 로드
