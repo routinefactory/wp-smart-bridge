@@ -1,9 +1,18 @@
 /**
  * Smart Bridge Dashboard Logic
  * Extracted from dashboard.php
- * 
+ *
  * @package WP_Smart_Bridge
  * @since 3.0.1
+ *
+ * 차트 범위 동적 조정:
+ * - 주간 차트 범위는 기간 필터에 따라 동적으로 조정됩니다.
+ * - 오늘 + 최근 7일: 최근 2주
+ * - 최근 30일: 최근 8주
+ * - 최근 3개월: 최근 12주
+ * - 최근 6개월: 최근 24주
+ * - 최근 12개월: 최근 52주
+ * - 이 로직은 class-sb-admin-ajax.php의 get_weekly_range_by_filter() 메서드에서 처리됩니다.
  */
 
 (function ($) {

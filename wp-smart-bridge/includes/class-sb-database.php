@@ -19,7 +19,7 @@ class SB_Database
      *
      * @since 4.2.0
      */
-    const DB_VERSION = '4.2.0';
+    const DB_VERSION = '4.3.0';
 
     /**
      * 메타 데이터 포맷 버전
@@ -127,10 +127,12 @@ class SB_Database
             status VARCHAR(20) DEFAULT 'active' COMMENT 'API 키 상태 (active/inactive/revoked)',
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_used_at DATETIME NULL,
+            expires_at DATETIME NULL COMMENT 'API 키 만료일 (NULL = 무기한)',
             PRIMARY KEY  (id),
             UNIQUE KEY idx_api_key (api_key),
             KEY idx_user_id (user_id),
-            KEY idx_status (status)
+            KEY idx_status (status),
+            KEY idx_expires_at (expires_at)
         ) $charset_collate;";
 
         /**
@@ -226,7 +228,7 @@ class SB_Database
         if (version_compare($from_version, '4.2.0', '<')) {
             // ENUM 타입을 VARCHAR로 변경 (dbDelta가 자동 처리)
             // 단일 인덱스 제거 (dbDelta가 자동 처리)
-            
+             
             // 기존 ENUM 값 검증 및 변환
             $api_keys_table = $wpdb->prefix . 'sb_api_keys';
             $wpdb->query("
@@ -234,6 +236,12 @@ class SB_Database
                 SET status = 'active'
                 WHERE status NOT IN ('active', 'inactive', 'revoked')
             ");
+        }
+
+        // 4.3.0 이전 버전에서 마이그레이션
+        if (version_compare($from_version, '4.3.0', '<')) {
+            // expires_at 컬럼 추가 (dbDelta가 자동 처리)
+            // 기존 API 키는 만료일 없음으로 설정 (NULL)
         }
     }
 
@@ -386,6 +394,112 @@ class SB_Database
             $api_key,
             self::API_STATUS_ACTIVE
         ));
+    }
+
+    /**
+     * API 키 만료 여부 확인
+     *
+     * @param string $api_key 공개 키
+     * @return bool 만료되었으면 true, 유효하면 false
+     * @since 4.3.0
+     */
+    public static function is_api_key_expired($api_key)
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_api_keys';
+
+        $expires_at = $wpdb->get_var($wpdb->prepare(
+            "SELECT expires_at FROM $table WHERE api_key = %s AND status = %s",
+            $api_key,
+            self::API_STATUS_ACTIVE
+        ));
+
+        // expires_at이 NULL이면 무기한으로 유효
+        if ($expires_at === null) {
+            return false;
+        }
+
+        // 현재 시간과 비교
+        $current_time = current_time('mysql');
+        return $expires_at < $current_time;
+    }
+
+    /**
+     * API 키 만료일 설정
+     *
+     * @param string $api_key 공개 키
+     * @param string $expires_at 만료일 (Y-m-d H:i:s), NULL = 무기한
+     * @return bool 성공 여부
+     * @since 4.3.0
+     */
+    public static function set_api_key_expiration($api_key, $expires_at)
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_api_keys';
+
+        return $wpdb->update(
+            $table,
+            ['expires_at' => $expires_at],
+            ['api_key' => $api_key],
+            ['%s'],
+            ['%s']
+        ) !== false;
+    }
+
+    /**
+     * 곧 만료될 API 키 목록 조회 (관리자 알림용)
+     *
+     * @param int $days 만료까지 남은 일수
+     * @return array 만료 예정인 API 키 목록
+     * @since 4.3.0
+     */
+    public static function get_expiring_api_keys($days = 7)
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_api_keys';
+        $expiry_threshold = date('Y-m-d H:i:s', strtotime("+{$days} days"));
+
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT ak.*, u.user_login
+             FROM $table ak
+             INNER JOIN {$wpdb->users} u ON ak.user_id = u.ID
+             WHERE ak.status = %s
+               AND ak.expires_at IS NOT NULL
+               AND ak.expires_at <= %s
+               AND ak.expires_at > %s
+             ORDER BY ak.expires_at ASC",
+            self::API_STATUS_ACTIVE,
+            $expiry_threshold,
+            current_time('mysql')
+        ), ARRAY_A);
+    }
+
+    /**
+     * 만료된 API 키 목록 조회
+     *
+     * @return array 만료된 API 키 목록
+     * @since 4.3.0
+     */
+    public static function get_expired_api_keys()
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'sb_api_keys';
+
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT ak.*, u.user_login
+             FROM $table ak
+             INNER JOIN {$wpdb->users} u ON ak.user_id = u.ID
+             WHERE ak.status = %s
+               AND ak.expires_at IS NOT NULL
+               AND ak.expires_at <= %s
+             ORDER BY ak.expires_at DESC",
+            self::API_STATUS_ACTIVE,
+            current_time('mysql')
+        ), ARRAY_A);
     }
 
     /**

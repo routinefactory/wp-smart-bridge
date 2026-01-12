@@ -19,9 +19,20 @@ class SB_Security
     const ALLOWED_USER_AGENT = 'SB-Client/Win64-v2.0';
 
     /**
-     * Timestamp 허용 범위 (초) - v3.0.0 Tightened to 30s
+     * Timestamp 허용 범위 (초) - v4.3.0 Tightened to 10s
      */
-    const TIMESTAMP_TOLERANCE = 30;
+    const TIMESTAMP_TOLERANCE = 10;
+
+    /**
+     * 레이트 리미트 설정
+     */
+    const RATE_LIMIT_MAX_REQUESTS = 100; // 1분당 최대 요청 수
+    const RATE_LIMIT_WINDOW = 60; // 레이트 리미트 윈도우 (초)
+
+    /**
+     * User-Agent 버전 패턴 정규식
+     */
+    const USER_AGENT_VERSION_PATTERN = '/^SB-Client\/\d+\.\d+\.\d+$/';
 
     /**
      * User-Agent 검증
@@ -33,12 +44,21 @@ class SB_Security
     {
         $user_agent = $request->get_header('User-Agent');
 
-        // v2.9.22 개선: 버전 결합도 완화 (Prefix Check)
-        // 클라이언트 버전이 업데이트되어도 'SB-Client/'로 시작하면 허용
-        if (empty($user_agent) || strpos($user_agent, 'SB-Client/') !== 0) {
+        // v4.3.0 개선: 버전 패턴 검증 강화
+        // User-Agent는 정확히 'SB-Client/X.Y.Z' 형식이어야 함 (예: SB-Client/2.0.1)
+        if (empty($user_agent)) {
             return new WP_Error(
                 'forbidden',
-                'Unauthorized client. Invalid User-Agent.',
+                'Unauthorized client. User-Agent header is missing.',
+                ['status' => 403]
+            );
+        }
+
+        // 버전 패턴 검증 (정규식: SB-Client/숫자.숫자.숫자)
+        if (!preg_match(self::USER_AGENT_VERSION_PATTERN, $user_agent)) {
+            return new WP_Error(
+                'forbidden',
+                'Unauthorized client. Invalid User-Agent format. Expected format: SB-Client/X.Y.Z',
                 ['status' => 403]
             );
         }
@@ -87,6 +107,15 @@ class SB_Security
             return new WP_Error(
                 'invalid_key',
                 'Invalid API key. Key not found or inactive.',
+                ['status' => 403]
+            );
+        }
+
+        // v4.3.0: API 키 만료 검증
+        if (SB_Database::is_api_key_expired($api_key)) {
+            return new WP_Error(
+                'expired_key',
+                'API key has expired. Please generate a new API key.',
                 ['status' => 403]
             );
         }
@@ -162,7 +191,13 @@ class SB_Security
         // Nonce 유효 시간은 Timestamp 허용 범위와 동일하게 설정
         set_transient($nonce_key, true, self::TIMESTAMP_TOLERANCE);
 
-        // 4. 서명 검증
+        // 4. 레이트 리미트 검증 (v4.3.0)
+        $rate_limit_check = self::check_rate_limit($request);
+        if (is_wp_error($rate_limit_check)) {
+            return $rate_limit_check;
+        }
+
+        // 5. 서명 검증
         $body = $request->get_body();
         $sig_check = self::verify_signature($api_key, $body, $timestamp, $signature);
         if (is_wp_error($sig_check)) {
@@ -191,6 +226,101 @@ class SB_Security
         }
 
         return true;
+    }
+
+    /**
+     * IP 기반 레이트 리미트 검증 (v4.3.0)
+     *
+     * IP별 요청 수를 제한하여 무차별 공격 방지
+     * WordPress Transient API를 활용한 캐싱
+     *
+     * @param WP_REST_Request $request REST 요청
+     * @return bool|WP_Error 성공 시 true, 실패 시 WP_Error
+     */
+    public static function check_rate_limit($request)
+    {
+        // 클라이언트 IP 주소 추출
+        $client_ip = self::get_client_ip();
+        
+        if (empty($client_ip)) {
+            // IP를 확인할 수 없는 경우 요청 허용 (프록시 환경 등)
+            return true;
+        }
+
+        // 레이트 리미트 키 생성 (IP 기반)
+        $rate_limit_key = 'sb_rate_limit_' . md5($client_ip);
+        
+        // 현재 요청 수 조회
+        $request_count = get_transient($rate_limit_key);
+        
+        if ($request_count === false) {
+            // 첫 요청인 경우
+            set_transient($rate_limit_key, 1, self::RATE_LIMIT_WINDOW);
+            return true;
+        }
+
+        // 요청 수 확인
+        if ($request_count >= self::RATE_LIMIT_MAX_REQUESTS) {
+            // 레이트 리미트 초과
+            $retry_after = get_option('_transient_timeout_' . $rate_limit_key);
+            $retry_after = $retry_after ? ($retry_after - time()) : self::RATE_LIMIT_WINDOW;
+            
+            return new WP_Error(
+                'rate_limit_exceeded',
+                'Too many requests. Please try again later.',
+                [
+                    'status' => 429,
+                    'Retry-After' => $retry_after
+                ]
+            );
+        }
+
+        // 요청 수 증가
+        set_transient($rate_limit_key, $request_count + 1, self::RATE_LIMIT_WINDOW);
+
+        return true;
+    }
+
+    /**
+     * 클라이언트 IP 주소 추출 (v4.3.0)
+     *
+     * 프록시/로드밸런서 환경에서도 실제 클라이언트 IP를 추출
+     *
+     * @return string|null 클라이언트 IP 주소
+     */
+    private static function get_client_ip()
+    {
+        $ip = null;
+
+        // 다양한 헤더에서 IP 주소 추출 (프록시 환경 고려)
+        $headers = [
+            'HTTP_CF_CONNECTING_IP',    // Cloudflare
+            'HTTP_X_FORWARDED_FOR',     // 일반적인 프록시
+            'HTTP_X_REAL_IP',           // Nginx
+            'HTTP_CLIENT_IP',           // 일부 프록시
+            'REMOTE_ADDR'               // 직접 연결
+        ];
+
+        foreach ($headers as $header) {
+            if (!empty($_SERVER[$header])) {
+                $ip = $_SERVER[$header];
+                
+                // X-Forwarded-For 헤더의 경우 첫 번째 IP만 사용
+                if ($header === 'HTTP_X_FORWARDED_FOR') {
+                    $ips = explode(',', $ip);
+                    $ip = trim($ips[0]);
+                }
+                
+                break;
+            }
+        }
+
+        // IP 주소 검증
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+
+        return null;
     }
 
     /**
@@ -234,6 +364,7 @@ class SB_Security
         $timestamp = $_SERVER['HTTP_X_SB_TIMESTAMP'] ?? '';
         $signature = $_SERVER['HTTP_X_SB_SIGNATURE'] ?? '';
         $nonce_req = $_SERVER['HTTP_X_SB_NONCE'] ?? '';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
         // 필수 헤더 확인
         if (empty($api_key) || empty($timestamp) || empty($signature) || empty($nonce_req)) {
@@ -241,6 +372,15 @@ class SB_Security
                 'missing_headers',
                 'Required authentication headers are missing (API Key, Timestamp, Signature, Nonce).',
                 ['status' => 400]
+            );
+        }
+
+        // 1-1. User-Agent 검증 (v4.3.0)
+        if (empty($user_agent) || !preg_match(self::USER_AGENT_VERSION_PATTERN, $user_agent)) {
+            return new WP_Error(
+                'forbidden',
+                'Unauthorized client. Invalid User-Agent format. Expected format: SB-Client/X.Y.Z',
+                ['status' => 403]
             );
         }
 
@@ -262,12 +402,67 @@ class SB_Security
         }
         set_transient($nonce_key, true, self::TIMESTAMP_TOLERANCE);
 
-        // 4. 서명 검증
+        // 4. 레이트 리미트 검증 (v4.3.0)
+        $rate_limit_check = self::check_rate_limit_ajax();
+        if (is_wp_error($rate_limit_check)) {
+            return $rate_limit_check;
+        }
+
+        // 5. 서명 검증
         $body = file_get_contents('php://input');
         $sig_check = self::verify_signature($api_key, $body, $timestamp, $signature);
         if (is_wp_error($sig_check)) {
             return $sig_check;
         }
+
+        return true;
+    }
+
+    /**
+     * IP 기반 레이트 리미트 검증 (AJAX용) (v4.3.0)
+     *
+     * @return bool|WP_Error 성공 시 true, 실패 시 WP_Error
+     */
+    private static function check_rate_limit_ajax()
+    {
+        // 클라이언트 IP 주소 추출
+        $client_ip = self::get_client_ip();
+        
+        if (empty($client_ip)) {
+            // IP를 확인할 수 없는 경우 요청 허용 (프록시 환경 등)
+            return true;
+        }
+
+        // 레이트 리미트 키 생성 (IP 기반)
+        $rate_limit_key = 'sb_rate_limit_' . md5($client_ip);
+        
+        // 현재 요청 수 조회
+        $request_count = get_transient($rate_limit_key);
+        
+        if ($request_count === false) {
+            // 첫 요청인 경우
+            set_transient($rate_limit_key, 1, self::RATE_LIMIT_WINDOW);
+            return true;
+        }
+
+        // 요청 수 확인
+        if ($request_count >= self::RATE_LIMIT_MAX_REQUESTS) {
+            // 레이트 리미트 초과
+            $retry_after = get_option('_transient_timeout_' . $rate_limit_key);
+            $retry_after = $retry_after ? ($retry_after - time()) : self::RATE_LIMIT_WINDOW;
+            
+            return new WP_Error(
+                'rate_limit_exceeded',
+                'Too many requests. Please try again later.',
+                [
+                    'status' => 429,
+                    'Retry-After' => $retry_after
+                ]
+            );
+        }
+
+        // 요청 수 증가
+        set_transient($rate_limit_key, $request_count + 1, self::RATE_LIMIT_WINDOW);
 
         return true;
     }

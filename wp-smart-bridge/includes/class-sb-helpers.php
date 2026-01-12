@@ -456,8 +456,8 @@ class SB_Helpers
 
     /**
      * 날짜 범위 계산
-     * 
-     * @param string $range 범위 (today, yesterday, week, month, 7d, 30d)
+     *
+     * @param string $range 범위 (today_7d, 30d, 90d, 180d, 365d)
      * @return array ['start' => DateTime, 'end' => DateTime]
      */
     public static function get_date_range($range)
@@ -467,25 +467,33 @@ class SB_Helpers
         $end = clone $now;
 
         switch ($range) {
-            case 'today':
-                $start->setTime(0, 0, 0);
-                $end->setTime(23, 59, 59);
-                break;
-
-            case 'yesterday':
-                $start->modify('-1 day')->setTime(0, 0, 0);
-                $end->modify('-1 day')->setTime(23, 59, 59);
-                break;
-
-            case 'week':
-            case '7d':
+            case 'today_7d':
+                // 오늘부터 최근 7일 (오늘 포함 7일)
                 $start->modify('-6 days')->setTime(0, 0, 0);
                 $end->setTime(23, 59, 59);
                 break;
 
-            case 'month':
             case '30d':
+                // 최근 30일
                 $start->modify('-29 days')->setTime(0, 0, 0);
+                $end->setTime(23, 59, 59);
+                break;
+
+            case '90d':
+                // 최근 3개월 (90일)
+                $start->modify('-89 days')->setTime(0, 0, 0);
+                $end->setTime(23, 59, 59);
+                break;
+
+            case '180d':
+                // 최근 6개월 (180일)
+                $start->modify('-179 days')->setTime(0, 0, 0);
+                $end->setTime(23, 59, 59);
+                break;
+
+            case '365d':
+                // 최근 12개월 (365일)
+                $start->modify('-364 days')->setTime(0, 0, 0);
                 $end->setTime(23, 59, 59);
                 break;
 
@@ -766,5 +774,474 @@ class SB_Helpers
 
         // 날짜가 오늘인 경우에만 값 반환, 아니면 0 (자동 리셋 효과)
         return ($date === $today) ? intval($count) : 0;
+    }
+
+    // =========================================================================
+    // Platform List Caching (Link Management Tab Enhancement)
+    // =========================================================================
+
+    /**
+     * 플랫폼 목록 캐시 키
+     */
+    const PLATFORM_CACHE_KEY = 'sb_platforms_list';
+    const PLATFORM_CACHE_EXPIRATION = 3600; // 1시간
+
+    /**
+     * 플랫폼 목록 가져오기 (캐싱 적용)
+     *
+     * @return array 플랫폼 목록 ['platform_name' => count]
+     * @since 4.3.0
+     */
+    public static function get_platforms_cached()
+    {
+        // 캐시 확인
+        $cached = get_transient(self::PLATFORM_CACHE_KEY);
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        // 캐시 미스 - 데이터베이스 조회
+        $platforms = self::get_platforms_from_db();
+
+        // 캐시 저장 (1시간)
+        set_transient(self::PLATFORM_CACHE_KEY, $platforms, self::PLATFORM_CACHE_EXPIRATION);
+
+        return $platforms;
+    }
+
+    /**
+     * 데이터베이스에서 플랫폼 목록 조회
+     *
+     * @return array 플랫폼 목록 ['platform_name' => count]
+     * @since 4.3.0
+     */
+    private static function get_platforms_from_db()
+    {
+        global $wpdb;
+
+        $results = $wpdb->get_results(
+            "SELECT pm.meta_value as platform, COUNT(*) as count
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+             WHERE pm.meta_key = 'platform'
+             AND p.post_type = '" . SB_Post_Type::POST_TYPE . "'
+             AND p.post_status = 'publish'
+             GROUP BY pm.meta_value
+             ORDER BY count DESC"
+        );
+
+        $platforms = [];
+        foreach ($results as $row) {
+            $platform = !empty($row->platform) ? $row->platform : 'Etc';
+            $platforms[$platform] = intval($row->count);
+        }
+
+        return $platforms;
+    }
+
+    /**
+     * 플랫폼 캐시 삭제
+     *
+     * 링크 생성/수정/삭제 시 호출하여 캐시 갱신
+     *
+     * @since 4.3.0
+     */
+    public static function clear_platforms_cache()
+    {
+        delete_transient(self::PLATFORM_CACHE_KEY);
+    }
+
+    // =========================================================================
+    // Metadata Format Enhancement (JSON Support)
+    // =========================================================================
+
+    /**
+     * 메타 데이터 포맷 버전 상수 (JSON 지원)
+     */
+    const META_FORMAT_VERSION_2 = '2.0';
+
+    /**
+     * 메타 데이터 포맷 버전별 구조 정의 (확장)
+     *
+     * @since 4.3.0
+     */
+    const META_FORMATS_EXTENDED = [
+        '1.0' => [
+            'stats_today_pv' => 'count|date',
+            'stats_today_uv' => 'count|date',
+            'stats_total_uv' => 'count',
+        ],
+        '2.0' => [
+            'stats_today_pv' => 'json',
+            'stats_today_uv' => 'json',
+            'stats_total_uv' => 'json',
+        ],
+    ];
+
+    /**
+     * JSON 형식의 오늘 통계 저장
+     *
+     * @param int $post_id 링크 ID
+     * @param string $meta_key 메타 키 (stats_today_pv, stats_today_uv)
+     * @param int $count 통계 값
+     * @param string $date 날짜 (Y-m-d)
+     * @since 4.3.0
+     */
+    public static function set_today_stat_json($post_id, $meta_key, $count, $date = null)
+    {
+        if ($date === null) {
+            $date = current_time('Y-m-d');
+        }
+
+        $data = [
+            'count' => intval($count),
+            'date' => $date,
+            'updated_at' => current_time('Y-m-d H:i:s'),
+            'version' => self::META_FORMAT_VERSION_2
+        ];
+
+        $value = wp_json_encode($data);
+        update_post_meta($post_id, $meta_key, $value);
+    }
+
+    /**
+     * JSON 형식의 오늘 통계 읽기
+     *
+     * @param int $post_id 링크 ID
+     * @param string $meta_key 메타 키 (stats_today_pv, stats_today_uv)
+     * @return int 통계 값 (날짜가 다르면 0 반환)
+     * @since 4.3.0
+     */
+    public static function get_today_stat_json($post_id, $meta_key)
+    {
+        $raw = get_post_meta($post_id, $meta_key, true);
+
+        // 데이터가 없거나 JSON 디코딩 실패 시 0 반환
+        if (empty($raw)) {
+            return 0;
+        }
+
+        $data = json_decode($raw, true);
+
+        // JSON 디코딩 실패 시 기존 형식으로 시도
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            // 기존 "count|date" 형식 호환성 처리
+            return self::get_today_stat($post_id, $meta_key);
+        }
+
+        // 날짜 확인
+        $today = current_time('Y-m-d');
+        if (isset($data['date']) && $data['date'] === $today) {
+            return isset($data['count']) ? intval($data['count']) : 0;
+        }
+
+        return 0;
+    }
+
+    /**
+     * 메타 데이터 마이그레이션 (1.0 → 2.0)
+     *
+     * "count|date" 형식을 JSON 형식으로 변환
+     *
+     * @param int $post_id 링크 ID
+     * @return bool 성공 여부
+     * @since 4.3.0
+     */
+    public static function migrate_meta_to_json($post_id)
+    {
+        $meta_keys = ['stats_today_pv', 'stats_today_uv', 'stats_total_uv'];
+
+        foreach ($meta_keys as $meta_key) {
+            $raw = get_post_meta($post_id, $meta_key, true);
+
+            // 데이터가 없으면 건너뜀
+            if (empty($raw)) {
+                continue;
+            }
+
+            // 이미 JSON 형식이면 건너뜀
+            $decoded = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                continue;
+            }
+
+            // "count|date" 형식인지 확인
+            if (strpos($raw, '|') !== false) {
+                list($count, $date) = explode('|', $raw, 2);
+
+                // JSON 형식으로 변환
+                $data = [
+                    'count' => intval($count),
+                    'date' => $date,
+                    'updated_at' => current_time('Y-m-d H:i:s'),
+                    'version' => self::META_FORMAT_VERSION_2
+                ];
+
+                $value = wp_json_encode($data);
+                update_post_meta($post_id, $meta_key, $value);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 모든 링크의 메타 데이터 마이그레이션 (대량 처리)
+     *
+     * @param int $batch_size 배치 크기
+     * @return array ['migrated' => int, 'total' => int, 'completed' => bool]
+     * @since 4.3.0
+     */
+    public static function migrate_all_meta_to_json($batch_size = 100)
+    {
+        global $wpdb;
+
+        // 마이그레이션 상태 확인
+        $migrated_count = get_option('sb_meta_json_migrated_count', 0);
+        $total_links = wp_count_posts(SB_Post_Type::POST_TYPE)->publish;
+
+        // 이미 완료된 경우
+        if ($migrated_count >= $total_links) {
+            return [
+                'migrated' => $migrated_count,
+                'total' => $total_links,
+                'completed' => true
+            ];
+        }
+
+        // 배치 처리
+        $offset = $migrated_count;
+        $posts = $wpdb->get_col($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE post_type = %s
+             AND post_status = 'publish'
+             ORDER BY ID ASC
+             LIMIT %d OFFSET %d",
+            SB_Post_Type::POST_TYPE,
+            $batch_size,
+            $offset
+        ));
+
+        $batch_migrated = 0;
+        foreach ($posts as $post_id) {
+            if (self::migrate_meta_to_json($post_id)) {
+                $batch_migrated++;
+            }
+        }
+
+        // 진행 상황 업데이트
+        $new_migrated_count = $migrated_count + $batch_migrated;
+        update_option('sb_meta_json_migrated_count', $new_migrated_count);
+
+        $completed = ($new_migrated_count >= $total_links);
+
+        return [
+            'migrated' => $new_migrated_count,
+            'total' => $total_links,
+            'completed' => $completed
+        ];
+    }
+
+    /**
+     * 메타 데이터 마이그레이션 초기화
+     *
+     * @since 4.3.0
+     */
+    public static function reset_meta_migration()
+    {
+        delete_option('sb_meta_json_migrated_count');
+    }
+    // =========================================================================
+    // Cache Tag System (P1 Performance Improvement)
+    // =========================================================================
+
+    /**
+     * 캐시 태그 그룹 상수
+     */
+    const CACHE_TAG_ANALYTICS = 'sb_analytics';
+    const CACHE_TAG_LINKS = 'sb_links';
+    const CACHE_TAG_PLATFORMS = 'sb_platforms';
+    const CACHE_TAG_STATS = 'sb_stats';
+
+    /**
+     * 캐시 태그 기본 만료 시간 (10분)
+     */
+    const CACHE_TAG_EXPIRATION = 600;
+
+    /**
+     * 캐시 태그 저장소 옵션 키
+     */
+    const CACHE_TAG_REGISTRY_KEY = 'sb_cache_tag_registry';
+
+    /**
+     * 캐시 태그 레지스트리 가져오기
+     *
+     * @return array 태그 => [cache_key1, cache_key2, ...]
+     */
+    private static function get_cache_tag_registry()
+    {
+        $registry = get_option(self::CACHE_TAG_REGISTRY_KEY, []);
+        return is_array($registry) ? $registry : [];
+    }
+
+    /**
+     * 캐시 태그 레지스트리 저장
+     *
+     * @param array $registry 태그 레지스트리
+     */
+    private static function set_cache_tag_registry($registry)
+    {
+        update_option(self::CACHE_TAG_REGISTRY_KEY, $registry, false);
+    }
+
+    /**
+     * 캐시 키를 태그에 등록
+     *
+     * @param string $cache_key 캐시 키
+     * @param array $tags 태그 배열
+     */
+    private static function register_cache_tags($cache_key, $tags)
+    {
+        if (empty($tags)) {
+            return;
+        }
+
+        $registry = self::get_cache_tag_registry();
+
+        foreach ($tags as $tag) {
+            if (!isset($registry[$tag])) {
+                $registry[$tag] = [];
+            }
+
+            // 중복 방지
+            if (!in_array($cache_key, $registry[$tag], true)) {
+                $registry[$tag][] = $cache_key;
+            }
+        }
+
+        self::set_cache_tag_registry($registry);
+    }
+
+    /**
+     * 태그로 관련 캐시 모두 삭제
+     *
+     * @param string|array $tags 태그 또는 태그 배열
+     */
+    public static function invalidate_cache_by_tags($tags)
+    {
+        if (empty($tags)) {
+            return;
+        }
+
+        if (!is_array($tags)) {
+            $tags = [$tags];
+        }
+
+        $registry = self::get_cache_tag_registry();
+        $deleted_count = 0;
+
+        foreach ($tags as $tag) {
+            if (isset($registry[$tag])) {
+                foreach ($registry[$tag] as $cache_key) {
+                    delete_transient($cache_key);
+                    $deleted_count++;
+                }
+                unset($registry[$tag]);
+            }
+        }
+
+        self::set_cache_tag_registry($registry);
+
+        return $deleted_count;
+    }
+
+    /**
+     * 태그가 적용된 캐시 저장
+     *
+     * @param string $cache_key 캐시 키
+     * @param mixed $value 캐시할 값
+     * @param array $tags 태그 배열
+     * @param int $expiration 만료 시간 (초)
+     * @return bool 성공 여부
+     */
+    public static function set_cache_with_tags($cache_key, $value, $tags = [], $expiration = null)
+    {
+        if ($expiration === null) {
+            $expiration = self::CACHE_TAG_EXPIRATION;
+        }
+
+        $result = set_transient($cache_key, $value, $expiration);
+
+        if ($result) {
+            self::register_cache_tags($cache_key, $tags);
+        }
+
+        return $result;
+    }
+
+    /**
+     * 태그가 적용된 캐시 가져오기
+     *
+     * @param string $cache_key 캐시 키
+     * @return mixed 캐시된 값 또는 false
+     */
+    public static function get_cache_with_tags($cache_key)
+    {
+        return get_transient($cache_key);
+    }
+
+    /**
+     * 캐시 태그 레지스트리 정리 (오래된 캐시 키 제거)
+     *
+     * @param int $max_size 최대 레지스트리 크기
+     */
+    public static function cleanup_cache_tag_registry($max_size = 1000)
+    {
+        $registry = self::get_cache_tag_registry();
+        $total_keys = 0;
+
+        foreach ($registry as $tag => $keys) {
+            $total_keys += count($keys);
+        }
+
+        if ($total_keys <= $max_size) {
+            return;
+        }
+
+        // 가장 오래된 캐시 키부터 제거
+        global $wpdb;
+        $old_keys = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options}
+                 WHERE option_name LIKE %s
+                 ORDER BY option_id ASC
+                 LIMIT %d",
+                '_transient_sb_%',
+                $total_keys - $max_size
+            )
+        );
+
+        foreach ($old_keys as $option_name) {
+            // _transient_ 접두사 제거
+            $cache_key = str_replace('_transient_', '', $option_name);
+
+            // 레지스트리에서 제거
+            foreach ($registry as $tag => $keys) {
+                $registry[$tag] = array_diff($keys, [$cache_key]);
+                if (empty($registry[$tag])) {
+                    unset($registry[$tag]);
+                }
+            }
+        }
+
+        self::set_cache_tag_registry($registry);
+    }
+
+    /**
+     * 모든 캐시 태그 레지스트리 초기화
+     */
+    public static function clear_cache_tag_registry()
+    {
+        delete_option(self::CACHE_TAG_REGISTRY_KEY);
     }
 }

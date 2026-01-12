@@ -213,19 +213,14 @@
      * Get Filter Parameters
      * CRITICAL: This function is used by almost all AJAX calls on the dashboard.
      * DO NOT REMOVE or many features will break!
-     * 
-     * Used by: refreshDashboard, loadRefererAnalytics, loadDeviceAnalytics, 
+     *
+     * Used by: refreshDashboard, loadRefererAnalytics, loadDeviceAnalytics,
      *          comparison logic, link detail modal, and more.
      */
     function getFilterParams() {
         var range = $('#sb-date-range').val();
         var platform = $('#sb-platform-filter').val();
         var params = { range: range, platform: platform };
-
-        if (range === 'custom') {
-            params.start_date = $('#sb-start-date').val();
-            params.end_date = $('#sb-end-date').val();
-        }
         return params;
     }
 
@@ -402,12 +397,10 @@
             }
         });
 
+        // 기간 필터 변경 이벤트 (custom 옵션 제거됨)
         $('#sb-date-range').on('change', function () {
-            if ($(this).val() === 'custom') {
-                $('.sb-custom-dates').slideDown();
-            } else {
-                $('.sb-custom-dates').slideUp();
-            }
+            // 사용자 지정 날짜 필드 토글 로직 제거
+            // 필요한 경우 추후 추가
         });
 
         // 2. Factory Reset Handler (moved inside $(document).ready for proper DOM load)
@@ -668,14 +661,9 @@
      */
     function openLinkDetailModal(linkId) {
         // Inline filter params (getFilterParams is inside IIFE, not accessible here)
-        var range = $('#sb-date-range').val() || '7d';
+        var range = $('#sb-date-range').val() || 'today_7d';
         var platform = $('#sb-platform-filter').val() || '';
         var params = { range: range, platform: platform };
-
-        if (range === 'custom') {
-            params.start_date = $('#sb-start-date').val();
-            params.end_date = $('#sb-end-date').val();
-        }
 
         $.ajax({
             url: sbAdmin.restUrl + 'links/' + linkId + '/analytics',
@@ -1268,6 +1256,67 @@
     function initSettingsPage() {
         if ($('.sb-settings').length === 0) return;
 
+        // ============================================================
+        // P2 UX 개선: 탭 기반 UI 초기화
+        // ============================================================
+        initSettingsTabs();
+
+        // ============================================================
+        // P2 UX 개선: CodeMirror 에디터 초기화
+        // ============================================================
+        initCodeMirrorEditor();
+
+        // ============================================================
+        // P2 UX 개선: 일반 설정 폼 핸들러
+        // ============================================================
+        function initGeneralSettingsForm() {
+            var $form = $('#sb-general-settings-form');
+            var $saveBtn = $form.find('.button-primary');
+        
+            $form.on('submit', function(e) {
+                e.preventDefault();
+        
+                // 로딩 상태 표시
+                showButtonLoading($saveBtn);
+                hideAllMessages();
+        
+                // 폼 데이터 수집
+                var formData = {
+                    nonce: sbAdmin.nonce,
+                    action: 'sb_save_general_settings',
+                    redirect_delay: $('#sb-redirect-delay').val()
+                };
+        
+                // AJAX 요청
+                $.ajax({
+                    url: sbAdmin.ajaxUrl,
+                    type: 'POST',
+                    data: formData,
+                    dataType: 'json'
+                })
+                .done(function(response) {
+                    hideButtonLoading($saveBtn);
+        
+                    if (response.success) {
+                        showSuccessMessage(response.data.message || '설정이 저장되었습니다.');
+                    } else {
+                        showErrorMessage(response.data.message || '저장 중 오류가 발생했습니다.');
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    hideButtonLoading($saveBtn);
+                    showErrorMessage('서버 오류가 발생했습니다. 다시 시도해주세요.');
+                });
+            });
+        }
+        
+        // 일반 설정 폼 초기화
+        $(document).ready(function() {
+            if ($('#sb-general-settings-form').length > 0) {
+                initGeneralSettingsForm();
+            }
+        });
+
         // 9.1 Generate API Key
         $('#sb-generate-key').on('click', function () {
             var $btn = $(this);
@@ -1579,6 +1628,321 @@
         });
     }
 
+    // =========================================================================
+    // P2 UX 개선: 탭 기반 UI 함수들
+    // =========================================================================
+
+    /**
+     * 설정 페이지 탭 기반 UI 초기화
+     */
+    function initSettingsTabs() {
+        // 탭 버튼 클릭 이벤트
+        $('.sb-tab-btn').on('click', function () {
+            var $btn = $(this);
+            var tabId = $btn.data('tab');
+
+            // 활성 탭 변경
+            $('.sb-tab-btn').removeClass('active');
+            $btn.addClass('active');
+
+            // 탭 컨텐츠 표시
+            $('.sb-tab-pane').removeClass('active');
+            $('#tab-' + tabId).addClass('active');
+
+            // CodeMirror 리사이즈 (템플릿 탭 활성화 시)
+            if (tabId === 'custom-template' && window.sbCodeMirrorEditor) {
+                window.sbCodeMirrorEditor.refresh();
+            }
+        });
+
+        // URL 해시 기반 탭 자동 선택
+        var hash = window.location.hash.replace('#', '');
+        if (hash) {
+            $('.sb-tab-btn[data-tab="' + hash + '"]').click();
+        }
+    }
+
+    /**
+     * CodeMirror 에디터 초기화
+     */
+    function initCodeMirrorEditor() {
+        var $textarea = $('#sb-redirect-template');
+        if ($textarea.length === 0) return;
+
+        // CodeMirror가 로드되었는지 확인
+        if (typeof CodeMirror === 'undefined') {
+            console.warn('CodeMirror 라이브러리가 로드되지 않았습니다. 기본 textarea를 사용합니다.');
+            return;
+        }
+
+        // CodeMirror 에디터 생성
+        var editor = CodeMirror.fromTextArea($textarea[0], {
+            mode: 'htmlmixed',
+            theme: 'default',
+            lineNumbers: true,
+            lineWrapping: true,
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false,
+            autoCloseBrackets: true,
+            autoCloseTags: true,
+            matchBrackets: true,
+            matchTags: { bothTags: true },
+            foldGutter: true,
+            gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
+            extraKeys: {
+                'Ctrl-Space': 'autocomplete',
+                'Cmd-Space': 'autocomplete',
+                'Ctrl-/': 'toggleComment',
+                'Cmd-/': 'toggleComment',
+                'Ctrl-S': function (cm) {
+                    $('#sb-template-form').submit();
+                },
+                'Cmd-S': function (cm) {
+                    $('#sb-template-form').submit();
+                }
+            },
+            hintOptions: {
+                completeSingle: false,
+                hint: function (cm) {
+                    var cur = cm.getCursor();
+                    var token = cm.getTokenAt(cur);
+                    var start = token.start;
+                    var end = cur.ch;
+                    var word = token.string.slice(0, end - start);
+
+                    // HTML 템플릿 자동완성
+                    var placeholders = [
+                        '{{DELAY_SECONDS}}',
+                        '{{TARGET_URL}}',
+                        '{{COUNTDOWN_SCRIPT}}',
+                        '{{COUNTDOWN_ID}}',
+                        '<!DOCTYPE html>',
+                        '<html>',
+                        '<head>',
+                        '<body>',
+                        '<div>',
+                        '<span>',
+                        '<style>',
+                        '<script>'
+                    ];
+
+                    var list = [];
+                    for (var i = 0; i < placeholders.length; i++) {
+                        if (placeholders[i].toLowerCase().indexOf(word.toLowerCase()) === 0) {
+                            list.push({
+                                text: placeholders[i],
+                                displayText: placeholders[i]
+                            });
+                        }
+                    }
+
+                    return {
+                        list: list,
+                        from: CodeMirror.Pos(cur.line, start),
+                        to: CodeMirror.Pos(cur.line, end)
+                    };
+                }
+            }
+        });
+
+        // 전역 변수에 에디터 저장
+        window.sbCodeMirrorEditor = editor;
+
+        // 에디터 래퍼 스타일 추가
+        editor.getWrapperElement().classList.add('sb-codemirror-wrapper');
+
+        // 변경 감지 (저장되지 않은 변경사항 경고)
+        var originalContent = editor.getValue();
+        editor.on('change', function () {
+            if (editor.getValue() !== originalContent) {
+                $('#sb-save-template').addClass('button-primary').prop('disabled', false);
+            }
+        });
+
+        // 템플릿 저장 시 CodeMirror 값 사용
+        $('#sb-template-form').off('submit').on('submit', function (e) {
+            e.preventDefault();
+            
+            var template = editor.getValue();
+            var validation = validateTemplate(template, false);
+
+            if (!validation.valid) {
+                return;
+            }
+
+            var $btn = $('#sb-save-template');
+            showButtonLoading($btn);
+
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_save_redirect_template',
+                    nonce: sbAdmin.ajaxNonce,
+                    template: template
+                },
+                success: function (response) {
+                    if (response.success) {
+                        showValidation(true, '✅ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.success_saved : 'Saved!'));
+                        originalContent = editor.getValue();
+                        showSuccessMessage('템플릿이 성공적으로 저장되었습니다.');
+                    } else {
+                        showValidation(false, '❌ ' + (response.data.message || (typeof sb_i18n !== 'undefined' ? sb_i18n.save_failed : 'Save Failed')));
+                        showErrorMessage('저장 실패: ' + (response.data.message || '알 수 없는 오류'));
+                    }
+                },
+                error: function () {
+                    showValidation(false, '❌ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.network_error : 'Network Error'));
+                    showErrorMessage('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+                },
+                complete: function () {
+                    hideButtonLoading($btn);
+                }
+            });
+        });
+
+        // 템플릿 검증 시 CodeMirror 값 사용
+        $('#sb-validate-template').off('click').on('click', function () {
+            var template = editor.getValue();
+            validateTemplate(template, true);
+        });
+
+        // 기본값 복원 시 CodeMirror 값 업데이트
+        $('#sb-reset-template').off('click').on('click', function () {
+            SB_UI.confirm({
+                title: typeof sb_i18n !== 'undefined' ? sb_i18n.template_reset : 'Reset Template',
+                message: typeof sb_i18n !== 'undefined' ? sb_i18n.template_reset_confirm : 'Reset template to default?',
+                yesLabel: typeof sb_i18n !== 'undefined' ? sb_i18n.reset : 'Reset',
+                onYes: function () {
+                    var $btn = $('#sb-reset-template');
+                    showButtonLoading($btn);
+
+                    $.ajax({
+                        url: sbAdmin.ajaxUrl,
+                        method: 'POST',
+                        data: {
+                            action: 'sb_reset_redirect_template',
+                            nonce: sbAdmin.ajaxNonce
+                        },
+                        success: function (response) {
+                            if (response.success && response.data.template) {
+                                editor.setValue(response.data.template);
+                                originalContent = editor.getValue();
+                                showValidation(true, '✅ ' + (typeof sb_i18n !== 'undefined' ? sb_i18n.template_restored : 'Template Restored!'));
+                                showSuccessMessage('템플릿이 기본값으로 복원되었습니다.');
+                            }
+                        },
+                        complete: function () {
+                            hideButtonLoading($btn);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // =========================================================================
+    // P2 UX 개선: 진행 상태 피드백 함수들
+    // =========================================================================
+
+    /**
+     * 버튼 로딩 상태 표시
+     */
+    function showButtonLoading($btn) {
+        $btn.prop('disabled', true).addClass('loading');
+    }
+
+    /**
+     * 버튼 로딩 상태 숨김
+     */
+    function hideButtonLoading($btn) {
+        $btn.prop('disabled', false).removeClass('loading');
+    }
+
+    /**
+     * 성공 메시지 표시
+     */
+    function showSuccessMessage(message) {
+        var $msgBox = $('<div class="sb-message-box success">' +
+            '<span class="dashicons dashicons-yes-alt"></span>' +
+            '<span>' + message + '</span>' +
+            '</div>');
+        
+        // 탭 컨텐츠 영역의 맨 위에 추가
+        var $activeTab = $('.sb-tab-pane.active');
+        $activeTab.find('.sb-settings-section').first().prepend($msgBox);
+
+        // 5초 후 자동 제거
+        setTimeout(function () {
+            $msgBox.fadeOut(300, function () {
+                $(this).remove();
+            });
+        }, 5000);
+    }
+
+    /**
+     * 오류 메시지 표시
+     */
+    function showErrorMessage(message) {
+        var $msgBox = $('<div class="sb-message-box error">' +
+            '<span class="dashicons dashicons-dismiss"></span>' +
+            '<span>' + message + '</span>' +
+            '</div>');
+        
+        // 탭 컨텐츠 영역의 맨 위에 추가
+        var $activeTab = $('.sb-tab-pane.active');
+        $activeTab.find('.sb-settings-section').first().prepend($msgBox);
+
+        // 7초 후 자동 제거
+        setTimeout(function () {
+            $msgBox.fadeOut(300, function () {
+                $(this).remove();
+            });
+        }, 7000);
+    }
+
+    /**
+     * 정보 메시지 표시
+     */
+    function showInfoMessage(message) {
+        var $msgBox = $('<div class="sb-message-box info">' +
+            '<span class="dashicons dashicons-info"></span>' +
+            '<span>' + message + '</span>' +
+            '</div>');
+        
+        // 탭 컨텐츠 영역의 맨 위에 추가
+        var $activeTab = $('.sb-tab-pane.active');
+        $activeTab.find('.sb-settings-section').first().prepend($msgBox);
+
+        // 5초 후 자동 제거
+        setTimeout(function () {
+            $msgBox.fadeOut(300, function () {
+                $(this).remove();
+            });
+        }, 5000);
+    }
+
+    /**
+     * 전체 페이지 로딩 오버레이 표시
+     */
+    function showPageLoading(message) {
+        var $overlay = $('<div class="sb-loading-overlay">' +
+            '<span class="spinner is-active"></span>' +
+            '<span style="margin-left: 15px; font-size: 16px; font-weight: 500;">' + (message || '처리 중...') + '</span>' +
+            '</div>');
+        $('body').append($overlay);
+    }
+
+    /**
+     * 전체 페이지 로딩 오버레이 숨김
+     */
+    function hidePageLoading() {
+        $('.sb-loading-overlay').fadeOut(200, function () {
+            $(this).remove();
+        });
+    }
+
     // Initialize Settings Logic
     $(document).ready(function () {
         initSettingsPage();
@@ -1613,18 +1977,28 @@
 
         // 2. Update Labels based on Range
         var range = $('#sb-date-range').val();
-        var labelTotal = __('today_total_clicks', '오늘 전체 클릭');
-        var labelUnique = __('today_unique_visitors', '오늘 고유 클릭 (UV)');
-        var subLabel = __('today', '📅 Today');
+        var labelTotal = __('period_total_clicks', '기간 전체 클릭');
+        var labelUnique = __('period_unique_visitors', '기간 고유 클릭 (UV)');
+        var subLabel = __('selected_period', '📅 선택 기간');
+        var growthLabel = __('period_growth_rate', '전 기간 대비 증감률');
 
-        if (range === 'yesterday') {
-            labelTotal = __('yesterday_total_clicks', '어제 전체 클릭');
-            labelUnique = __('yesterday_unique_visitors', '어제 고유 클릭 (UV)');
-            subLabel = __('yesterday', '📅 Yesterday');
-        } else if (range !== 'today') {
-            labelTotal = __('period_total_clicks', '선택 기간 전체 클릭');
-            labelUnique = __('period_unique_visitors', '선택 기간 고유 클릭 (UV)');
-            subLabel = __('selected_period', '📅 Selected Period');
+        // 기간별 라벨 설정
+        switch (range) {
+            case 'today_7d':
+                subLabel = __('today_7d', '📅 오늘 + 최근 7일');
+                break;
+            case '30d':
+                subLabel = __('last_30d', '📅 최근 30일');
+                break;
+            case '90d':
+                subLabel = __('last_90d', '📅 최근 3개월');
+                break;
+            case '180d':
+                subLabel = __('last_180d', '📅 최근 6개월');
+                break;
+            case '365d':
+                subLabel = __('last_365d', '📅 최근 12개월');
+                break;
         }
 
         // Update Label Text (Traversing DOM relative to value ID)
@@ -1633,6 +2007,9 @@
 
         $('#sb-today-unique').closest('.sb-card-content').find('.sb-card-label').text(labelUnique);
         $('#sb-today-unique').closest('.sb-card-content').find('.sb-card-sublabel').text(subLabel);
+
+        // 증감률 카드 라벨 업데이트
+        $('#sb-growth-rate').closest('.sb-card-content').find('.sb-card-label').text(growthLabel);
     }
 
     /**
@@ -1713,5 +2090,711 @@
         
         console.log('[DEBUG] updateTopLinksTable completed');
     }
+
+    // =========================================================================
+    // Link Management (Post List) Enhancements
+    // =========================================================================
+    
+    /**
+     * Mobile Card View Enhancement
+     * Adds data-label attributes to table cells for mobile card view
+     */
+    function initLinkManagementEnhancements() {
+        if (!$('body').hasClass('post-type-sb_link')) {
+            return;
+        }
+
+        // Add data-label attributes to table cells
+        $('.wp-list-table thead th').each(function() {
+            var $th = $(this);
+            var headerText = $th.text().trim();
+            var columnIndex = $th.index();
+            
+            // Add data-label to corresponding cells in tbody
+            $('.wp-list-table tbody tr').each(function() {
+                var $td = $(this).find('td').eq(columnIndex);
+                if ($td.length > 0) {
+                    $td.attr('data-label', headerText);
+                }
+            });
+        });
+
+        // Add filter count update on filter change
+        $('.sb-admin-filter').on('change', updateFilterCount);
+        $('#post-query-submit').on('click', function() {
+            setTimeout(updateFilterCount, 500);
+        });
+
+        // Initial filter count update
+        updateFilterCount();
+
+        // Initialize bulk actions
+        initBulkActions();
+    }
+
+    /**
+     * 일괄 작업(Bulk Actions) UI 초기화
+     */
+    function initBulkActions() {
+        if (!$('body').hasClass('post-type-sb_link')) {
+            return;
+        }
+
+        // 체크박스 선택 시 일괄 작업 UI 표시/숨김
+        $('.wp-list-table .column-cb input[type="checkbox"]').on('change', function() {
+            var checkedCount = $('.wp-list-table .column-cb input[type="checkbox"]:checked').length;
+            var $bulkContainer = $('#sb-bulk-actions-container');
+            
+            if (checkedCount > 0) {
+                $bulkContainer.slideDown(200);
+            } else {
+                $bulkContainer.slideUp(200);
+            }
+        });
+
+        // 일괄 작업 드롭다운 변경 시 플랫폼 선택 UI 표시/숨김
+        $('#sb_bulk_action').on('change', function() {
+            var action = $(this).val();
+            var $platformSelect = $('#sb_bulk_platform_select');
+            
+            if (action === 'sb_bulk_update_platform') {
+                $platformSelect.slideDown(200);
+            } else {
+                $platformSelect.slideUp(200);
+            }
+        });
+
+        // 일괄 작업 적용 버튼 클릭 시
+        $('#sb_bulk_apply').on('click', function(e) {
+            e.preventDefault();
+            
+            var action = $('#sb_bulk_action').val();
+            var checkedCount = $('.wp-list-table .column-cb input[type="checkbox"]:checked').length;
+            
+            if (!action) {
+                alert('일괄 작업을 선택해주세요.');
+                return;
+            }
+            
+            if (checkedCount === 0) {
+                alert('최소 하나 이상의 링크를 선택해주세요.');
+                return;
+            }
+            
+            if (action === 'sb_bulk_update_platform') {
+                var platform = $('#sb_bulk_platform').val();
+                if (!platform) {
+                    alert('플랫폼을 선택해주세요.');
+                    return;
+                }
+            }
+            
+            // 폼 제출
+            $('form#posts-filter').submit();
+        });
+
+        // 정렬 해제 버튼 클릭 시
+        $('#sb_clear_sorting').on('click', function(e) {
+            e.preventDefault();
+            
+            var currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.delete('orderby');
+            currentUrl.searchParams.delete('order');
+            window.location.href = currentUrl.toString();
+        });
+    }
+
+    /**
+     * Update Filter Count Display
+     */
+    function updateFilterCount() {
+        var $countValue = $('.sb-filter-count-value');
+        if ($countValue.length === 0) return;
+
+        // Count visible rows
+        var visibleCount = $('.wp-list-table tbody tr:visible').length;
+        $countValue.text(visibleCount.toLocaleString());
+    }
+
+    // Initialize link management enhancements on page load
+    $(document).ready(function() {
+        initLinkManagementEnhancements();
+    });
+
+    // =========================================================================
+    // P3 기능 개선: 업데이트 및 롤백 JavaScript
+    // =========================================================================
+
+    /**
+     * 업데이트 및 롤백 기능 초기화
+     */
+    function initUpdateRollback() {
+        // 업데이트 확인 버튼
+        $('#sb-check-update').on('click', function() {
+            checkForUpdate();
+        });
+
+        // 업데이트 다운로드 버튼
+        $('#sb-download-update').on('click', function() {
+            downloadUpdate();
+        });
+
+        // 업데이트 알림 숨기기 버튼
+        $('#sb-dismiss-update').on('click', function() {
+            dismissUpdateNotice();
+        });
+
+        // 업데이트 로그 삭제 버튼
+        $('#sb-clear-update-logs').on('click', function() {
+            clearUpdateLogs();
+        });
+
+        // 롤백 백업 파일 목록 로드
+        loadRollbackBackups();
+
+        // 롤백 로그 로드
+        loadRollbackLogs();
+
+        // 오래된 백업 정리 버튼
+        $('#sb-cleanup-rollback-backups').on('click', function() {
+            cleanupRollbackBackups();
+        });
+
+        // 페이지 로드 시 업데이트 상태 확인
+        loadUpdateStatus();
+    }
+
+    /**
+     * 업데이트 확인
+     */
+    function checkForUpdate() {
+        var $btn = $('#sb-check-update');
+        var $status = $('#sb-update-status');
+        
+        showButtonLoading($btn);
+        $status.html('<span class="spinner is-active"></span> 확인 중...');
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_check_update',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    renderUpdateStatus(response.data);
+                } else {
+                    $status.html('<div class="notice notice-error"><p>업데이트 확인 실패</p></div>');
+                }
+            },
+            error: function() {
+                $status.html('<div class="notice notice-error"><p>서버 통신 오류</p></div>');
+            },
+            complete: function() {
+                hideButtonLoading($btn);
+            }
+        });
+    }
+
+    /**
+     * 업데이트 상태 렌더링
+     */
+    function renderUpdateStatus(data) {
+        var $status = $('#sb-update-status');
+        var $downloadBtn = $('#sb-download-update');
+        var $dismissBtn = $('#sb-dismiss-update');
+
+        if (data.has_update) {
+            var html = '<div class="notice notice-info is-dismissible" style="padding: 10px;">';
+            html += '<p><strong>🎉 새 버전이 있습니다!</strong></p>';
+            html += '<p>현재 버전: <strong>' + data.current_version + '</strong></p>';
+            html += '<p>최신 버전: <strong>' + data.new_version.version + '</strong></p>';
+            if (data.new_version.release_notes) {
+                html += '<p><details><summary>릴리스 노트</summary><pre style="margin-top:10px; padding:10px; background:#f9f9f9; border:1px solid #ddd;">' +
+                    escapeHtml(data.new_version.release_notes) + '</pre></details></p>';
+            }
+            html += '</div>';
+            $status.html(html);
+            
+            $downloadBtn.show();
+            $dismissBtn.show();
+        } else {
+            $status.html('<div class="notice notice-success"><p>✅ 최신 버전을 사용 중입니다! (v' + data.current_version + ')</p></div>');
+            $downloadBtn.hide();
+            $dismissBtn.hide();
+        }
+
+        // 업데이트 로그 렌더링
+        renderUpdateLogs(data.recent_logs);
+    }
+
+    /**
+     * 업데이트 로그 렌더링
+     */
+    function renderUpdateLogs(logs) {
+        var $logsContainer = $('#sb-update-logs');
+        
+        if (!logs || logs.length === 0) {
+            $logsContainer.html('<p class="sb-muted">로그가 없습니다.</p>');
+            return;
+        }
+
+        var html = '<ul style="margin: 0; padding-left: 20px;">';
+        logs.forEach(function(log) {
+            var actionLabel = getActionLabel(log.action);
+            var date = new Date(log.timestamp);
+            var dateStr = date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR');
+            
+            html += '<li style="margin-bottom: 5px;">';
+            html += '<small style="color: #666;">[' + dateStr + ']</small> ';
+            html += '<strong>' + actionLabel + '</strong>';
+            if (log.version) {
+                html += ' (v' + log.version + ')';
+            }
+            if (log.message) {
+                html += ': ' + escapeHtml(log.message);
+            }
+            html += '</li>';
+        });
+        html += '</ul>';
+        
+        $logsContainer.html(html);
+    }
+
+    /**
+     * 업데이트 다운로드
+     */
+    function downloadUpdate() {
+        var $btn = $('#sb-download-update');
+        var $status = $('#sb-update-status');
+        
+        // 다운로드 URL 확인
+        var downloadUrl = $status.find('a').attr('href');
+        if (!downloadUrl) {
+            // 새 버전 정보에서 URL 가져오기
+            $.ajax({
+                url: sbAdmin.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'sb_get_update_status',
+                    nonce: sbAdmin.ajaxNonce
+                },
+                success: function(response) {
+                    if (response.success && response.data.new_version && response.data.new_version.download_url) {
+                        performDownload(response.data.new_version.download_url);
+                    } else {
+                        SB_UI.showToast('다운로드 URL을 찾을 수 없습니다.', 'error');
+                    }
+                }
+            });
+            return;
+        }
+        
+        performDownload(downloadUrl);
+    }
+
+    /**
+     * 다운로드 실행
+     */
+    function performDownload(downloadUrl) {
+        var $btn = $('#sb-download-update');
+        
+        showButtonLoading($btn);
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_download_update',
+                nonce: sbAdmin.ajaxNonce,
+                download_url: downloadUrl
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast('업데이트 파일 다운로드 완료!', 'success');
+                    loadUpdateStatus(); // 상태 새로고침
+                } else {
+                    SB_UI.showToast('다운로드 실패: ' + response.data.message, 'error');
+                }
+            },
+            error: function() {
+                SB_UI.showToast('서버 통신 오류', 'error');
+            },
+            complete: function() {
+                hideButtonLoading($btn);
+            }
+        });
+    }
+
+    /**
+     * 업데이트 알림 숨기기
+     */
+    function dismissUpdateNotice() {
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_dismiss_update_notice',
+                nonce: sbAdmin.ajaxNonce,
+                version: $('#sb-update-status').find('strong').text().match(/v([\d.]+)/)[1]
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast('알림이 숨겨졌습니다.', 'success');
+                    $('#sb-dismiss-update').hide();
+                }
+            }
+        });
+    }
+
+    /**
+     * 업데이트 로그 삭제
+     */
+    function clearUpdateLogs() {
+        if (!confirm('모든 업데이트 로그를 삭제하시겠습니까?')) {
+            return;
+        }
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_clear_update_logs',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast('업데이트 로그가 삭제되었습니다.', 'success');
+                    loadUpdateStatus();
+                }
+            }
+        });
+    }
+
+    /**
+     * 업데이트 상태 로드
+     */
+    function loadUpdateStatus() {
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_get_update_status',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    renderUpdateStatus(response.data);
+                }
+            }
+        });
+    }
+
+    /**
+     * 롤백 백업 파일 목록 로드
+     */
+    function loadRollbackBackups() {
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_get_rollback_backups',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    renderRollbackBackups(response.data.backups);
+                }
+            }
+        });
+    }
+
+    /**
+     * 롤백 백업 파일 목록 렌더링
+     */
+    function renderRollbackBackups(backups) {
+        var $container = $('#sb-rollback-backups-list');
+        
+        if (!backups || backups.length === 0) {
+            $container.html('<p class="sb-muted">사용 가능한 백업 파일이 없습니다.</p>');
+            return;
+        }
+
+        var html = '<table class="wp-list-table widefat fixed striped" style="margin-top: 10px;">';
+        html += '<thead><tr>';
+        html += '<th>파일명</th>';
+        html += '<th>버전</th>';
+        html += '<th>생성일</th>';
+        html += '<th>크기</th>';
+        html += '<th>액션</th>';
+        html += '</tr></thead><tbody>';
+
+        backups.forEach(function(backup) {
+            html += '<tr>';
+            html += '<td><code>' + escapeHtml(backup.filename) + '</code></td>';
+            html += '<td>v' + escapeHtml(backup.version) + '</td>';
+            html += '<td>' + escapeHtml(backup.created_at) + '</td>';
+            html += '<td>' + escapeHtml(backup.size) + '</td>';
+            html += '<td>';
+            html += '<button type="button" class="button button-small sb-rollback-btn" data-filename="' + escapeHtml(backup.filename) + '">롤백</button>';
+            html += ' ';
+            html += '<button type="button" class="button button-small button-link-delete sb-delete-backup-btn" data-filename="' + escapeHtml(backup.filename) + '">삭제</button>';
+            html += '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        $container.html(html);
+
+        // 롤백 버튼 이벤트
+        $('.sb-rollback-btn').on('click', function() {
+            var filename = $(this).data('filename');
+            performRollback(filename);
+        });
+
+        // 삭제 버튼 이벤트
+        $('.sb-delete-backup-btn').on('click', function() {
+            var filename = $(this).data('filename');
+            deleteRollbackBackup(filename);
+        });
+    }
+
+    /**
+     * 롤백 실행
+     */
+    function performRollback(filename) {
+        var confirmMsg = '백업 파일 "' + filename + '"로 롤백하시겠습니까?\n\n';
+        confirmMsg += '⚠️ 롤백 전 현재 데이터가 자동으로 백업됩니다.\n';
+        confirmMsg += '⚠️ 이 작업은 되돌릴 수 없습니다.';
+        
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        showPageLoading('롤백 중입니다... 페이지를 닫지 마세요.');
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_perform_rollback',
+                nonce: sbAdmin.ajaxNonce,
+                backup_file: filename,
+                auto_backup: true
+            },
+            success: function(response) {
+                if (response.success) {
+                    var msg = '롤백이 완료되었습니다!\n\n';
+                    msg += '복원된 링크: ' + response.data.stats.links + '개\n';
+                    msg += '복원된 로그: ' + response.data.stats.analytics + '개';
+                    
+                    if (response.data.pre_rollback_backup) {
+                        msg += '\n사전 백업: ' + response.data.pre_rollback_backup;
+                    }
+                    
+                    alert(msg);
+                    location.reload();
+                } else {
+                    hidePageLoading();
+                    SB_UI.showToast('롤백 실패: ' + response.data.message, 'error');
+                }
+            },
+            error: function() {
+                hidePageLoading();
+                SB_UI.showToast('서버 통신 오류', 'error');
+            }
+        });
+    }
+
+    /**
+     * 롤백 백업 파일 삭제
+     */
+    function deleteRollbackBackup(filename) {
+        if (!confirm('백업 파일 "' + filename + '"을 삭제하시겠습니까?')) {
+            return;
+        }
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_delete_rollback_backup',
+                nonce: sbAdmin.ajaxNonce,
+                filename: filename
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast('백업 파일이 삭제되었습니다.', 'success');
+                    loadRollbackBackups();
+                    loadRollbackLogs();
+                } else {
+                    SB_UI.showToast('삭제 실패: ' + response.data.message, 'error');
+                }
+            }
+        });
+    }
+
+    /**
+     * 롤백 로그 로드
+     */
+    function loadRollbackLogs() {
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_get_rollback_logs',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    renderRollbackLogs(response.data.logs);
+                }
+            }
+        });
+    }
+
+    /**
+     * 롤백 로그 렌더링
+     */
+    function renderRollbackLogs(logs) {
+        var $logsContainer = $('#sb-rollback-logs');
+        
+        if (!logs || logs.length === 0) {
+            $logsContainer.html('<p class="sb-muted">로그가 없습니다.</p>');
+            return;
+        }
+
+        var html = '<ul style="margin: 0; padding-left: 20px;">';
+        logs.forEach(function(log) {
+            var actionLabel = getRollbackActionLabel(log.action);
+            var date = new Date(log.timestamp);
+            var dateStr = date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR');
+            
+            var actionClass = '';
+            if (log.action === 'success') actionClass = 'color: #00a32a;';
+            else if (log.action === 'fail') actionClass = 'color: #d63638;';
+            else if (log.action === 'warning') actionClass = 'color: #dba617;';
+            
+            html += '<li style="margin-bottom: 5px;">';
+            html += '<small style="color: #666;">[' + dateStr + ']</small> ';
+            html += '<strong style="' + actionClass + '">' + actionLabel + '</strong>';
+            if (log.backup_file) {
+                html += ' (' + escapeHtml(log.backup_file) + ')';
+            }
+            if (log.message) {
+                html += ': ' + escapeHtml(log.message);
+            }
+            html += '</li>';
+        });
+        html += '</ul>';
+        
+        $logsContainer.html(html);
+    }
+
+    /**
+     * 롤백 로그 삭제
+     */
+    function clearRollbackLogs() {
+        if (!confirm('모든 롤백 로그를 삭제하시겠습니까?')) {
+            return;
+        }
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_clear_rollback_logs',
+                nonce: sbAdmin.ajaxNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast('롤백 로그가 삭제되었습니다.', 'success');
+                    loadRollbackLogs();
+                }
+            }
+        });
+    }
+
+    /**
+     * 오래된 롤백 백업 파일 정리
+     */
+    function cleanupRollbackBackups() {
+        if (!confirm('30일 이상 된 백업 파일을 정리하시겠습니까?')) {
+            return;
+        }
+
+        var $btn = $('#sb-cleanup-rollback-backups');
+        showButtonLoading($btn);
+
+        $.ajax({
+            url: sbAdmin.ajaxUrl,
+            method: 'POST',
+            data: {
+                action: 'sb_cleanup_rollback_backups',
+                nonce: sbAdmin.ajaxNonce,
+                days_old: 30
+            },
+            success: function(response) {
+                if (response.success) {
+                    SB_UI.showToast(response.data.message, 'success');
+                    loadRollbackBackups();
+                    loadRollbackLogs();
+                }
+            },
+            complete: function() {
+                hideButtonLoading($btn);
+            }
+        });
+    }
+
+    /**
+     * 업데이트 액션 라벨 반환
+     */
+    function getActionLabel(action) {
+        var labels = {
+            'check': '확인',
+            'download': '다운로드',
+            'install': '설치',
+            'success': '성공',
+            'fail': '실패'
+        };
+        return labels[action] || action;
+    }
+
+    /**
+     * 롤백 액션 라벨 반환
+     */
+    function getRollbackActionLabel(action) {
+        var labels = {
+            'backup': '백업',
+            'success': '성공',
+            'fail': '실패',
+            'warning': '경고',
+            'delete': '삭제',
+            'cleanup': '정리'
+        };
+        return labels[action] || action;
+    }
+
+    /**
+     * HTML 이스케이프
+     */
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&')
+            .replace(/</g, '<')
+            .replace(/>/g, '>')
+            .replace(/"/g, '"')
+            .replace(/'/g, '&#039;');
+    }
+
+    // 업데이트 및 롤백 기능 초기화
+    $(document).ready(function() {
+        if ($('#tab-update-rollback').length > 0) {
+            initUpdateRollback();
+        }
+    });
 
 })(jQuery);

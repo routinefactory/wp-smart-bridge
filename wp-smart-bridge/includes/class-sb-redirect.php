@@ -98,9 +98,35 @@ class SB_Redirect
 
         // 타겟 URL 조회
         $target_url = SB_Helpers::get_target_url($link->ID);
-        $target_url = esc_url_raw($target_url);
-        if (empty($target_url) || !SB_Helpers::validate_url($target_url)) {
-            // 타겟 URL이 없으면 404
+        
+        // v4.4.0 URL 무결성 검증: URL이 비어있거나 유효하지 않은 경우
+        if (empty($target_url)) {
+            global $wp_query;
+            $wp_query->set_404();
+            status_header(404);
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('SB_Redirect::handle_redirect() - Empty target URL for link ID: ' . $link->ID);
+            }
+            return;
+        }
+        
+        // esc_url_raw()로 sanitize (보안)
+        $sanitized_url = esc_url_raw($target_url);
+        
+        // v4.4.0 URL 잘림 감지: esc_url_raw()가 URL을 변경했는지 확인
+        if ($sanitized_url !== $target_url) {
+            error_log(sprintf(
+                '[SB_Redirect] URL was modified by esc_url_raw(). Original length: %d bytes, Sanitized length: %d bytes. Link ID: %d',
+                strlen($target_url),
+                strlen($sanitized_url),
+                $link->ID
+            ));
+            // sanitize된 URL 사용 (보안 우선)
+            $target_url = $sanitized_url;
+        }
+        
+        if (!SB_Helpers::validate_url($target_url)) {
+            // 타겟 URL이 유효하지 않으면 404
             global $wp_query;
             $wp_query->set_404();
             status_header(404);

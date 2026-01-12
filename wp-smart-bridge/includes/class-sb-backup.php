@@ -750,4 +750,461 @@ class SB_Backup
 
         return $html;
     }
+
+    // =========================================================================
+    // 롤백 기능 (P3 기능 개선)
+    // =========================================================================
+
+    /**
+     * 롤백 전 데이터 백업 (자동 백업)
+     *
+     * @return array ['success' => bool, 'message' => string, 'backup_file' => string]
+     */
+    public static function create_rollback_backup()
+    {
+        // 자동 백업 디렉토리 설정
+        $upload_dir = wp_upload_dir();
+        $rollback_dir = $upload_dir['basedir'] . '/sb-rollback-backups';
+
+        if (!file_exists($rollback_dir)) {
+            wp_mkdir_p($rollback_dir);
+        }
+
+        // 보안: .htaccess 생성
+        $htaccess_path = $rollback_dir . '/.htaccess';
+        if (!file_exists($htaccess_path)) {
+            file_put_contents($htaccess_path, "Deny from all\n");
+        }
+
+        // 백업 데이터 생성
+        $backup = self::create_backup();
+
+        // 파일명 생성 (타임스탬프 포함)
+        $filename = 'rollback-backup-' . date('Y-m-d-His') . '.json';
+        $filepath = $rollback_dir . '/' . $filename;
+
+        // 파일 저장
+        $result = file_put_contents($filepath, wp_json_encode($backup, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        if ($result === false) {
+            return [
+                'success' => false,
+                'message' => '롤백 백업 파일 생성에 실패했습니다.'
+            ];
+        }
+
+        // 로그 기록
+        self::log_rollback('backup', '', '롤백 전 백업 생성: ' . $filename);
+
+        return [
+            'success' => true,
+            'message' => '롤백 전 백업이 생성되었습니다.',
+            'backup_file' => $filename,
+            'backup_path' => $filepath
+        ];
+    }
+
+    /**
+     * 롤백 실행
+     *
+     * @param string $backup_file 백업 파일명
+     * @param bool $auto_backup 롤백 전 자동 백업 여부
+     * @return array ['success' => bool, 'message' => string, 'stats' => array]
+     */
+    public static function perform_rollback($backup_file, $auto_backup = true)
+    {
+        // 백업 파일 경로 확인
+        $upload_dir = wp_upload_dir();
+        $backup_dir = $upload_dir['basedir'] . '/sb-rollback-backups';
+        $filepath = $backup_dir . '/' . $backup_file;
+
+        // 파일 존재 확인
+        if (!file_exists($filepath)) {
+            return [
+                'success' => false,
+                'message' => '백업 파일을 찾을 수 없습니다: ' . $backup_file
+            ];
+        }
+
+        // 롤백 전 자동 백업
+        $pre_rollback_backup = null;
+        if ($auto_backup) {
+            $pre_result = self::create_rollback_backup();
+            if ($pre_result['success']) {
+                $pre_rollback_backup = $pre_result['backup_file'];
+            }
+        }
+
+        // 백업 파일 읽기
+        $json_content = file_get_contents($filepath);
+        $backup_data = json_decode($json_content, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            self::log_rollback('fail', $backup_file, 'JSON 파싱 실패: ' . json_last_error_msg());
+            return [
+                'success' => false,
+                'message' => '유효하지 않은 백업 파일입니다: ' . json_last_error_msg()
+            ];
+        }
+
+        // 데이터 무결성 검증 (롤백 전)
+        $validation = self::validate_backup_integrity($backup_data);
+        if (!$validation['valid']) {
+            self::log_rollback('fail', $backup_file, '데이터 무결성 검증 실패: ' . $validation['message']);
+            return [
+                'success' => false,
+                'message' => '백업 파일 무결성 검증 실패: ' . $validation['message']
+            ];
+        }
+
+        // 기존 데이터 백업 (임시)
+        $current_backup = self::create_backup();
+
+        // 롤백 실행 (기존 데이터 삭제 후 복원)
+        try {
+            // 1. 기존 링크 삭제
+            $existing_links = get_posts([
+                'post_type' => SB_Post_Type::POST_TYPE,
+                'posts_per_page' => -1,
+                'post_status' => 'any',
+            ]);
+
+            foreach ($existing_links as $link) {
+                wp_delete_post($link->ID, true);
+            }
+
+            // 2. 분석 로그 삭제
+            global $wpdb;
+            $table = $wpdb->prefix . 'sb_analytics_logs';
+            $wpdb->query("TRUNCATE TABLE $table");
+
+            // 3. 백업 데이터 복원
+            $restore_result = self::restore_backup($backup_data);
+
+            if (!$restore_result['success']) {
+                // 복원 실패 시 롤백 (이전 상태로 복구)
+                self::restore_backup($current_backup);
+                self::log_rollback('fail', $backup_file, '복원 실패 후 원복 완료');
+                
+                return [
+                    'success' => false,
+                    'message' => '복원 실패: ' . $restore_result['message'] . ' (이전 상태로 복구됨)'
+                ];
+            }
+
+            // 롤백 성공 로그
+            $log_message = '롤백 성공';
+            if ($pre_rollback_backup) {
+                $log_message .= ' (사전 백업: ' . $pre_rollback_backup . ')';
+            }
+            self::log_rollback('success', $backup_file, $log_message);
+
+            // 롤백 후 데이터 무결성 검증
+            $post_validation = self::validate_rollback_integrity($backup_data);
+            if (!$post_validation['valid']) {
+                self::log_rollback('warning', $backup_file, '롤백 후 무결성 검증 경고: ' . $post_validation['message']);
+            }
+
+            return [
+                'success' => true,
+                'message' => '롤백이 성공적으로 완료되었습니다.',
+                'stats' => $restore_result['stats'],
+                'pre_rollback_backup' => $pre_rollback_backup,
+                'post_validation' => $post_validation
+            ];
+
+        } catch (Exception $e) {
+            // 예외 발생 시 롤백 (이전 상태로 복구)
+            self::restore_backup($current_backup);
+            self::log_rollback('fail', $backup_file, '예외 발생 후 원복: ' . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'message' => '롤백 중 오류 발생: ' . $e->getMessage() . ' (이전 상태로 복구됨)'
+            ];
+        }
+    }
+
+    /**
+     * 백업 데이터 무결성 검증
+     *
+     * @param array $backup_data 백업 데이터
+     * @return array ['valid' => bool, 'message' => string]
+     */
+    private static function validate_backup_integrity($backup_data)
+    {
+        // 필수 필드 확인
+        if (!isset($backup_data['version'])) {
+            return [
+                'valid' => false,
+                'message' => '버전 정보가 없습니다.'
+            ];
+        }
+
+        if (!isset($backup_data['data'])) {
+            return [
+                'valid' => false,
+                'message' => '데이터 섹션이 없습니다.'
+            ];
+        }
+
+        // 링크 데이터 구조 확인
+        if (isset($backup_data['data']['links']) && is_array($backup_data['data']['links'])) {
+            foreach ($backup_data['data']['links'] as $index => $link) {
+                if (!isset($link['slug']) || !isset($link['target_url'])) {
+                    return [
+                        'valid' => false,
+                        'message' => '링크 데이터 구조가 올바르지 않습니다 (인덱스: ' . $index . ')'
+                    ];
+                }
+            }
+        }
+
+        // 분석 로그 구조 확인
+        if (isset($backup_data['data']['analytics']) && is_array($backup_data['data']['analytics'])) {
+            foreach ($backup_data['data']['analytics'] as $index => $log) {
+                if (!isset($log['link_id']) || !isset($log['visited_at'])) {
+                    return [
+                        'valid' => false,
+                        'message' => '분석 로그 구조가 올바르지 않습니다 (인덱스: ' . $index . ')'
+                    ];
+                }
+            }
+        }
+
+        return [
+            'valid' => true,
+            'message' => '무결성 검증 통과'
+        ];
+    }
+
+    /**
+     * 롤백 후 데이터 무결성 검증
+     *
+     * @param array $expected_data 예상 데이터
+     * @return array ['valid' => bool, 'message' => string, 'differences' => array]
+     */
+    private static function validate_rollback_integrity($expected_data)
+    {
+        $differences = [];
+
+        // 링크 수 비교
+        $expected_links = isset($expected_data['data']['links']) ? count($expected_data['data']['links']) : 0;
+        $actual_links = wp_count_posts(SB_Post_Type::POST_TYPE)->publish;
+
+        if ($expected_links !== $actual_links) {
+            $differences[] = "링크 수: 예상 {$expected_links}, 실제 {$actual_links}";
+        }
+
+        // 분석 로그 수 비교
+        $expected_logs = isset($expected_data['data']['analytics']) ? count($expected_data['data']['analytics']) : 0;
+        global $wpdb;
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $actual_logs = $wpdb->get_var("SELECT COUNT(*) FROM $table");
+
+        if ($expected_logs !== (int) $actual_logs) {
+            $differences[] = "분석 로그 수: 예상 {$expected_logs}, 실제 {$actual_logs}";
+        }
+
+        // 설정 비교
+        if (isset($expected_data['data']['settings'])) {
+            $current_settings = get_option('sb_settings', []);
+            $expected_settings = $expected_data['data']['settings'];
+            
+            $setting_diffs = array_diff_assoc($expected_settings, $current_settings);
+            if (!empty($setting_diffs)) {
+                $differences[] = "설정 차이: " . count($setting_diffs) . "개 항목";
+            }
+        }
+
+        if (empty($differences)) {
+            return [
+                'valid' => true,
+                'message' => '롤백 후 무결성 검증 통과',
+                'differences' => []
+            ];
+        }
+
+        return [
+            'valid' => false,
+            'message' => '데이터 불일치 발견',
+            'differences' => $differences
+        ];
+    }
+
+    /**
+     * 롤백 로그 기록
+     *
+     * @param string $action 동작 (backup, success, fail, warning)
+     * @param string $backup_file 백업 파일명
+     * @param string $message 메시지
+     * @return bool
+     */
+    private static function log_rollback($action, $backup_file, $message)
+    {
+        $logs = get_option('sb_rollback_logs', []);
+        
+        $log_entry = [
+            'timestamp' => current_time('mysql'),
+            'action' => $action,
+            'backup_file' => $backup_file,
+            'message' => $message,
+            'user_id' => get_current_user_id(),
+        ];
+
+        // 최대 50개 로그 유지
+        array_unshift($logs, $log_entry);
+        if (count($logs) > 50) {
+            $logs = array_slice($logs, 0, 50);
+        }
+
+        return update_option('sb_rollback_logs', $logs);
+    }
+
+    /**
+     * 롤백 로그 조회
+     *
+     * @param int $limit 조회할 로그 수
+     * @return array
+     */
+    public static function get_rollback_logs($limit = 20)
+    {
+        $logs = get_option('sb_rollback_logs', []);
+        return array_slice($logs, 0, $limit);
+    }
+
+    /**
+     * 롤백 로그 삭제
+     *
+     * @return bool
+     */
+    public static function clear_rollback_logs()
+    {
+        return update_option('sb_rollback_logs', []);
+    }
+
+    /**
+     * 사용 가능한 롤백 백업 파일 목록 조회
+     *
+     * @return array
+     */
+    public static function get_rollback_backups()
+    {
+        $upload_dir = wp_upload_dir();
+        $backup_dir = $upload_dir['basedir'] . '/sb-rollback-backups';
+
+        if (!is_dir($backup_dir)) {
+            return [];
+        }
+
+        $backups = [];
+
+        foreach (glob($backup_dir . '/rollback-backup-*.json') as $filepath) {
+            $filename = basename($filepath);
+            $filetime = filemtime($filepath);
+            $filesize = filesize($filepath);
+
+            // 파일에서 버전 정보 추출
+            $json_content = file_get_contents($filepath);
+            $backup_data = json_decode($json_content, true);
+            $version = isset($backup_data['version']) ? $backup_data['version'] : 'Unknown';
+
+            $backups[] = [
+                'filename' => $filename,
+                'filepath' => $filepath,
+                'version' => $version,
+                'created_at' => date('Y-m-d H:i:s', $filetime),
+                'size' => self::format_filesize($filesize),
+                'size_bytes' => $filesize
+            ];
+        }
+
+        // 생성일 역순 정렬
+        usort($backups, function($a, $b) {
+            return strcmp($b['created_at'], $a['created_at']);
+        });
+
+        return $backups;
+    }
+
+    /**
+     * 롤백 백업 파일 삭제
+     *
+     * @param string $filename 파일명
+     * @return array
+     */
+    public static function delete_rollback_backup($filename)
+    {
+        $upload_dir = wp_upload_dir();
+        $backup_dir = $upload_dir['basedir'] . '/sb-rollback-backups';
+        $filepath = $backup_dir . '/' . $filename;
+
+        if (!file_exists($filepath)) {
+            return [
+                'success' => false,
+                'message' => '파일을 찾을 수 없습니다.'
+            ];
+        }
+
+        if (@unlink($filepath)) {
+            self::log_rollback('delete', $filename, '롤백 백업 파일 삭제');
+            return [
+                'success' => true,
+                'message' => '파일이 삭제되었습니다.'
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => '파일 삭제에 실패했습니다.'
+        ];
+    }
+
+    /**
+     * 오래된 롤백 백업 파일 정리
+     *
+     * @param int $days_old 보관할 일수
+     * @return int 삭제된 파일 수
+     */
+    public static function cleanup_rollback_backups($days_old = 30)
+    {
+        $upload_dir = wp_upload_dir();
+        $backup_dir = $upload_dir['basedir'] . '/sb-rollback-backups';
+
+        if (!is_dir($backup_dir)) {
+            return 0;
+        }
+
+        $deleted_count = 0;
+        $cutoff_time = time() - ($days_old * DAY_IN_SECONDS);
+
+        foreach (glob($backup_dir . '/rollback-backup-*.json') as $filepath) {
+            if (filemtime($filepath) < $cutoff_time) {
+                $filename = basename($filepath);
+                if (@unlink($filepath)) {
+                    self::log_rollback('cleanup', $filename, '오래된 백업 자동 삭제');
+                    $deleted_count++;
+                }
+            }
+        }
+
+        return $deleted_count;
+    }
+
+    /**
+     * 파일 크기 포맷팅
+     *
+     * @param int $bytes 바이트
+     * @return string
+     */
+    private static function format_filesize($bytes)
+    {
+        if ($bytes >= 1048576) {
+            return number_format($bytes / 1048576, 2) . ' MB';
+        } elseif ($bytes >= 1024) {
+            return number_format($bytes / 1024, 2) . ' KB';
+        } else {
+            return $bytes . ' B';
+        }
+    }
 }

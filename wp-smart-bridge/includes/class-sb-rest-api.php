@@ -216,8 +216,35 @@ class SB_Rest_API
 
         // 2. 요청 파라미터 추출
         $params = $request->get_json_params();
+        
+        // v4.4.0 URL 잘림 방지: 원본 URL 길이 저장
+        $original_url = isset($params['target_url']) ? $params['target_url'] : '';
+        $original_url_length = strlen($original_url);
+        
         // v2.9.22 보안 강화: 입력값 명시적 Sanitize
-        $target_url = isset($params['target_url']) ? esc_url_raw($params['target_url']) : '';
+        $target_url = esc_url_raw($original_url);
+        $sanitized_url_length = strlen($target_url);
+        
+        // v4.4.0 URL 잘림 감지: esc_url_raw()가 URL을 변경했는지 확인
+        if ($original_url_length > 0 && $sanitized_url_length !== $original_url_length) {
+            // URL이 잘렸거나 변경됨
+            error_log(sprintf(
+                '[SB_Rest_API] URL was modified by esc_url_raw(). Original: %d bytes, Sanitized: %d bytes. Diff: %d bytes.',
+                $original_url_length,
+                $sanitized_url_length,
+                $original_url_length - $sanitized_url_length
+            ));
+            
+            // URL이 너무 긴 경우 에러 반환 (WordPress 제한: 2083 bytes)
+            if ($original_url_length > 2083) {
+                return new WP_Error(
+                    'url_too_long',
+                    sprintf('URL is too long. Maximum allowed length is 2083 bytes. Provided URL length: %d bytes.', $original_url_length),
+                    ['status' => 400]
+                );
+            }
+        }
+        
         $custom_slug = isset($params['slug']) ? sanitize_text_field($params['slug']) : null;
 
         // 3. URL 유효성 검증
@@ -326,6 +353,34 @@ class SB_Rest_API
                 );
             }
         }
+        
+        // v4.4.0 URL 무결성 검증: 저장된 URL이 원본과 일치하는지 확인
+        $saved_url = get_post_meta($post_id, 'target_url', true);
+        if ($saved_url !== $target_url) {
+            // URL이 잘렸거나 변경됨
+            error_log(sprintf(
+                '[SB_Rest_API] URL integrity check failed. Original length: %d bytes, Saved length: %d bytes. Diff: %d bytes.',
+                strlen($target_url),
+                strlen($saved_url),
+                strlen($target_url) - strlen($saved_url)
+            ));
+            
+            // 데이터베이스 문제일 가능성이 있으므로 포스트 삭제 후 에러 반환
+            wp_delete_post($post_id, true);
+            return new WP_Error(
+                'url_truncation_detected',
+                sprintf('URL was truncated during save. Original length: %d bytes, Saved length: %d bytes.', strlen($target_url), strlen($saved_url)),
+                ['status' => 500]
+            );
+        }
+
+        // P1 Performance: 링크 생성 시 관련 캐시 무효화
+        SB_Helpers::invalidate_cache_by_tags([
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_LINKS,
+            SB_Helpers::CACHE_TAG_PLATFORMS,
+            SB_Helpers::CACHE_TAG_STATS
+        ]);
 
         // 7. 성공 응답
         return new WP_REST_Response([

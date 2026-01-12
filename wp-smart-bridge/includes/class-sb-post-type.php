@@ -76,6 +76,9 @@ class SB_Post_Type
         // 고급 필터 UI (wp_restrict_manage_posts 사용 권장)
         add_action('restrict_manage_posts', [__CLASS__, 'render_filter_dropdowns']);
 
+        // 일괄 작업(Bulk Actions) 처리
+        add_action('admin_init', [__CLASS__, 'handle_bulk_actions']);
+
         // 기본 날짜 필터 숨기기
         add_filter('disable_months_dropdown', [__CLASS__, 'disable_date_dropdown'], 10, 2);
     }
@@ -245,6 +248,9 @@ class SB_Post_Type
             return;
         }
 
+        // P1 Performance: 플랫폼 변경 감지를 위한 기존 값 저장
+        $old_platform = get_post_meta($post_id, 'platform', true);
+
         // 타겟 URL 저장
         if (isset($_POST['sb_target_url'])) {
             $target_url = esc_url_raw($_POST['sb_target_url']);
@@ -255,8 +261,24 @@ class SB_Post_Type
                 // 플랫폼 자동 재태깅
                 $platform = SB_Helpers::detect_platform($target_url);
                 update_post_meta($post_id, 'platform', $platform);
+
+                // P1 Performance: 플랫폼이 변경된 경우 관련 캐시 무효화
+                if ($old_platform && $old_platform !== $platform) {
+                    SB_Helpers::invalidate_cache_by_tags([
+                        SB_Helpers::CACHE_TAG_ANALYTICS,
+                        SB_Helpers::CACHE_TAG_PLATFORMS,
+                        SB_Helpers::CACHE_TAG_STATS
+                    ]);
+                }
             }
         }
+
+        // P1 Performance: 링크 수정 시 분석 캐시 무효화
+        SB_Helpers::invalidate_cache_by_tags([
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_LINKS,
+            SB_Helpers::CACHE_TAG_STATS
+        ]);
     }
 
     /**
@@ -556,7 +578,7 @@ class SB_Post_Type
 
     /**
      * 필터 드롭다운 UI 렌더링
-     * 
+     *
      * @param string $post_type 현재 포스트 타입
      */
     public static function render_filter_dropdowns($post_type)
@@ -572,16 +594,21 @@ class SB_Post_Type
         $current_clicks = isset($_GET['sb_clicks']) ? sanitize_text_field($_GET['sb_clicks']) : '';
         $current_date_range = isset($_GET['sb_date_range']) ? sanitize_text_field($_GET['sb_date_range']) : '';
 
-        // DB에서 사용 중인 플랫폼 목록 조회
-        $platforms = $wpdb->get_col("
-            SELECT DISTINCT meta_value 
-            FROM {$wpdb->postmeta} 
-            WHERE meta_key = 'platform' AND meta_value != ''
-            ORDER BY meta_value
-        ");
+        // DB에서 사용 중인 플랫폼 목록 조회 (캐싱 적용)
+        $platforms = self::get_platforms_cached();
+
+        // 총 링크 수 계산
+        $total_links = self::get_filtered_link_count($current_platform, $current_clicks, $current_date_range);
 
         ?>
         <div class="sb-filter-bar">
+            <div class="sb-filter-header">
+                <h2 class="sb-filter-title"><?php _e('링크 관리', 'sb'); ?></h2>
+                <a href="<?php echo admin_url('admin.php?page=smart-bridge'); ?>" class="button button-primary sb-add-link-btn">
+                    <span class="dashicons dashicons-plus"></span>
+                    <?php _e('새 링크 추가', 'sb'); ?>
+                </a>
+            </div>
             <div class="sb-filter-group">
                 <div class="sb-filter-item">
                     <label><?php _e('플랫폼', 'sb'); ?></label>
@@ -617,11 +644,249 @@ class SB_Post_Type
                         <option value="7d" <?php selected($current_date_range, '7d'); ?>><?php _e('최근 7일', 'sb'); ?></option>
                         <option value="30d" <?php selected($current_date_range, '30d'); ?>><?php _e('최근 30일', 'sb'); ?></option>
                         <option value="90d" <?php selected($current_date_range, '90d'); ?>><?php _e('최근 90일', 'sb'); ?></option>
+                        <option value="180d" <?php selected($current_date_range, '180d'); ?>><?php _e('최근 180일', 'sb'); ?></option>
+                        <option value="365d" <?php selected($current_date_range, '365d'); ?>><?php _e('최근 365일', 'sb'); ?></option>
                     </select>
+                </div>
+
+                <div class="sb-filter-item sb-filter-count">
+                    <span class="sb-filter-count-label"><?php _e('검색 결과', 'sb'); ?></span>
+                    <span class="sb-filter-count-value"><?php echo number_format($total_links); ?></span>
+                </div>
+
+                <div class="sb-filter-item sb-filter-btn-item">
+                    <button type="button" id="sb_clear_sorting" class="button button-secondary">
+                        <span class="dashicons dashicons-dismiss"></span>
+                        <?php _e('정렬 해제', 'sb'); ?>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 일괄 작업(Bulk Actions) UI -->
+            <div class="sb-bulk-actions-container" id="sb-bulk-actions-container" style="display: none;">
+                <div class="sb-filter-item">
+                    <label><?php _e('일괄 작업', 'sb'); ?></label>
+                    <select name="sb_bulk_action" id="sb_bulk_action" class="sb-admin-filter">
+                        <option value=""><?php _e('작업 선택', 'sb'); ?></option>
+                        <option value="sb_bulk_delete"><?php _e('선택한 링크 삭제', 'sb'); ?></option>
+                        <option value="sb_bulk_update_platform"><?php _e('플랫폼 변경', 'sb'); ?></option>
+                    </select>
+                </div>
+
+                <div class="sb-filter-item sb-bulk-platform-select" id="sb_bulk_platform_select" style="display: none;">
+                    <label><?php _e('새 플랫폼', 'sb'); ?></label>
+                    <select name="sb_bulk_platform" id="sb_bulk_platform" class="sb-admin-filter">
+                        <option value=""><?php _e('플랫폼 선택', 'sb'); ?></option>
+                        <?php foreach ($platforms as $platform): ?>
+                            <option value="<?php echo esc_attr($platform); ?>">
+                                <?php echo esc_html($platform); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="sb-filter-item sb-filter-btn-item">
+                    <button type="submit" id="sb_bulk_apply" class="button button-primary">
+                        <?php _e('적용', 'sb'); ?>
+                    </button>
                 </div>
             </div>
         </div>
         <?php
+    }
+
+    /**
+     * 플랫폼 목록 캐싱 (성능 최적화)
+     *
+     * @return array 플랫폼 목록
+     */
+    public static function get_platforms_cached()
+    {
+        global $wpdb;
+        
+        $cache_key = 'sb_platforms_list';
+        $platforms = get_transient($cache_key);
+        
+        if ($platforms !== false) {
+            return $platforms;
+        }
+        
+        // DB에서 사용 중인 플랫폼 목록 조회
+        $platforms = $wpdb->get_col("
+            SELECT DISTINCT meta_value
+            FROM {$wpdb->postmeta}
+            WHERE meta_key = 'platform' AND meta_value != ''
+            ORDER BY meta_value
+        ");
+        
+        // 1시간 캐싱
+        set_transient($cache_key, $platforms, HOUR_IN_SECONDS);
+        
+        return $platforms;
+    }
+
+    /**
+     * 필터링된 링크 수 계산
+     *
+     * @param string $platform 플랫폼 필터
+     * @param string $clicks 클릭수 필터
+     * @param string $date_range 기간 필터
+     * @return int 필터링된 링크 수
+     */
+    public static function get_filtered_link_count($platform = '', $clicks = '', $date_range = '')
+    {
+        global $wpdb;
+        
+        $where = ["p.post_type = '" . SB_Post_Type::POST_TYPE . "'", "p.post_status = 'publish'"];
+        $join = [];
+        
+        // 플랫폼 필터
+        if (!empty($platform)) {
+            $join[] = "INNER JOIN {$wpdb->postmeta} pm_platform ON (p.ID = pm_platform.post_id AND pm_platform.meta_key = 'platform')";
+            $where[] = $wpdb->prepare("pm_platform.meta_value = %s", $platform);
+        }
+        
+        // 클릭수 필터
+        if (!empty($clicks)) {
+            $join[] = "INNER JOIN {$wpdb->postmeta} pm_clicks ON (p.ID = pm_clicks.post_id AND pm_clicks.meta_key = 'click_count')";
+            
+            switch ($clicks) {
+                case '0':
+                    $where[] = "(pm_clicks.meta_value = '0' OR pm_clicks.meta_value IS NULL)";
+                    break;
+                case '1-100':
+                    $where[] = "(CAST(pm_clicks.meta_value AS UNSIGNED) BETWEEN 1 AND 100)";
+                    break;
+                case '100-1000':
+                    $where[] = "(CAST(pm_clicks.meta_value AS UNSIGNED) BETWEEN 100 AND 1000)";
+                    break;
+                case '1000+':
+                    $where[] = "(CAST(pm_clicks.meta_value AS UNSIGNED) >= 1000)";
+                    break;
+            }
+        }
+        
+        // 기간 필터
+        if (!empty($date_range)) {
+            switch ($date_range) {
+                case 'today':
+                    $where[] = "DATE(p.post_date) = CURDATE()";
+                    break;
+                case '7d':
+                    $where[] = "p.post_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+                    break;
+                case '30d':
+                    $where[] = "p.post_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+                    break;
+                case '90d':
+                    $where[] = "p.post_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
+                    break;
+                case '180d':
+                    $where[] = "p.post_date >= DATE_SUB(CURDATE(), INTERVAL 180 DAY)";
+                    break;
+                case '365d':
+                    $where[] = "p.post_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)";
+                    break;
+            }
+        }
+        
+        $sql = "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p";
+        
+        if (!empty($join)) {
+            $sql .= ' ' . implode(' ', $join);
+        }
+        
+        if (!empty($where)) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        
+        return (int) $wpdb->get_var($sql);
+    }
+
+    /**
+     * 일괄 작업(Bulk Actions) 처리
+     *
+     * @since 4.2.0
+     */
+    public static function handle_bulk_actions()
+    {
+        // 링크 관리 페이지 확인
+        if (!isset($_GET['post_type']) || $_GET['post_type'] !== self::POST_TYPE) {
+            return;
+        }
+
+        // 일괄 작업 확인
+        if (!isset($_POST['sb_bulk_action']) || empty($_POST['sb_bulk_action'])) {
+            return;
+        }
+
+        // Nonce 확인
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'bulk-posts')) {
+            wp_die(__('보안 확인에 실패했습니다.', 'sb'));
+        }
+
+        // 권한 확인
+        if (!current_user_can('delete_posts')) {
+            wp_die(__('이 작업을 수행할 권한이 없습니다.', 'sb'));
+        }
+
+        $action = sanitize_text_field($_POST['sb_bulk_action']);
+        $link_ids = isset($_POST['post']) ? array_map('intval', $_POST['post']) : [];
+
+        if (empty($link_ids)) {
+            return;
+        }
+
+        switch ($action) {
+            case 'sb_bulk_delete':
+                // 대량 삭제
+                foreach ($link_ids as $link_id) {
+                    if (current_user_can('delete_post', $link_id)) {
+                        wp_delete_post($link_id, true); // 휴지통으로 이동하지 않고 완전 삭제
+                    }
+                }
+                // P1 Performance: 링크 삭제 시 관련 캐시 무효화
+                SB_Helpers::invalidate_cache_by_tags([
+                    SB_Helpers::CACHE_TAG_ANALYTICS,
+                    SB_Helpers::CACHE_TAG_LINKS,
+                    SB_Helpers::CACHE_TAG_PLATFORMS,
+                    SB_Helpers::CACHE_TAG_STATS
+                ]);
+                self::clear_platforms_cache();
+                wp_redirect(admin_url('edit.php?post_type=' . self::POST_TYPE . '&deleted=' . count($link_ids)));
+                exit;
+
+            case 'sb_bulk_update_platform':
+                // 플랫폼 변경
+                if (!isset($_POST['sb_bulk_platform'])) {
+                    wp_redirect(admin_url('edit.php?post_type=' . self::POST_TYPE . '&error=no_platform'));
+                    exit;
+                }
+
+                $new_platform = sanitize_text_field($_POST['sb_bulk_platform']);
+                foreach ($link_ids as $link_id) {
+                    if (current_user_can('edit_post', $link_id)) {
+                        update_post_meta($link_id, 'platform', $new_platform);
+                    }
+                }
+                // P1 Performance: 플랫폼 변경 시 관련 캐시 무효화
+                SB_Helpers::invalidate_cache_by_tags([
+                    SB_Helpers::CACHE_TAG_ANALYTICS,
+                    SB_Helpers::CACHE_TAG_PLATFORMS,
+                    SB_Helpers::CACHE_TAG_STATS
+                ]);
+                self::clear_platforms_cache();
+                wp_redirect(admin_url('edit.php?post_type=' . self::POST_TYPE . '&updated=' . count($link_ids)));
+                exit;
+        }
+    }
+
+    /**
+     * 캐시 초기화 (플랫폼 목록)
+     */
+    public static function clear_platforms_cache()
+    {
+        delete_transient('sb_platforms_list');
     }
 
     /**

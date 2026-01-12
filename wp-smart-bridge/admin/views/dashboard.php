@@ -51,19 +51,12 @@ if (!defined('ABSPATH')) {
         <div class="sb-filter-group">
             <label for="sb-date-range"><?php _e('기간', 'sb'); ?></label>
             <select id="sb-date-range" class="sb-filter-select">
-                <option value="today"><?php _e('오늘', 'sb'); ?></option>
-                <option value="yesterday"><?php _e('어제', 'sb'); ?></option>
-                <option value="7d"><?php _e('최근 7일', 'sb'); ?></option>
-                <option value="30d" selected><?php _e('최근 30일', 'sb'); ?></option>
-                <option value="custom"><?php _e('사용자 지정', 'sb'); ?></option>
+                <option value="today_7d" selected><?php _e('오늘 + 최근 7일', 'sb'); ?></option>
+                <option value="30d"><?php _e('최근 30일', 'sb'); ?></option>
+                <option value="90d"><?php _e('최근 3개월', 'sb'); ?></option>
+                <option value="180d"><?php _e('최근 6개월', 'sb'); ?></option>
+                <option value="365d"><?php _e('최근 12개월', 'sb'); ?></option>
             </select>
-        </div>
-
-        <div class="sb-filter-group sb-custom-dates sb-hidden">
-            <label for="sb-start-date"><?php _e('시작일', 'sb'); ?></label>
-            <input type="date" id="sb-start-date" class="sb-filter-input">
-            <label for="sb-end-date"><?php _e('종료일', 'sb'); ?></label>
-            <input type="date" id="sb-end-date" class="sb-filter-input">
         </div>
 
         <div class="sb-filter-group">

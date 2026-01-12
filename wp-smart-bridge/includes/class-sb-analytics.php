@@ -58,7 +58,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_tc_' . md5($start_date . $end_date . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return (int) $cached;
         }
@@ -111,7 +111,10 @@ class SB_Analytics
             $count = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
         }
 
-        set_transient($cache_key, $count, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $count, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
 
         return $count;
     }
@@ -129,7 +132,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_uv_' . md5($start_date . $end_date . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return (int) $cached;
         }
@@ -145,7 +148,10 @@ class SB_Analytics
         }
 
         $count = (int) $wpdb->get_var($wpdb->prepare($sql, $params));
-        set_transient($cache_key, $count, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $count, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
 
         return $count;
     }
@@ -159,7 +165,7 @@ class SB_Analytics
     {
         // 캐싱 적용 (1시간 - 오늘 날짜가 바뀌지 않는 한 유효)
         $cache_key = 'sb_gr_' . md5(date('Y-m-d') . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return (float) $cached;
         }
@@ -205,7 +211,10 @@ class SB_Analytics
             $rate = round((($today_clicks - $yesterday_clicks) / $yesterday_clicks) * 100, 1);
         }
 
-        set_transient($cache_key, $rate, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $rate, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
         return $rate;
     }
 
@@ -232,7 +241,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_cbh_' . md5($start_date . $end_date . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return $cached;
         }
@@ -260,7 +269,10 @@ class SB_Analytics
             $clicks_by_hour[(int) $row['hour']] = (int) $row['clicks'];
         }
 
-        set_transient($cache_key, $clicks_by_hour, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $clicks_by_hour, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
 
         return $clicks_by_hour;
     }
@@ -279,7 +291,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_ps_' . md5($start_date . $end_date . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return $cached;
         }
@@ -308,7 +320,11 @@ class SB_Analytics
             $platform_share[$p] = (int) $row['clicks'];
         }
 
-        set_transient($cache_key, $platform_share, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $platform_share, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_PLATFORMS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
 
         return $platform_share;
     }
@@ -324,7 +340,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_dt_' . md5($start_date . $end_date . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         $today_date = current_time('Y-m-d');
 
         // Hybrid Cache Strategy: Use cache but ensure 'Today' is realtime
@@ -416,7 +432,10 @@ class SB_Analytics
             $current->modify('+1 day');
         }
 
-        set_transient($cache_key, $daily_trend, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $daily_trend, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
         return $daily_trend;
     }
 
@@ -448,7 +467,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_wt_' . md5($weeks . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
 
         // Hybrid Cache: Update current week
         if (false !== $cached) {
@@ -541,7 +560,10 @@ class SB_Analytics
             $current->modify('+7 days');
         }
 
-        set_transient($cache_key, $weekly_trend, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $weekly_trend, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
         return $weekly_trend;
     }
 
@@ -573,7 +595,7 @@ class SB_Analytics
         global $wpdb;
 
         $cache_key = 'sb_mt_' . md5($months . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
 
         // Hybrid Cache: Update current month
         if (false !== $cached) {
@@ -647,7 +669,10 @@ class SB_Analytics
             $current->modify('+1 month');
         }
 
-        set_transient($cache_key, $monthly_trend, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $monthly_trend, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
         return $monthly_trend;
     }
 
@@ -716,7 +741,7 @@ class SB_Analytics
     public function get_available_platforms(): array
     {
         $cache_key = 'sb_platforms';
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return $cached;
         }
@@ -730,7 +755,9 @@ class SB_Analytics
         );
 
         $result = $platforms ?: [];
-        set_transient($cache_key, $result, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $result, [
+            SB_Helpers::CACHE_TAG_PLATFORMS
+        ], self::CACHE_EXPIRATION);
         return $result;
     }
 
@@ -746,7 +773,7 @@ class SB_Analytics
     public function get_top_links(string $start_date, string $end_date, ?string $platform = null, int $limit = 20): array
     {
         $cache_key = 'sb_top_' . md5($start_date . $end_date . serialize($platform) . $limit);
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return $cached;
         }
@@ -828,7 +855,11 @@ class SB_Analytics
 
         }
 
-        set_transient($cache_key, $links, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $links, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_LINKS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
 
         return $links;
     }
@@ -843,7 +874,7 @@ class SB_Analytics
     public function get_all_time_top_links(int $limit = 100, ?string $platform = null): array
     {
         $cache_key = 'sb_all_top_' . md5((string) $limit . serialize($platform));
-        $cached = get_transient($cache_key);
+        $cached = SB_Helpers::get_cache_with_tags($cache_key);
         if (false !== $cached) {
             return $cached;
         }
@@ -895,7 +926,11 @@ class SB_Analytics
             }
         }
 
-        set_transient($cache_key, $top_links, self::CACHE_EXPIRATION);
+        SB_Helpers::set_cache_with_tags($cache_key, $top_links, [
+            SB_Helpers::CACHE_TAG_ANALYTICS,
+            SB_Helpers::CACHE_TAG_LINKS,
+            SB_Helpers::CACHE_TAG_STATS
+        ], self::CACHE_EXPIRATION);
 
         return $top_links;
     }
@@ -2097,9 +2132,146 @@ class SB_Analytics
 
         return $result !== false;
     }
+    // ========================================
+    // P1 Performance: Chunk-based Processing
+    // ========================================
+
+    /**
+     * 커서 기반 페이지네이션으로 대용량 데이터 처리
+     *
+     * LIMIT/OFFSET 대신 커서 기반 페이지네이션 사용하여 메모리 부족 방지
+     *
+     * @param string $table 테이블 이름 (prefix 제외)
+     * @param string $where WHERE 절 (파라미터화 필요)
+     * @param string $cursor_column 커서로 사용할 컬럼 (기본: id)
+     * @param int $chunk_size 청크 크기 (기본: 1000)
+     * @param callable $callback 각 청크에 대해 실행할 콜백 함수
+     * @param array $params 쿼리 파라미터
+     * @return int 처리된 총 레코드 수
+     */
+    public function process_data_in_chunks($table, $where, $cursor_column = 'id', $chunk_size = 1000, $callback, $params = [])
+    {
+        global $wpdb;
+        $full_table = $wpdb->prefix . $table;
+        $total_processed = 0;
+        $last_cursor = 0;
+
+        while (true) {
+            // 커서 기반 쿼리
+            $sql = "SELECT * FROM $full_table WHERE $cursor_column > %d";
+            $query_params = [$last_cursor];
+
+            if (!empty($where)) {
+                $sql .= " AND ($where)";
+                $query_params = array_merge($query_params, $params);
+            }
+
+            $sql .= " ORDER BY $cursor_column ASC LIMIT %d";
+            $query_params[] = $chunk_size;
+
+            $results = $wpdb->get_results($wpdb->prepare($sql, $query_params), ARRAY_A);
+
+            if (empty($results)) {
+                break;
+            }
+
+            // 콜백 실행
+            $callback($results);
+
+            $total_processed += count($results);
+            $last_cursor = (int) $results[count($results) - 1][$cursor_column];
+
+            // 청크 크기보다 적게 반환되면 마지막 청크
+            if (count($results) < $chunk_size) {
+                break;
+            }
+
+            // 메모리 해제
+            $wpdb->flush();
+        }
+
+        return $total_processed;
+    }
+
+    /**
+     * 대용량 로그 데이터 내보내기 (커서 기반)
+     *
+     * @param string $start_date 시작일
+     * @param string $end_date 종료일
+     * @param string|null $platform 플랫폼 필터
+     * @param int $chunk_size 청크 크기
+     * @return array 내보낸 데이터 배열
+     */
+    public function export_logs_chunked($start_date, $end_date, $platform = null, $chunk_size = 1000)
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+        $all_data = [];
+
+        $where = "visited_at BETWEEN %s AND %s";
+        $params = [$start_date, $end_date];
+
+        if ($platform) {
+            $where .= " AND platform = %s";
+            $params[] = $platform;
+        }
+
+        $last_id = 0;
+
+        while (true) {
+            $sql = "SELECT * FROM $table WHERE id > %d AND ($where) ORDER BY id ASC LIMIT %d";
+            $query_params = array_merge([$last_id], $params, [$chunk_size]);
+
+            $results = $wpdb->get_results($wpdb->prepare($sql, $query_params), ARRAY_A);
+
+            if (empty($results)) {
+                break;
+            }
+
+            $all_data = array_merge($all_data, $results);
+            $last_id = (int) $results[count($results) - 1]['id'];
+
+            if (count($results) < $chunk_size) {
+                break;
+            }
+
+            // 메모리 해제
+            $wpdb->flush();
+        }
+
+        return $all_data;
+    }
+
+    /**
+     * 대용량 링크 통계 집계 (커서 기반)
+     *
+     * @param string $start_date 시작일
+     * @param string $end_date 종료일
+     * @param callable $callback 각 청크에 대해 실행할 콜백
+     * @param int $chunk_size 청크 크기
+     * @return int 처리된 총 레코드 수
+     */
+    public function aggregate_stats_chunked($start_date, $end_date, $callback, $chunk_size = 1000)
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sb_analytics_logs';
+
+        $where = "visited_at BETWEEN %s AND %s";
+        $params = [$start_date, $end_date];
+
+        return $this->process_data_in_chunks(
+            'sb_analytics_logs',
+            $where,
+            'id',
+            $chunk_size,
+            $callback,
+            $params
+        );
+    }
+
     /**
      * 모든 캐시 및 Transients 강제 삭제 (Factory Reset용)
-     * 
+     *
      * @since 3.1.2
      */
     public static function clear_all_cache()
@@ -2109,12 +2281,15 @@ class SB_Analytics
         // 1. DB에 저장된 Transients 직접 삭제 (LIKE 검색)
         // _transient_sb_%, _transient_timeout_sb_%
         $wpdb->query("
-            DELETE FROM $wpdb->options 
-            WHERE option_name LIKE '_transient_sb_%' 
+            DELETE FROM $wpdb->options
+            WHERE option_name LIKE '_transient_sb_%'
             OR option_name LIKE '_transient_timeout_sb_%'
         ");
 
         // 2. Object Cache 초기화 (메모리 캐시)
         wp_cache_flush();
+
+        // 3. P1 Performance: 캐시 태그 레지스트리 초기화
+        SB_Helpers::clear_cache_tag_registry();
     }
 }

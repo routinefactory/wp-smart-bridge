@@ -160,6 +160,124 @@ class SB_Admin
             );
         }
 
+        // 설정 페이지 전용 JS (P2 UX 개선: CodeMirror)
+        if ($is_sb_page && isset($_GET['page']) && $_GET['page'] === 'smart-bridge-settings') {
+            // CodeMirror Core
+            wp_enqueue_script(
+                'codemirror',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js',
+                [],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror HTML Mode
+            wp_enqueue_script(
+                'codemirror-html',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/htmlmixed/htmlmixed.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror XML Mode (HTML dependency)
+            wp_enqueue_script(
+                'codemirror-xml',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/xml/xml.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror JavaScript Mode
+            wp_enqueue_script(
+                'codemirror-javascript',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror CSS Mode
+            wp_enqueue_script(
+                'codemirror-css',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/css/css.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror Brackets Match
+            wp_enqueue_script(
+                'codemirror-matchbrackets',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror Close Brackets
+            wp_enqueue_script(
+                'codemirror-closebrackets',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror Auto Close Tags
+            wp_enqueue_script(
+                'codemirror-closetags',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closetags.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror Fold
+            wp_enqueue_script(
+                'codemirror-fold',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldcode.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror Fold Gutter
+            wp_enqueue_script(
+                'codemirror-foldgutter',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/brace-fold.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror Auto Complete
+            wp_enqueue_script(
+                'codemirror-autocomplete',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.js',
+                ['codemirror'],
+                '5.65.13',
+                true
+            );
+
+            // CodeMirror CSS
+            wp_enqueue_style(
+                'codemirror',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css',
+                [],
+                '5.65.13'
+            );
+
+            // CodeMirror Auto Complete CSS
+            wp_enqueue_style(
+                'codemirror-hint',
+                'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.css',
+                ['codemirror'],
+                '5.65.13'
+            );
+        }
+
         // JS 변수 전달
         wp_localize_script('sb-admin', 'sbAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),

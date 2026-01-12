@@ -20,6 +20,7 @@ class SB_Admin_Ajax
         $actions = [
             'sb_generate_api_key' => 'ajax_generate_api_key',
             'sb_delete_api_key' => 'ajax_delete_api_key',
+            'sb_save_general_settings' => 'ajax_save_general_settings',
             'sb_save_settings' => 'ajax_save_settings',
             'sb_dismiss_welcome' => 'ajax_dismiss_welcome',
             'sb_force_check_update' => 'ajax_force_check_update',
@@ -41,6 +42,22 @@ class SB_Admin_Ajax
             'sb_restore_backup_chunk' => 'ajax_restore_backup_chunk', // v3.0.0 Scalability
             // 'sb_flush_rewrite_rules' => 'ajax_flush_rewrite_rules', // v4.0.0: 파라미터 방식으로 불필요
             'sb_generate_static_backup' => 'ajax_generate_static_backup', // v3.4.0 Static HTML backup
+            // Link Management Tab Enhancements (v4.3.0)
+            'sb_bulk_delete_links' => 'ajax_bulk_delete_links',
+            'sb_bulk_update_platform' => 'ajax_bulk_update_platform',
+            'sb_get_filtered_link_count' => 'ajax_get_filtered_link_count',
+            // P3 기능 개선: 업데이트 및 롤백
+            'sb_check_update' => 'ajax_check_update',
+            'sb_download_update' => 'ajax_download_update',
+            'sb_dismiss_update_notice' => 'ajax_dismiss_update_notice',
+            'sb_get_update_status' => 'ajax_get_update_status',
+            'sb_clear_update_logs' => 'ajax_clear_update_logs',
+            'sb_get_rollback_backups' => 'ajax_get_rollback_backups',
+            'sb_perform_rollback' => 'ajax_perform_rollback',
+            'sb_delete_rollback_backup' => 'ajax_delete_rollback_backup',
+            'sb_get_rollback_logs' => 'ajax_get_rollback_logs',
+            'sb_clear_rollback_logs' => 'ajax_clear_rollback_logs',
+            'sb_cleanup_rollback_backups' => 'ajax_cleanup_rollback_backups',
         ];
 
         foreach ($actions as $action => $method) {
@@ -120,6 +137,29 @@ class SB_Admin_Ajax
         } else {
             wp_send_json_error(['message' => 'API 키 삭제에 실패했습니다.']);
         }
+    }
+
+    /**
+     * 일반 설정 저장 AJAX (P2 UX 개선)
+     */
+    public static function ajax_save_general_settings()
+    {
+        self::check_permission();
+
+        $redirect_delay = isset($_POST['redirect_delay']) ? floatval($_POST['redirect_delay']) : 0;
+
+        // 유효성 검사
+        if ($redirect_delay < 0 || $redirect_delay > 10) {
+            wp_send_json_error(['message' => '리다이렉션 딜레이는 0~10초 사이여야 합니다.']);
+            return;
+        }
+
+        $settings = get_option('sb_settings', []);
+        $settings['redirect_delay'] = $redirect_delay;
+
+        update_option('sb_settings', $settings);
+
+        wp_send_json_success(['message' => '설정이 저장되었습니다.']);
     }
 
     /**
@@ -687,7 +727,7 @@ class SB_Admin_Ajax
             wp_send_json_error(['message' => '권한이 없습니다.']);
         }
 
-        $range = isset($_POST['range']) ? sanitize_text_field($_POST['range']) : '30d';
+        $range = isset($_POST['range']) ? sanitize_text_field($_POST['range']) : 'today_7d';
         $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : '';
         // v3.0.7: Normalize 'all' to null/empty so analytics methods don't apply platform filter
         if ($platform === 'all' || $platform === '') {
@@ -695,45 +735,40 @@ class SB_Admin_Ajax
         }
 
         // 날짜 범위 계산
-        if ($range === 'custom') {
-            $start = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : date('Y-m-d', strtotime('-30 days'));
-            $end = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : date('Y-m-d');
-        } else {
-            $dates = SB_Helpers::get_date_range($range);
-            $start = $dates['start'];
-            $end = $dates['end'];
-        }
+        $dates = SB_Helpers::get_date_range($range);
+        $start = $dates['start'];
+        $end = $dates['end'];
 
         $analytics = new SB_Analytics();
 
         // 1. Daily Trend - 사용자가 선택한 기간에 맞게 데이터를 표시
-        // 기간 필터에 따라 그래프 범위가 동적으로 변경되도록 수정
-        // "오늘" 선택 시 오늘만, "어제" 선택 시 어제만 표시
         $daily_trend = $analytics->get_daily_trend(
             substr($start, 0, 10),
             substr($end, 0, 10),
             $platform
         );
 
-        // v3.0.4: Weekly & Monthly Trends - 고정된 범위 유지 (30주, 30개월)
-        // 주간/월간 추세는 사용자 기간과 상관없이 고정된 범위를 표시하되, 플랫폼 필터는 적용
-        $weekly_trend = $analytics->get_weekly_trend(30, $platform);
-        $monthly_trend = $analytics->get_monthly_trend(30, $platform);
+        // 2. Weekly & Monthly Trends - 기간 필터에 따라 동적 범위 조정
+        // 오늘 + 최근 7일: 최근 2주
+        // 최근 30일: 최근 8주
+        // 최근 3개월: 최근 12주
+        // 최근 6개월: 최근 24주
+        // 최근 12개월: 최근 52주
+        $weekly_range = self::get_weekly_range_by_filter($range);
+        $weekly_trend = $analytics->get_weekly_trend($weekly_range, $platform);
+        $monthly_trend = $analytics->get_monthly_trend(30, $platform); // 월간은 30개월 고정
 
-        // 2. Hourly Stats - 선택한 기간의 데이터를 표시
+        // 3. Hourly Stats - 선택한 기간의 데이터를 표시
         $clicks_by_hour = $analytics->get_clicks_by_hour($start, $end, $platform);
 
-        // 3. Platform Share - 선택한 기간의 데이터를 표시
+        // 4. Platform Share - 선택한 기간의 데이터를 표시
         $platform_share = $analytics->get_platform_share($start, $end, $platform);
 
-        // 4. Summary Stats (Total, Today, Growth) - 선택한 기간의 데이터를 표시
-        // Note: For 'today' stats, we might need separate logic if range is not 'today'
-        // But dashboard usually shows "Total Clicks (in range)" or "Total Clicks (All Time)"?
-        // User wants filters to apply to EVERYTHING.
-        // Let's get "Total Clicks in Period" and "Unique Visitors in Period"
-        $period_stats = $analytics->get_period_stats($start, $end, $platform); // Need to check if this method exists or create it
+        // 5. Summary Stats (Total, Today, Growth) - 선택한 기간의 데이터를 표시
+        // 증감률 계산: 선택한 기간 vs 이전 기간
+        $period_stats = self::get_period_stats_with_growth($start, $end, $range, $platform);
 
-        // 5. Top Links (Filtered) - 선택한 기간의 데이터를 표시
+        // 6. Top Links (Filtered) - 선택한 기간의 데이터를 표시
         $top_links = $analytics->get_top_links($start, $end, $platform, 5);
 
         wp_send_json_success([
@@ -749,6 +784,102 @@ class SB_Admin_Ajax
             ],
             'topLinks' => $top_links
         ]);
+    }
+
+    /**
+     * 기간 필터에 따른 주간 차트 범위 계산
+     *
+     * @param string $range 기간 필터 (today_7d, 30d, 90d, 180d, 365d)
+     * @return int 주간 차트 범위 (주)
+     */
+    private static function get_weekly_range_by_filter($range)
+    {
+        switch ($range) {
+            case 'today_7d':
+                return 2; // 최근 2주
+            case '30d':
+                return 8; // 최근 8주
+            case '90d':
+                return 12; // 최근 12주
+            case '180d':
+                return 24; // 최근 24주
+            case '365d':
+                return 52; // 최근 52주
+            default:
+                return 8; // 기본 8주
+        }
+    }
+
+    /**
+     * 기간 통계 및 증감률 계산
+     * 선택한 기간 vs 이전 기간 비교
+     *
+     * @param string $start 시작일
+     * @param string $end 종료일
+     * @param string $range 기간 필터
+     * @param string|null $platform 플랫폼 필터
+     * @return array 통계 데이터
+     */
+    private static function get_period_stats_with_growth($start, $end, $range, $platform = null)
+    {
+        global $wpdb;
+        $analytics = new SB_Analytics();
+
+        // 1. 현재 기간 통계
+        $current_stats = $analytics->get_period_stats($start, $end, $platform);
+        
+        // 2. 이전 기간 계산
+        $previous_dates = self::get_previous_period_range($start, $end, $range);
+        $previous_stats = $analytics->get_period_stats(
+            $previous_dates['start'],
+            $previous_dates['end'],
+            $platform
+        );
+
+        // 3. 증감률 계산
+        $growth_rate = 0;
+        if (isset($previous_stats['total_clicks']) && $previous_stats['total_clicks'] > 0) {
+            $current_clicks = $current_stats['total_clicks'] ?? 0;
+            $previous_clicks = $previous_stats['total_clicks'];
+            $growth_rate = (($current_clicks - $previous_clicks) / $previous_clicks) * 100;
+            $growth_rate = round($growth_rate, 1);
+        }
+
+        return [
+            'total_clicks' => $current_stats['total_clicks'] ?? 0,
+            'unique_visitors' => $current_stats['unique_visitors'] ?? 0,
+            'growth_rate' => $growth_rate,
+        ];
+    }
+
+    /**
+     * 이전 기간 범위 계산
+     *
+     * @param string $start 현재 기간 시작일
+     * @param string $end 현재 기간 종료일
+     * @param string $range 기간 필터
+     * @return array 이전 기간 ['start' => DateTime, 'end' => DateTime]
+     */
+    private static function get_previous_period_range($start, $end, $range)
+    {
+        $current_start = new DateTime($start, wp_timezone());
+        $current_end = new DateTime($end, wp_timezone());
+        
+        // 기간 길이 계산
+        $interval = $current_start->diff($current_end);
+        $days = $interval->days + 1; // 포함된 일수
+        
+        // 이전 기간 시작일/종료일 계산
+        $previous_end = clone $current_start;
+        $previous_end->modify('-1 day')->setTime(23, 59, 59);
+        
+        $previous_start = clone $previous_end;
+        $previous_start->modify('-' . ($days - 1) . ' days')->setTime(0, 0, 0);
+
+        return [
+            'start' => $previous_start->format('Y-m-d H:i:s'),
+            'end' => $previous_end->format('Y-m-d H:i:s'),
+        ];
     }
 
     // ========================================
@@ -956,6 +1087,303 @@ class SB_Admin_Ajax
         } else {
             wp_send_json_error($result);
         }
+    }
+
+    // ========================================
+    // Link Management Tab Enhancements (v4.3.0)
+    // ========================================
+
+    /**
+     * 대량 링크 삭제 AJAX
+     */
+    public static function ajax_bulk_delete_links()
+    {
+        self::check_permission();
+
+        $link_ids = isset($_POST['link_ids']) ? array_map('intval', $_POST['link_ids']) : [];
+
+        if (empty($link_ids)) {
+            wp_send_json_error(['message' => '삭제할 링크를 선택해주세요.']);
+        }
+
+        $deleted_count = 0;
+        $error_count = 0;
+
+        foreach ($link_ids as $link_id) {
+            $result = wp_delete_post($link_id, true); // true: 휴지통으로 이동하지 않고 완전 삭제
+            if ($result) {
+                $deleted_count++;
+            } else {
+                $error_count++;
+            }
+        }
+
+        // 플랫폼 캐시 삭제
+        SB_Helpers::clear_platforms_cache();
+
+        wp_send_json_success([
+            'message' => sprintf('%d개 링크가 삭제되었습니다.', $deleted_count),
+            'deleted_count' => $deleted_count,
+            'error_count' => $error_count
+        ]);
+    }
+
+    /**
+     * 대량 플랫폼 변경 AJAX
+     */
+    public static function ajax_bulk_update_platform()
+    {
+        self::check_permission();
+
+        $link_ids = isset($_POST['link_ids']) ? array_map('intval', $_POST['link_ids']) : [];
+        $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : '';
+
+        if (empty($link_ids)) {
+            wp_send_json_error(['message' => '변경할 링크를 선택해주세요.']);
+        }
+
+        if (empty($platform)) {
+            wp_send_json_error(['message' => '플랫폼을 선택해주세요.']);
+        }
+
+        $updated_count = 0;
+        $error_count = 0;
+
+        foreach ($link_ids as $link_id) {
+            $result = update_post_meta($link_id, 'platform', $platform);
+            if ($result !== false) {
+                $updated_count++;
+            } else {
+                $error_count++;
+            }
+        }
+
+        // 플랫폼 캐시 삭제
+        SB_Helpers::clear_platforms_cache();
+
+        wp_send_json_success([
+            'message' => sprintf('%d개 링크의 플랫폼이 변경되었습니다.', $updated_count),
+            'updated_count' => $updated_count,
+            'error_count' => $error_count
+        ]);
+    }
+
+    /**
+     * 필터링된 링크 수 조회 AJAX
+     */
+    public static function ajax_get_filtered_link_count()
+    {
+        check_ajax_referer('sb_admin_nonce', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => '권한이 없습니다.']);
+        }
+
+        $platform = isset($_POST['platform']) ? sanitize_text_field($_POST['platform']) : '';
+        $clicks_min = isset($_POST['clicks_min']) ? intval($_POST['clicks_min']) : 0;
+        $date_range = isset($_POST['date_range']) ? sanitize_text_field($_POST['date_range']) : '';
+
+        $count = SB_Post_Type::get_filtered_link_count($platform, $clicks_min, $date_range);
+
+        wp_send_json_success([
+            'count' => $count,
+            'message' => sprintf('총 %d개의 링크', $count)
+        ]);
+    }
+
+    // ========================================
+    // P3 기능 개선: 업데이트 및 롤백 AJAX Handlers
+    // ========================================
+
+    /**
+     * 업데이트 확인 AJAX
+     */
+    public static function ajax_check_update()
+    {
+        self::check_permission();
+
+        $update_status = SB_Updater::get_update_status();
+
+        wp_send_json_success($update_status);
+    }
+
+    /**
+     * 업데이트 다운로드 AJAX
+     */
+    public static function ajax_download_update()
+    {
+        self::check_permission();
+
+        $download_url = isset($_POST['download_url']) ? esc_url_raw($_POST['download_url']) : '';
+
+        if (empty($download_url)) {
+            wp_send_json_error(['message' => '다운로드 URL이 없습니다.']);
+        }
+
+        $result = SB_Updater::download_update($download_url);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * 업데이트 알림 숨기기 AJAX
+     */
+    public static function ajax_dismiss_update_notice()
+    {
+        self::check_permission();
+
+        $version = isset($_POST['version']) ? sanitize_text_field($_POST['version']) : '';
+
+        if (empty($version)) {
+            wp_send_json_error(['message' => '버전 정보가 없습니다.']);
+        }
+
+        $result = SB_Updater::dismiss_update_notice($version);
+
+        if ($result) {
+            wp_send_json_success(['message' => '알림이 숨겨졌습니다.']);
+        } else {
+            wp_send_json_error(['message' => '알림 숨기기에 실패했습니다.']);
+        }
+    }
+
+    /**
+     * 업데이트 상태 조회 AJAX
+     */
+    public static function ajax_get_update_status()
+    {
+        self::check_permission();
+
+        $status = SB_Updater::get_update_status();
+
+        wp_send_json_success($status);
+    }
+
+    /**
+     * 업데이트 로그 삭제 AJAX
+     */
+    public static function ajax_clear_update_logs()
+    {
+        self::check_permission();
+
+        $result = SB_Updater::clear_update_logs();
+
+        if ($result) {
+            wp_send_json_success(['message' => '업데이트 로그가 삭제되었습니다.']);
+        } else {
+            wp_send_json_error(['message' => '로그 삭제에 실패했습니다.']);
+        }
+    }
+
+    /**
+     * 롤백 백업 파일 목록 조회 AJAX
+     */
+    public static function ajax_get_rollback_backups()
+    {
+        self::check_permission();
+
+        $backups = SB_Backup::get_rollback_backups();
+
+        wp_send_json_success(['backups' => $backups]);
+    }
+
+    /**
+     * 롤백 실행 AJAX
+     */
+    public static function ajax_perform_rollback()
+    {
+        self::check_permission();
+
+        $backup_file = isset($_POST['backup_file']) ? sanitize_text_field($_POST['backup_file']) : '';
+        $auto_backup = isset($_POST['auto_backup']) ? filter_var($_POST['auto_backup'], FILTER_VALIDATE_BOOLEAN) : true;
+
+        if (empty($backup_file)) {
+            wp_send_json_error(['message' => '백업 파일명이 없습니다.']);
+        }
+
+        // 대량 데이터 처리 시 타임아웃 방지
+        if (function_exists('set_time_limit')) {
+            set_time_limit(0);
+        }
+
+        $result = SB_Backup::perform_rollback($backup_file, $auto_backup);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * 롤백 백업 파일 삭제 AJAX
+     */
+    public static function ajax_delete_rollback_backup()
+    {
+        self::check_permission();
+
+        $filename = isset($_POST['filename']) ? sanitize_text_field($_POST['filename']) : '';
+
+        if (empty($filename)) {
+            wp_send_json_error(['message' => '파일명이 없습니다.']);
+        }
+
+        $result = SB_Backup::delete_rollback_backup($filename);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * 롤백 로그 조회 AJAX
+     */
+    public static function ajax_get_rollback_logs()
+    {
+        self::check_permission();
+
+        $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 20;
+        $logs = SB_Backup::get_rollback_logs($limit);
+
+        wp_send_json_success(['logs' => $logs]);
+    }
+
+    /**
+     * 롤백 로그 삭제 AJAX
+     */
+    public static function ajax_clear_rollback_logs()
+    {
+        self::check_permission();
+
+        $result = SB_Backup::clear_rollback_logs();
+
+        if ($result) {
+            wp_send_json_success(['message' => '롤백 로그가 삭제되었습니다.']);
+        } else {
+            wp_send_json_error(['message' => '로그 삭제에 실패했습니다.']);
+        }
+    }
+
+    /**
+     * 오래된 롤백 백업 파일 정리 AJAX
+     */
+    public static function ajax_cleanup_rollback_backups()
+    {
+        self::check_permission();
+
+        $days_old = isset($_POST['days_old']) ? intval($_POST['days_old']) : 30;
+        $deleted_count = SB_Backup::cleanup_rollback_backups($days_old);
+
+        wp_send_json_success([
+            'message' => sprintf('%d개의 오래된 백업 파일이 삭제되었습니다.', $deleted_count),
+            'deleted_count' => $deleted_count
+        ]);
     }
 }
 
